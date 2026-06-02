@@ -16,7 +16,8 @@ The cross-platform tools for signing Windows binaries from a Mac are fiddly CLIs
 | `src/MacSign.Signing.Pkcs11` | Optional PKCS#11/HSM backend, quarantined so `Pkcs11Interop` stays out of the core. Loaded only by consumers that sign with a token. |
 | `src/MacSign.Signing.Azure` | Optional Azure Trusted Signing backend, quarantined so `Azure.Identity` stays out of the core. A delegating RSA POSTs each digest to the cloud sign endpoint. |
 | `src/MacSign.Signing.Msi` | Optional MSI backend, quarantined so the `OpenMcdf` (CFBF) dependency stays out of the core. |
-| `src/MacSign.Cli` | A thin console harness (`macsign`) — manual signing and the seed of the eventual GUI. |
+| `src/MacSign.Cli` | A thin console harness (`macsign`) — scriptable signing/verifying. |
+| `src/MacSign.App` | The native macOS GUI (.NET 10 + Avalonia) — consumes the engine in-process. Sign / Verify / Profiles / Activity, light + dark. |
 | `src/MacSign.Fixture` | A trivial class library whose compiled DLL is the unsigned PE the tests/CI sign. |
 | `tests/MacSign.Signing.Tests` | xUnit: PE digest, CMS framing, sign→verify round-trip, secret hygiene. |
 
@@ -56,6 +57,19 @@ dotnet run --project src/MacSign.Cli -- verify some.dll
 ```
 
 `verify` reports **signature integrity** (file unmodified + signer signature valid) separately from **chain trust** — on macOS the Microsoft roots aren't in the system store, so chain trust usually can't be established, but integrity can be asserted authoritatively.
+
+## Native macOS app (GUI)
+
+A native macOS GUI (`src/MacSign.App`, .NET 10 + Avalonia) consumes the same engine **in-process** — no shelling out. Four screens: **Sign** (drag-drop files + a credential/options inspector, ⌘S to sign), **Verify** (integrity vs. chain-trust report), **Profiles** (reusable presets — no secrets stored), and **Activity** (run history). Full light + dark, following the macOS appearance.
+
+```bash
+dotnet run --project src/MacSign.App          # run from source
+
+# Build a signed + notarized DMG (Developer ID + a notarytool keychain profile):
+SIGN_IDENTITY="Developer ID Application: NAME (TEAMID)" \
+NOTARY_PROFILE=your-notary-profile ./build-macos.sh
+# (omit the env vars for an unsigned local build)
+```
 
 The password is read from an environment variable (or `--password`), never logged, and never placed on a child-process command line.
 
