@@ -35,7 +35,8 @@ dotnet test
 PFX_PW=secret dotnet run --project src/MacSign.Cli -- \
   gen-test-cert --pfx test.pfx --cer test.cer --password-env PFX_PW
 
-# Sign a PE in place (optionally RFC3161-timestamped):
+# Sign a PE in place (optionally RFC3161-timestamped; --timestamp-url accepts a
+# comma-separated list of TSAs tried in order, so one outage won't fail the sign):
 PFX_PW=secret dotnet run --project src/MacSign.Cli -- \
   sign --pfx test.pfx --password-env PFX_PW --description "My App" \
   --timestamp-url http://timestamp.digicert.com some.dll
@@ -54,9 +55,12 @@ dotnet run --project src/MacSign.Cli -- \
 
 # Verify a signature (reports signer, timestamp, integrity, and chain trust):
 dotnet run --project src/MacSign.Cli -- verify some.dll
+
+# Remove an existing signature, in place (PE / PowerShell / MSI):
+dotnet run --project src/MacSign.Cli -- remove some.dll
 ```
 
-`verify` reports **signature integrity** (file unmodified + signer signature valid) separately from **chain trust** — on macOS the Microsoft roots aren't in the system store, so chain trust usually can't be established, but integrity can be asserted authoritatively.
+`verify` reports **signature integrity** (file unmodified + signer signature valid) separately from **chain trust** — on macOS the Microsoft roots aren't in the system store, so chain trust usually can't be established, but integrity can be asserted authoritatively. It lists **every signer** on a co-signed binary and flags a **nested signature**, and only surfaces an RFC3161 **timestamp it has cryptographically validated** (a forged or grafted token is not shown as the signing time).
 
 ## Native macOS app (GUI)
 
@@ -73,7 +77,7 @@ NOTARY_PROFILE=your-notary-profile ./build-macos.sh
 
 **Releases are tag-driven:** push a `v*` tag and CI builds, signs, notarizes, and publishes the `arm64` + `x64` DMGs to a GitHub Release (`.github/workflows/release.yml`). Setup + required secrets: [`docs/RELEASE-SIGNING.md`](docs/RELEASE-SIGNING.md).
 
-The password is read from an environment variable (or `--password`), never logged, and never placed on a child-process command line.
+Prefer supplying the password (or PIN, or Azure token) via an environment variable — `--password-env` / `--trusted-signing-token-env`. The plaintext `--password` / `--trusted-signing-token` flags still work, but MacSign warns about them: an argv secret lands in your shell history and the process list (`ps`). Secrets are never persisted, logged, or placed on a child-process command line.
 
 ## Verifying the signature
 
