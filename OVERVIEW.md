@@ -1,8 +1,18 @@
 # MacSign — concept overview
 
-> **Status:** concept / not started. Working name **MacSign** (folder: `macsign`).
-> Spun out of the payload-signing feature shipped in **WrapTune-MacOS v1.1.0**.
-> This is a high-level seed doc to resume from in a later session — not a plan or spec yet.
+> **Status: SHIPPED — this is the original pre-implementation concept, kept for history.**
+> The project **pivoted away from the idea below.** This doc imagined a GUI that shells out
+> to the `osslsigncode` and `jsign` CLIs; what actually shipped is a **fully-managed native
+> .NET 10 Authenticode engine** with **no `osslsigncode`/`jsign`/OpenSSL/JVM at runtime**.
+> All three credential backends (**PFX, PKCS#11/HSM, Azure Trusted Signing**) across all
+> three formats (**PE, PowerShell, MSI**), plus RFC3161 timestamping and verify, are built —
+> the PFX/PKCS#11/MSI/PS1 paths are signtool-proven in CI and the Azure path is live-verified
+> end-to-end (re-runnable via `scripts/verify-azure.sh`).
+>
+> **For the as-built reality, see [`README.md`](README.md)** and the design doc in the
+> Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`). Everything below
+> is the original seed doc (spun out of **WrapTune-MacOS v1.1.0**) and is left unedited as a
+> record of the starting point — its "two CLI backends" architecture is **not** what was built.
 
 ## One-line pitch
 
