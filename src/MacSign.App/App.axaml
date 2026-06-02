@@ -1,0 +1,11 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MacSign.App.App"
+             RequestedThemeVariant="Default">
+
+    <!-- Default follows the macOS appearance (light/dark). -->
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+
+</Application>

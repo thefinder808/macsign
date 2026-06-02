@@ -1,0 +1,13 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MacSign.App.Views.MainWindow"
+        Title="MacSign"
+        Width="1120" Height="740"
+        MinWidth="1000" MinHeight="680">
+
+    <!-- Phase 1: empty shell. The sidebar + toolbar + views land in later phases. -->
+    <TextBlock Text="MacSign"
+               FontSize="28" FontWeight="SemiBold"
+               HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+</Window>
