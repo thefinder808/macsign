@@ -43,8 +43,11 @@ internal readonly struct PeLayout
             throw new InvalidDataException("Truncated optional header.");
 
         ushort magic = BinaryPrimitives.ReadUInt16LittleEndian(file.Slice(optHeaderStart, 2));
-        // PE32 = 0x10B, PE32+ = 0x20B. CheckSum is at +64 for both; the data
-        // directory array begins at +96 (PE32) or +112 (PE32+).
+        if (magic != 0x10B && magic != 0x20B)
+            throw new InvalidDataException("Unsupported PE optional-header magic (not PE32 or PE32+).");
+
+        // PE32 = 0x10B, PE32+ = 0x20B. CheckSum is at +64 for both; the data-directory
+        // array begins at +96 (PE32) or +112 (PE32+), with NumberOfRvaAndSizes just before it.
         int dataDirStart = magic == 0x20B ? optHeaderStart + 112 : optHeaderStart + 96;
 
         int checksumOffset = optHeaderStart + 64;
@@ -53,8 +56,32 @@ internal readonly struct PeLayout
         if (certDirEntryOffset + 8 > file.Length)
             throw new InvalidDataException("Optional header has no Certificate Table data directory.");
 
-        int certTableOffset = (int)BinaryPrimitives.ReadUInt32LittleEndian(file.Slice(certDirEntryOffset, 4));
-        int certTableSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(file.Slice(certDirEntryOffset + 4, 4));
+        // NumberOfRvaAndSizes declares how many data directories actually exist; the
+        // Security directory (index 4) is present only when the file declares more than 4.
+        // Without this check, a PE with fewer directories has section-table bytes read as a
+        // bogus cert table.
+        uint numberOfRvaAndSizes = BinaryPrimitives.ReadUInt32LittleEndian(file.Slice(dataDirStart - 4, 4));
+
+        int certTableOffset = 0, certTableSize = 0;
+        if (numberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_SECURITY)
+        {
+            int rawOffset = (int)BinaryPrimitives.ReadUInt32LittleEndian(file.Slice(certDirEntryOffset, 4));
+            int rawSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(file.Slice(certDirEntryOffset + 4, 4));
+
+            // Recognise an attribute certificate table only when it is the well-formed
+            // trailing region Authenticode mandates: 8-aligned, at/after the directory entry,
+            // at least a WIN_CERTIFICATE header, and ending exactly at EOF. Anything else (a
+            // bogus directory, or an overlapping/non-tail offset) is treated as unsigned, so
+            // it can neither crash the digest slice nor be re-signed into a corrupt artifact.
+            if (rawOffset >= certDirEntryOffset + 8
+                && rawOffset % 8 == 0
+                && rawSize >= 8
+                && (long)rawOffset + rawSize == file.Length)
+            {
+                certTableOffset = rawOffset;
+                certTableSize = rawSize;
+            }
+        }
 
         return new PeLayout
         {
