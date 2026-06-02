@@ -24,8 +24,9 @@ public sealed record SigningOptions
     public bool SignAllSignableFiles { get; init; }
 
     /// <summary>
-    /// RFC3161 timestamp server URL. Accepted but IGNORED in Phase 1 — timestamping
-    /// lands in Phase 2.
+    /// RFC3161 timestamp server URL (e.g. <c>http://timestamp.digicert.com</c>).
+    /// When set, the signature is timestamped so it stays valid after the
+    /// certificate expires. Empty/null skips timestamping.
     /// </summary>
     public string? TimestampUrl { get; init; }
 

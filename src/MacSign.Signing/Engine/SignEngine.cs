@@ -10,12 +10,13 @@ namespace MacSign.Signing.Engine;
 /// </summary>
 internal static class SignEngine
 {
-    public static byte[] SignFileBytes(
-        ISignatureFormat format, ICredentialSigner credential, SigningOptions options, byte[] fileBytes)
+    public static async Task<byte[]> SignFileBytesAsync(
+        ISignatureFormat format, ICredentialSigner credential, SigningOptions options,
+        byte[] fileBytes, CancellationToken ct)
     {
         byte[] digest = format.ComputeDigest(fileBytes);
         byte[] spc = format.BuildSpcIndirectData(digest);
-        byte[] pkcs7 = new AuthenticodeCmsBuilder().Build(spc, credential, options);
+        byte[] pkcs7 = await new AuthenticodeCmsBuilder().BuildAsync(spc, credential, options, ct);
         return format.Embed(fileBytes, pkcs7);
     }
 }

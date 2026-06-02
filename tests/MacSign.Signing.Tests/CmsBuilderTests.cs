@@ -7,7 +7,7 @@ namespace MacSign.Signing.Tests;
 public class CmsBuilderTests
 {
     [Fact]
-    public void Produces_authenticode_framed_signature()
+    public async Task Produces_authenticode_framed_signature()
     {
         using var tmp = new TempDir();
         var pfx = TestCerts.CreatePfx(tmp.Path);
@@ -16,8 +16,8 @@ public class CmsBuilderTests
         var fileDigest = new byte[32]; // dummy digest is fine for CMS structure checks
         var spc = SpcEncoder.BuildPeIndirectData(fileDigest);
 
-        var pkcs7 = new AuthenticodeCmsBuilder()
-            .Build(spc, cred, new SigningOptions { Description = "MacSign", Url = "https://example.com" });
+        var pkcs7 = await new AuthenticodeCmsBuilder()
+            .BuildAsync(spc, cred, new SigningOptions { Description = "MacSign", Url = "https://example.com" }, CancellationToken.None);
 
         var cms = new SignedCms();
         cms.Decode(pkcs7);

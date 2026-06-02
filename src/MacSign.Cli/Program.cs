@@ -52,6 +52,7 @@ namespace MacSign.Cli
                 Secret = password,
                 Description = f.Get("description"),
                 Url = f.Get("url"),
+                TimestampUrl = f.Get("timestamp-url"),
                 SignAllSignableFiles = all,
             };
 
@@ -110,7 +111,8 @@ namespace MacSign.Cli
                 macsign — native Authenticode signing (Phase 1: PE + PFX)
 
                   macsign sign --pfx <file> [--password <pw> | --password-env <VAR>]
-                               [--description <text>] [--url <url>] [--all] <file-or-folder>
+                               [--description <text>] [--url <url>] [--timestamp-url <url>]
+                               [--all] <file-or-folder>
 
                   macsign gen-test-cert --pfx <out.pfx> --cer <out.cer>
                                [--password <pw> | --password-env <VAR>] [--subject <CN>]

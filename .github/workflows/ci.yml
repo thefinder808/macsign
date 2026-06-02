@@ -25,21 +25,27 @@ jobs:
       - name: Test
         run: dotnet test -c Release --no-build
 
-      - name: Sign a fixture PE (on macOS — proves the cross-platform claim)
+      - name: Sign fixture PEs (on macOS — proves the cross-platform claim)
         env:
           PFX_PW: macsign-ci-throwaway
         run: |
-          cp src/MacSign.Fixture/bin/Release/net10.0/MacSign.Fixture.dll "$RUNNER_TEMP/signed.dll"
+          FIXTURE=src/MacSign.Fixture/bin/Release/net10.0/MacSign.Fixture.dll
+          cp "$FIXTURE" "$RUNNER_TEMP/signed.dll"
+          cp "$FIXTURE" "$RUNNER_TEMP/signed-ts.dll"
           dotnet run --project src/MacSign.Cli -c Release --no-build -- \
             gen-test-cert --pfx "$RUNNER_TEMP/test.pfx" --cer "$RUNNER_TEMP/test.cer" --password-env PFX_PW
           dotnet run --project src/MacSign.Cli -c Release --no-build -- \
             sign --pfx "$RUNNER_TEMP/test.pfx" --password-env PFX_PW --description "MacSign CI" "$RUNNER_TEMP/signed.dll"
+          dotnet run --project src/MacSign.Cli -c Release --no-build -- \
+            sign --pfx "$RUNNER_TEMP/test.pfx" --password-env PFX_PW --description "MacSign CI (timestamped)" \
+            --timestamp-url http://timestamp.digicert.com "$RUNNER_TEMP/signed-ts.dll"
 
       - uses: actions/upload-artifact@v4
         with:
           name: signed
           path: |
             ${{ runner.temp }}/signed.dll
+            ${{ runner.temp }}/signed-ts.dll
             ${{ runner.temp }}/test.cer
 
   # THE bar: a real Windows authority must accept the macOS-produced signature.
@@ -63,6 +69,15 @@ jobs:
                  Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1).FullName
           if (-not $st) { throw "signtool.exe not found on the runner." }
           Write-Host "Using $st"
+
+          # Phase 1 gate: the plain signature must verify.
           & $st verify /pa /v signed\signed.dll
           if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the macOS-produced PE (exit $LASTEXITCODE)." }
-          Write-Host "signtool ACCEPTED the macOS-produced signature."
+          Write-Host "signtool ACCEPTED the plain signature."
+
+          # Phase 2 gate: the timestamped signature must verify AND report a timestamp.
+          $out = & $st verify /pa /v signed\signed-ts.dll 2>&1 | Out-String
+          Write-Host $out
+          if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the timestamped PE (exit $LASTEXITCODE)." }
+          if ($out -notmatch '(?i)timestamp') { throw "signtool reported no timestamp on signed-ts.dll." }
+          Write-Host "signtool ACCEPTED the timestamped signature."
