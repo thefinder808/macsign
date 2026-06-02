@@ -1,0 +1,24 @@
+# .NET build output
+bin/
+obj/
+*.user
+
+# Test results
+[Tt]est[Rr]esults/
+*.trx
+coverage*.xml
+coverage*.json
+
+# macOS
+.DS_Store
+
+# Local secrets / scratch (never commit signing material)
+*.pfx
+*.p12
+!tests/**/fixtures/*.pfx
+secrets/
+scratch/
+
+# Tooling / agent state
+.remember/
+.claude/
