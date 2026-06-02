@@ -12,6 +12,7 @@
     <!-- The harness opts into the backends; this keeps their deps out of the core engine. -->
     <ProjectReference Include="..\MacSign.Signing.Pkcs11\MacSign.Signing.Pkcs11.csproj" />
     <ProjectReference Include="..\MacSign.Signing.Msi\MacSign.Signing.Msi.csproj" />
+    <ProjectReference Include="..\MacSign.Signing.Azure\MacSign.Signing.Azure.csproj" />
   </ItemGroup>
 
 </Project>

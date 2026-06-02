@@ -2,7 +2,7 @@
 
 Native macOS Authenticode signing for Windows artifacts — **no Windows machine, no `osslsigncode`, no `jsign`, no OpenSSL/JVM.** A fully managed .NET 10 engine.
 
-> **Status: Phase 6.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies), **PowerShell scripts** (`.ps1`), and **MSI installers** (`.msi`), using a **local PFX certificate** or a **PKCS#11 token / HSM** (key never leaves the device), with optional **RFC3161 timestamping** — and **verifies** signatures (integrity + chain report). Azure Trusted Signing is the remaining backend. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
+> **Status: all backends shipped.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies), **PowerShell scripts** (`.ps1`), and **MSI installers** (`.msi`), using a **local PFX certificate**, a **PKCS#11 token / HSM**, or **Azure Trusted Signing** (a.k.a. Azure Artifact Signing) — for the token and cloud paths the key never leaves the device/cloud — with optional **RFC3161 timestamping**, and **verifies** signatures (integrity + chain report). The Azure path is proven offline by a contract test (delegated path == the signtool-proven in-proc path); the live end-to-end signtool lane is gated on Azure creds. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
 
 ## Why
 
@@ -14,6 +14,7 @@ The cross-platform tools for signing Windows binaries from a Mac are fiddly CLIs
 |---|---|
 | `src/MacSign.Signing` | The engine. No third-party deps; one Microsoft platform package (`System.Security.Cryptography.Pkcs`) for the CMS APIs. |
 | `src/MacSign.Signing.Pkcs11` | Optional PKCS#11/HSM backend, quarantined so `Pkcs11Interop` stays out of the core. Loaded only by consumers that sign with a token. |
+| `src/MacSign.Signing.Azure` | Optional Azure Trusted Signing backend, quarantined so `Azure.Identity` stays out of the core. A delegating RSA POSTs each digest to the cloud sign endpoint. |
 | `src/MacSign.Signing.Msi` | Optional MSI backend, quarantined so the `OpenMcdf` (CFBF) dependency stays out of the core. |
 | `src/MacSign.Cli` | A thin console harness (`macsign`) — manual signing and the seed of the eventual GUI. |
 | `src/MacSign.Fixture` | A trivial class library whose compiled DLL is the unsigned PE the tests/CI sign. |
@@ -41,6 +42,14 @@ PFX_PW=secret dotnet run --project src/MacSign.Cli -- \
 # Sign with a PKCS#11 token / HSM instead (key never leaves the device):
 PIN=1234 dotnet run --project src/MacSign.Cli -- \
   sign --pkcs11-module /path/to/pkcs11.so --password-env PIN some.dll
+
+# Sign with Azure Trusted Signing (key never leaves Azure). With no token flag the
+# token is acquired via Azure.Identity (az login, env service principal, or managed
+# identity); or pass one explicitly with --trusted-signing-token[-env]:
+dotnet run --project src/MacSign.Cli -- \
+  sign --trusted-signing-endpoint eus.codesigning.azure.net \
+       --trusted-signing-account my-account \
+       --trusted-signing-profile my-profile some.dll
 
 # Verify a signature (reports signer, timestamp, integrity, and chain trust):
 dotnet run --project src/MacSign.Cli -- verify some.dll

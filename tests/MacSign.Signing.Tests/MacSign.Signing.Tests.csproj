@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\MacSign.Signing\MacSign.Signing.csproj" />
     <ProjectReference Include="..\..\src\MacSign.Signing.Pkcs11\MacSign.Signing.Pkcs11.csproj" />
     <ProjectReference Include="..\..\src\MacSign.Signing.Msi\MacSign.Signing.Msi.csproj" />
+    <ProjectReference Include="..\..\src\MacSign.Signing.Azure\MacSign.Signing.Azure.csproj" />
     <!-- Referenced so its compiled DLL (a real unsigned managed PE) is available to sign. -->
     <ProjectReference Include="..\..\src\MacSign.Fixture\MacSign.Fixture.csproj" />
   </ItemGroup>

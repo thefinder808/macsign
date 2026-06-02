@@ -20,6 +20,22 @@ public sealed record SigningOptions
     /// <summary>Optional certificate thumbprint to disambiguate when the token holds several.</summary>
     public string? Pkcs11CertThumbprint { get; init; }
 
+    // ── Azure Trusted Signing mode (requires the MacSign.Signing.Azure backend) ──
+    /// <summary>Account endpoint, e.g. <c>https://eus.codesigning.azure.net</c> (scheme optional).</summary>
+    public string? TrustedSigningEndpoint { get; init; }
+
+    /// <summary>The Trusted Signing (code signing) account name.</summary>
+    public string? TrustedSigningAccount { get; init; }
+
+    /// <summary>The certificate profile name to sign with.</summary>
+    public string? TrustedSigningProfile { get; init; }
+
+    /// <summary>
+    /// Optional pre-fetched access token (scope <c>https://codesigning.azure.net</c>).
+    /// When null, Azure.Identity's <c>DefaultAzureCredential</c> acquires one. Transient.
+    /// </summary>
+    public string? TrustedSigningAccessToken { get; init; }
+
     // ── Shared ─────────────────────────────────────────────────────────────────
     /// <summary>Signature description (SpcSpOpusInfo program name). Optional.</summary>
     public string? Description { get; init; }

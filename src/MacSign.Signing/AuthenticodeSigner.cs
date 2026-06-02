@@ -41,6 +41,21 @@ public sealed class AuthenticodeSigner
                 }
                 break;
 
+            case CertMode.TrustedSigning:
+                if (CredentialBackends.TrustedSigningFactory is null)
+                {
+                    error = "Azure Trusted Signing support isn't loaded — reference MacSign.Signing.Azure and call AzureBackend.Register().";
+                    return null;
+                }
+                if (string.IsNullOrWhiteSpace(options.TrustedSigningEndpoint) ||
+                    string.IsNullOrWhiteSpace(options.TrustedSigningAccount) ||
+                    string.IsNullOrWhiteSpace(options.TrustedSigningProfile))
+                {
+                    error = "Azure Trusted Signing needs --trusted-signing-endpoint, --trusted-signing-account, and --trusted-signing-profile.";
+                    return null;
+                }
+                break;
+
             default:
                 error = $"MacSign doesn't implement {options.CertMode} signing yet.";
                 return null;
@@ -70,9 +85,12 @@ public sealed class AuthenticodeSigner
         ICredentialSigner credential;
         try
         {
-            credential = options.CertMode == CertMode.Pkcs11
-                ? CredentialBackends.Pkcs11Factory!(options)
-                : new PfxCredentialSigner(options.PfxPath!, options.Secret);
+            credential = options.CertMode switch
+            {
+                CertMode.Pkcs11 => CredentialBackends.Pkcs11Factory!(options),
+                CertMode.TrustedSigning => CredentialBackends.TrustedSigningFactory!(options),
+                _ => new PfxCredentialSigner(options.PfxPath!, options.Secret),
+            };
         }
         catch (Exception ex)
         {

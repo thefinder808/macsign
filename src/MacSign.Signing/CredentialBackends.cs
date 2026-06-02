@@ -12,4 +12,7 @@ public static class CredentialBackends
 {
     /// <summary>Set by <c>MacSign.Signing.Pkcs11</c> to enable PKCS#11 signing.</summary>
     internal static Func<SigningOptions, ICredentialSigner>? Pkcs11Factory { get; set; }
+
+    /// <summary>Set by <c>MacSign.Signing.Azure</c> to enable Azure Trusted Signing.</summary>
+    internal static Func<SigningOptions, ICredentialSigner>? TrustedSigningFactory { get; set; }
 }

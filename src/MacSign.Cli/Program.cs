@@ -17,9 +17,10 @@ namespace MacSign.Cli
     {
         public static async Task<int> Run(string[] args)
         {
-            // Enable the optional backends in the core engine (the core references neither).
+            // Enable the optional backends in the core engine (the core references none of them).
             MacSign.Signing.Pkcs11.Pkcs11Backend.Register();
             MacSign.Signing.Msi.MsiBackend.Register();
+            MacSign.Signing.Azure.AzureBackend.Register();
 
             if (args.Length == 0)
             {
@@ -50,13 +51,22 @@ namespace MacSign.Cli
             var password = ResolvePassword(f);
             bool all = f.Has("all");
             var modulePath = f.Get("pkcs11-module");
+            var tsEndpoint = f.Get("trusted-signing-endpoint");
+
+            var mode = tsEndpoint is not null ? CertMode.TrustedSigning
+                : modulePath is not null ? CertMode.Pkcs11
+                : CertMode.Pfx;
 
             var options = new SigningOptions
             {
-                CertMode = modulePath is null ? CertMode.Pfx : CertMode.Pkcs11,
+                CertMode = mode,
                 PfxPath = f.Get("pfx"),
                 Pkcs11ModulePath = modulePath,
                 Pkcs11CertThumbprint = f.Get("pkcs11-thumbprint"),
+                TrustedSigningEndpoint = tsEndpoint,
+                TrustedSigningAccount = f.Get("trusted-signing-account"),
+                TrustedSigningProfile = f.Get("trusted-signing-profile"),
+                TrustedSigningAccessToken = ResolveTrustedSigningToken(f),
                 Secret = password,
                 Description = f.Get("description"),
                 Url = f.Get("url"),
@@ -132,10 +142,19 @@ namespace MacSign.Cli
             return null;
         }
 
+        private static string? ResolveTrustedSigningToken(Flags f)
+        {
+            if (f.Get("trusted-signing-token") is { } direct) return direct;
+            if (f.Get("trusted-signing-token-env") is { } envVar)
+                return Environment.GetEnvironmentVariable(envVar)
+                    ?? throw new ArgumentException($"Environment variable '{envVar}' is not set.");
+            return null; // fall back to Azure.Identity (az login / env service principal / managed identity)
+        }
+
         private static int Usage()
         {
             Console.WriteLine("""
-                macsign — native Authenticode signing (Phase 1: PE + PFX)
+                macsign — native Authenticode signing (PE / PowerShell / MSI)
 
                   macsign sign --pfx <file> [--password <pw> | --password-env <VAR>]
                                [--description <text>] [--url <url>] [--timestamp-url <url>]
@@ -143,6 +162,12 @@ namespace MacSign.Cli
 
                   macsign sign --pkcs11-module <lib> [--password-env <VAR>]
                                [--pkcs11-thumbprint <hex>] [--timestamp-url <url>] <file>
+
+                  macsign sign --trusted-signing-endpoint <host> --trusted-signing-account <acct>
+                               --trusted-signing-profile <profile>
+                               [--trusted-signing-token <jwt> | --trusted-signing-token-env <VAR>]
+                               [--timestamp-url <url>] <file>
+                               (no token flag → Azure.Identity: az login / env service principal / managed identity)
 
                   macsign verify <file>
 

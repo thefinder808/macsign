@@ -16,6 +16,7 @@
     <!-- Backends implement internal interfaces + registration hooks. -->
     <InternalsVisibleTo Include="MacSign.Signing.Pkcs11" />
     <InternalsVisibleTo Include="MacSign.Signing.Msi" />
+    <InternalsVisibleTo Include="MacSign.Signing.Azure" />
   </ItemGroup>
 
   <ItemGroup>
