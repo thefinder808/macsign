@@ -91,11 +91,11 @@ public class AzureTrustedSigningTests
     public async Task Delegated_path_is_byte_identical_to_the_in_proc_path()
     {
         using var key = RSA.Create(2048);
-        using var certWithKey = SelfSignedCodeSigningCert(key, out var certPem);
+        using var certWithKey = SelfSignedCodeSigningCert(key, out var signingCert);
 
         // Fake Trusted Signing endpoint: sign the posted digest with the local key and
         // return the public cert as the chain. POST resolves synchronously (Succeeded).
-        var handler = LocalKeyEndpoint(key, certPem);
+        var handler = LocalKeyEndpoint(key, signingCert);
 
         var options = new SigningOptions
         {
@@ -138,8 +138,8 @@ public class AzureTrustedSigningTests
     public async Task Signs_a_PE_end_to_end_through_the_trusted_signing_certmode()
     {
         using var key = RSA.Create(2048);
-        using var certWithKey = SelfSignedCodeSigningCert(key, out var certPem);
-        var handler = LocalKeyEndpoint(key, certPem);
+        using var certWithKey = SelfSignedCodeSigningCert(key, out var signingCert);
+        var handler = LocalKeyEndpoint(key, signingCert);
 
         // Register a factory that builds the real AzureTrustedSigner over the fake endpoint.
         CredentialBackends.TrustedSigningFactory = opts =>
@@ -183,7 +183,7 @@ public class AzureTrustedSigningTests
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    private static X509Certificate2 SelfSignedCodeSigningCert(RSA key, out string certPem)
+    private static X509Certificate2 SelfSignedCodeSigningCert(RSA key, out string signingCertificate)
     {
         var req = new CertificateRequest("CN=MacSign Azure Test", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         req.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
@@ -192,12 +192,15 @@ public class AzureTrustedSigningTests
 
         var now = DateTimeOffset.UtcNow;
         var cert = req.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(2));
-        certPem = cert.ExportCertificatePem();
+
+        // Mirror the live Trusted Signing wire format: base64( base64( DER PKCS#7 chain ) ).
+        var pkcs7 = new X509Certificate2Collection(cert).Export(X509ContentType.Pkcs7)!;
+        signingCertificate = Convert.ToBase64String(Encoding.ASCII.GetBytes(Convert.ToBase64String(pkcs7)));
         return cert;
     }
 
     /// <summary>A fake sign endpoint that signs the posted digest with a local key.</summary>
-    private static StubHandler LocalKeyEndpoint(RSA key, string certPem) => new(async req =>
+    private static StubHandler LocalKeyEndpoint(RSA key, string signingCertificate) => new(async req =>
     {
         var body = await req.Content!.ReadAsStringAsync();
         var digest = Convert.FromBase64String(JsonDocument.Parse(body).RootElement.GetProperty("digest").GetString()!);
@@ -206,7 +209,7 @@ public class AzureTrustedSigningTests
         {
             status = "Succeeded",
             signature = Convert.ToBase64String(sig),
-            signingCertificate = certPem,
+            signingCertificate,
         });
     });
 

@@ -36,10 +36,16 @@ internal sealed class AzureTrustedSigner : ICredentialSigner
         if (certs.Count == 0)
             throw new InvalidOperationException("Trusted Signing returned an empty certificate chain.");
 
-        _certificate = certs[0]; // leaf is returned first
+        // The leaf is the end-entity: the cert that is not the issuer of any other in the
+        // chain (don't assume PKCS#7 ordering).
+        _certificate = certs.FirstOrDefault(c => !certs.Any(other =>
+            !ReferenceEquals(other, c) && other.IssuerName.RawData.AsSpan().SequenceEqual(c.SubjectName.RawData)))
+            ?? certs[0];
+
         // Embed intermediates only — exclude the leaf and the self-signed root.
-        foreach (var cert in certs.Skip(1))
+        foreach (var cert in certs)
         {
+            if (ReferenceEquals(cert, _certificate)) continue;
             bool isRoot = cert.SubjectName.RawData.AsSpan().SequenceEqual(cert.IssuerName.RawData);
             if (!isRoot) _chain.Add(cert);
         }
