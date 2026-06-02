@@ -43,6 +43,18 @@ public static class FileDialogs
         return files.Count > 0 ? files[0].Path.LocalPath : null;
     }
 
+    public static async Task<string?> PickFolderAsync()
+    {
+        var top = MainTopLevel();
+        if (top is null) return null;
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Add a folder to sign",
+            AllowMultiple = false,
+        });
+        return folders.Count > 0 ? folders[0].Path.LocalPath : null;
+    }
+
     private static TopLevel? MainTopLevel() =>
         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 }

@@ -75,11 +75,31 @@ internal sealed partial class Ps1Format : ISignatureFormat
         }
     }
 
+    public bool TryRemoveSignature(byte[] fileBytes, out byte[] unsignedBytes)
+    {
+        var script = Decode(fileBytes);
+        string stripped = StripSignatureBlock(script.Text);
+        if (stripped.Length == script.Text.Length)
+        {
+            unsignedBytes = fileBytes; // no signature block present
+            return false;
+        }
+
+        byte[] bom = script.HasBom ? LeadingBom(fileBytes) : [];
+        unsignedBytes = [.. bom, .. script.Encoding.GetBytes(stripped)];
+        return true;
+    }
+
     private static string StripSignatureBlock(string text)
     {
         var match = Regex.Match(text, @"\r?\n" + Regex.Escape(Begin));
         return match.Success ? text[..match.Index] : text;
     }
+
+    private static byte[] LeadingBom(byte[] b) =>
+        b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF ? b[..3]
+        : b.Length >= 2 && ((b[0] == 0xFF && b[1] == 0xFE) || (b[0] == 0xFE && b[1] == 0xFF)) ? b[..2]
+        : [];
 
     private readonly record struct Script(string Text, bool HasBom, Encoding Encoding);
 

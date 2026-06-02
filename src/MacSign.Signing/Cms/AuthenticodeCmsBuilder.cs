@@ -52,19 +52,45 @@ internal sealed class AuthenticodeCmsBuilder : ICmsBuilder
         return cms.Encode();
     }
 
-    private static async Task AddTimestampAsync(SignedCms cms, string timestampUrl, CancellationToken ct)
+    private static async Task AddTimestampAsync(SignedCms cms, string timestampUrls, CancellationToken ct)
     {
-        if (!Uri.TryCreate(timestampUrl, UriKind.Absolute, out var uri))
-            throw new ArgumentException($"Invalid timestamp URL: '{timestampUrl}'.");
+        // Accept a comma-separated list and try each in order, so a single TSA outage
+        // doesn't fail the sign. The first server that issues a valid token wins.
+        var urls = timestampUrls.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (urls.Length == 0)
+            throw new ArgumentException("No timestamp URL was provided.");
 
         var signerInfo = cms.SignerInfos[0];
+        // A fresh nonce lets ProcessResponse detect a replayed/substituted token on the
+        // (usually plaintext-HTTP) TSA channel.
         var request = Rfc3161TimestampRequest.CreateFromSignerInfo(
-            signerInfo, HashAlgorithmName.SHA256, requestSignerCertificates: true);
+            signerInfo, HashAlgorithmName.SHA256,
+            nonce: RandomNumberGenerator.GetBytes(16),
+            requestSignerCertificates: true);
 
-        var token = await new TimestampClient().RequestAsync(request, uri, ct);
+        var errors = new List<string>();
+        foreach (var url in urls)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                errors.Add($"{url}: not a valid absolute URL");
+                continue;
+            }
+            try
+            {
+                var token = await new TimestampClient().RequestAsync(request, uri, ct);
+                // szOID_RFC3161_counterSign, value = the timestamp token's full SignedData.
+                signerInfo.AddUnsignedAttribute(new AsnEncodedData(
+                    new Oid(AuthenticodeOids.Rfc3161Timestamp), token.AsSignedCms().Encode()));
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                errors.Add($"{uri}: {ex.Message}");
+            }
+        }
 
-        // szOID_RFC3161_counterSign, value = the timestamp token's full SignedData.
-        signerInfo.AddUnsignedAttribute(new AsnEncodedData(
-            new Oid(AuthenticodeOids.Rfc3161Timestamp), token.AsSignedCms().Encode()));
+        throw new InvalidOperationException(
+            "Every timestamp server failed:\n  " + string.Join("\n  ", errors));
     }
 }

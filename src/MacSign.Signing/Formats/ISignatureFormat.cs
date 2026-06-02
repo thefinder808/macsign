@@ -21,4 +21,10 @@ internal interface ISignatureFormat
 
     /// <summary>Extract an existing embedded PKCS#7, if present.</summary>
     bool TryExtractSignature(byte[] fileBytes, out byte[] pkcs7Der);
+
+    /// <summary>
+    /// Strip an existing signature. Returns true with the unsigned bytes if one was present,
+    /// or false (and the original bytes) if the file wasn't signed.
+    /// </summary>
+    bool TryRemoveSignature(byte[] fileBytes, out byte[] unsignedBytes);
 }

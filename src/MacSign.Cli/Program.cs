@@ -34,6 +34,7 @@ namespace MacSign.Cli
                 {
                     "sign" => await Sign(new Flags(args[1..])),
                     "verify" => Verify(new Flags(args[1..])),
+                    "remove" => Remove(new Flags(args[1..])),
                     "gen-test-cert" => GenTestCert(new Flags(args[1..])),
                     "-h" or "--help" or "help" => Usage(),
                     var other => Fail($"Unknown command '{other}'."),
@@ -101,11 +102,29 @@ namespace MacSign.Cli
             Console.WriteLine($"Integrity:   {(r.SignatureValid ? "VALID — unmodified, signature verifies" : "INVALID")}");
             Console.WriteLine($"Signer:      {r.SignerSubject}");
             Console.WriteLine($"Issuer:      {r.SignerIssuer}");
+            if (r.Signers.Count > 1)
+            {
+                Console.WriteLine($"Signers:     {r.Signers.Count} (co-signed)");
+                foreach (var s in r.Signers)
+                    Console.WriteLine($"             - {s.Subject} [{(s.SignatureValid ? "valid" : "INVALID")}]");
+            }
+            if (r.HasNestedSignature)
+                Console.WriteLine("Nested sig:  present (the signer above is the primary)");
             if (r.Timestamp is { } ts) Console.WriteLine($"Timestamp:   {ts:u}");
             Console.WriteLine($"Chain trust: {(r.ChainTrusted ? "trusted on this OS" : "not validated on this OS")}");
             if (!r.ChainTrusted && r.ChainNote is not null) Console.WriteLine($"             ({r.ChainNote})");
 
             return r.SignatureValid ? 0 : 2;
+        }
+
+        private static int Remove(Flags f)
+        {
+            var file = f.Positional ?? throw new ArgumentException("Missing the file to remove the signature from.");
+            if (SignatureRemover.Remove(file))
+                Console.WriteLine($"Removed the signature from {Path.GetFileName(file)}.");
+            else
+                Console.WriteLine($"{Path.GetFileName(file)} was not signed — nothing to remove.");
+            return 0;
         }
 
         private static int GenTestCert(Flags f)
@@ -127,15 +146,16 @@ namespace MacSign.Cli
             using var cert = req.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(3));
 
             File.WriteAllBytes(pfxPath, cert.Export(X509ContentType.Pfx, password));
+            RestrictToOwner(pfxPath); // the PFX holds the private key — keep it owner-readable only
             File.WriteAllBytes(cerPath, cert.Export(X509ContentType.Cert)); // DER public cert
-            Console.WriteLine($"Wrote test PFX → {pfxPath}");
+            Console.WriteLine($"Wrote test PFX → {pfxPath}  (throwaway self-signed cert — not for production)");
             Console.WriteLine($"Wrote public cert → {cerPath}");
             return 0;
         }
 
         private static string? ResolvePassword(Flags f)
         {
-            if (f.Get("password") is { } direct) return direct;
+            if (f.Get("password") is { } direct) { WarnPlaintextSecret("--password"); return direct; }
             if (f.Get("password-env") is { } envVar)
                 return Environment.GetEnvironmentVariable(envVar)
                     ?? throw new ArgumentException($"Environment variable '{envVar}' is not set.");
@@ -144,11 +164,26 @@ namespace MacSign.Cli
 
         private static string? ResolveTrustedSigningToken(Flags f)
         {
-            if (f.Get("trusted-signing-token") is { } direct) return direct;
+            if (f.Get("trusted-signing-token") is { } direct) { WarnPlaintextSecret("--trusted-signing-token"); return direct; }
             if (f.Get("trusted-signing-token-env") is { } envVar)
                 return Environment.GetEnvironmentVariable(envVar)
                     ?? throw new ArgumentException($"Environment variable '{envVar}' is not set.");
             return null; // fall back to Azure.Identity (az login / env service principal / managed identity)
+        }
+
+        /// <summary>A plaintext secret on argv lands in shell history and the process list — nudge to the env form.</summary>
+        private static void WarnPlaintextSecret(string flag) =>
+            Console.Error.WriteLine(
+                $"warning: {flag} puts the secret in your shell history and the process list (ps); prefer {flag}-env.");
+
+        private static void RestrictToOwner(string path)
+        {
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                    File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            catch { /* best effort — file permissions are advisory for a throwaway cert */ }
         }
 
         private static int Usage()
@@ -157,19 +192,21 @@ namespace MacSign.Cli
                 macsign — native Authenticode signing (PE / PowerShell / MSI)
 
                   macsign sign --pfx <file> [--password <pw> | --password-env <VAR>]
-                               [--description <text>] [--url <url>] [--timestamp-url <url>]
+                               [--description <text>] [--url <url>] [--timestamp-url <url[,url2,…]>]
                                [--all] <file-or-folder>
 
                   macsign sign --pkcs11-module <lib> [--password-env <VAR>]
-                               [--pkcs11-thumbprint <hex>] [--timestamp-url <url>] <file>
+                               [--pkcs11-thumbprint <hex>] [--timestamp-url <url[,url2,…]>] <file>
 
                   macsign sign --trusted-signing-endpoint <host> --trusted-signing-account <acct>
                                --trusted-signing-profile <profile>
                                [--trusted-signing-token <jwt> | --trusted-signing-token-env <VAR>]
-                               [--timestamp-url <url>] <file>
+                               [--timestamp-url <url[,url2,…]>] <file>
                                (no token flag → Azure.Identity: az login / env service principal / managed identity)
 
                   macsign verify <file>
+
+                  macsign remove <file>
 
                   macsign gen-test-cert --pfx <out.pfx> --cer <out.cer>
                                [--password <pw> | --password-env <VAR>] [--subject <CN>]

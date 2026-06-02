@@ -11,7 +11,7 @@
 
             <!-- ════ empty state ════ -->
             <Border x:Name="EmptyCard" IsVisible="{Binding IsEmpty}"
-                    MaxWidth="520" MinHeight="280" Cursor="Hand"
+                    MaxWidth="520" MinHeight="280" Cursor="Hand" Focusable="True"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
                     Classes="dropHint" Background="{DynamicResource Panel}" CornerRadius="16">
                 <StackPanel Spacing="14" Margin="40" HorizontalAlignment="Center" VerticalAlignment="Center">

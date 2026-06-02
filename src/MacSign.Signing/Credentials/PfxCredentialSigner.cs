@@ -5,8 +5,8 @@ namespace MacSign.Signing.Credentials;
 
 /// <summary>
 /// Loads a signing certificate + private key from a PKCS#12 / <c>.pfx</c> file.
-/// The password is consumed in-process during load and never persisted, logged,
-/// or placed on a command line.
+/// The password is consumed in-process during load and is never persisted or logged;
+/// prefer supplying it via <c>--password-env</c> rather than a plaintext argument.
 /// </summary>
 internal sealed class PfxCredentialSigner : ICredentialSigner
 {
@@ -23,20 +23,29 @@ internal sealed class PfxCredentialSigner : ICredentialSigner
         var bag = X509CertificateLoader.LoadPkcs12Collection(
             bytes, password, X509KeyStorageFlags.DefaultKeySet);
 
-        X509Certificate2? leaf = null;
-        foreach (var cert in bag)
+        try
         {
-            if (leaf is null && cert.HasPrivateKey)
-                leaf = cert;
-            else
-                _chain.Add(cert);
+            X509Certificate2? leaf = null;
+            foreach (var cert in bag)
+            {
+                if (leaf is null && cert.HasPrivateKey)
+                    leaf = cert;
+                else
+                    _chain.Add(cert);
+            }
+
+            _leaf = leaf
+                ?? throw new InvalidOperationException("The PFX contains no certificate with a private key.");
+
+            _signingKey = (AsymmetricAlgorithm?)_leaf.GetRSAPrivateKey() ?? _leaf.GetECDsaPrivateKey()
+                ?? throw new InvalidOperationException("The PFX certificate has no usable RSA/ECDSA private key.");
         }
-
-        _leaf = leaf
-            ?? throw new InvalidOperationException("The PFX contains no certificate with a private key.");
-
-        _signingKey = (AsymmetricAlgorithm?)_leaf.GetRSAPrivateKey() ?? _leaf.GetECDsaPrivateKey()
-            ?? throw new InvalidOperationException("The PFX certificate has no usable RSA/ECDSA private key.");
+        catch
+        {
+            // Don't leak the loaded certs' native key handles if construction fails partway.
+            foreach (var cert in bag) cert.Dispose();
+            throw;
+        }
     }
 
     public X509Certificate2 Certificate => _leaf;

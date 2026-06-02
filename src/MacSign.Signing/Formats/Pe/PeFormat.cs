@@ -122,5 +122,26 @@ internal sealed class PeFormat : ISignatureFormat
         }
     }
 
+    public bool TryRemoveSignature(byte[] fileBytes, out byte[] unsignedBytes)
+    {
+        var layout = PeLayout.Parse(fileBytes);
+        if (!layout.HasCertTable)
+        {
+            unsignedBytes = fileBytes;
+            return false;
+        }
+
+        // Drop the trailing attribute cert table, zero its data-directory entry, and
+        // recompute the optional-header checksum over the now-unsigned image.
+        var result = fileBytes[..layout.CertTableOffset];
+        BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(layout.CertDirEntryOffset, 4), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(layout.CertDirEntryOffset + 4, 4), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            result.AsSpan(layout.ChecksumOffset, 4), PeChecksum.Compute(result, layout.ChecksumOffset));
+
+        unsignedBytes = result;
+        return true;
+    }
+
     private static int Align8(int value) => (value + 7) & ~7;
 }

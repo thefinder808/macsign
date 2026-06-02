@@ -53,20 +53,25 @@ public partial class VerifyViewModel : ObservableObject
     [ObservableProperty] private string _chainNote = "";
     [ObservableProperty] private bool _hasChainNote;
 
-    public void VerifyPath(string path)
+    public async Task VerifyPathAsync(string path)
     {
-        var r = _engine.Verify(path);
+        // Offload the read + digest + chain build so a large file (or a multi-file drop)
+        // doesn't freeze the UI thread. The engine never throws, so a bad/unreadable file
+        // comes back as a Failed report rather than crashing here.
+        var r = await Task.Run(() => _engine.Verify(path));
+        long size = 0;
+        try { size = new FileInfo(path).Length; } catch { /* best-effort */ }
 
         FileName = Path.GetFileName(path);
         Ext = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
-        long size = 0;
-        try { size = new FileInfo(path).Length; } catch { /* best-effort */ }
         FileMeta = $"{DescribeType(Ext)} · {FormatSize(size)}";
 
+        bool isError = r.Error is not null;
         IntegrityValid = r.IsSigned && r.SignatureValid;
-        IntegrityHeadline = !r.IsSigned ? "Not signed"
+        IntegrityHeadline = isError ? "Couldn’t verify"
+            : !r.IsSigned ? "Not signed"
             : r.SignatureValid ? "Integrity VALID" : "Integrity INVALID";
-        IntegrityDetail = r.Error is not null ? r.Error
+        IntegrityDetail = isError ? r.Error!
             : !r.IsSigned ? "No Authenticode signature present"
             : r.SignatureValid ? "Unmodified — signer signature verifies"
             : "Modified — signer signature does not verify";
@@ -94,7 +99,7 @@ public partial class VerifyViewModel : ObservableObject
     {
         var p = await FileDialogs.PickOneAsync(
             "Verify a file", new[] { "*.exe", "*.dll", "*.sys", "*.msi", "*.ps1" });
-        if (p is not null) VerifyPath(p);
+        if (p is not null) await VerifyPathAsync(p);
     }
 
     [RelayCommand]

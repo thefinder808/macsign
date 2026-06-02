@@ -25,17 +25,17 @@
 
                                     <!-- status square -->
                                     <Panel Grid.Column="0" Width="26" Height="26" VerticalAlignment="Center">
-                                        <Border Background="#291F8A4D" CornerRadius="8" IsVisible="{Binding IsOk}">
+                                        <Border Background="{DynamicResource OkSoft}" CornerRadius="8" IsVisible="{Binding IsOk}">
                                             <Path Data="{StaticResource IcoCheck}" Stroke="{DynamicResource Ok}"
                                                   StrokeThickness="2" Stretch="Uniform" Width="14" Height="14"
                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </Border>
-                                        <Border Background="#29B7791F" CornerRadius="8" IsVisible="{Binding IsWarn}">
+                                        <Border Background="{DynamicResource WarnSoft}" CornerRadius="8" IsVisible="{Binding IsWarn}">
                                             <Path Data="{StaticResource IcoClock}" Stroke="{DynamicResource Warn}"
                                                   StrokeThickness="1.6" Stretch="Uniform" Width="15" Height="15"
                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </Border>
-                                        <Border Background="#29D6453D" CornerRadius="8" IsVisible="{Binding IsFail}">
+                                        <Border Background="{DynamicResource FailSoft}" CornerRadius="8" IsVisible="{Binding IsFail}">
                                             <Path Data="{StaticResource IcoAlert}" Stroke="{DynamicResource Fail}"
                                                   StrokeThickness="1.6" Stretch="Uniform" Width="15" Height="15"
                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />

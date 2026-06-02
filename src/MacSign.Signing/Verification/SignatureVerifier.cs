@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 using MacSign.Signing.Cms;
@@ -50,27 +51,48 @@ public static class SignatureVerifier
         if (cms.SignerInfos.Count == 0)
             return VerifyReport.Failed("Signature contains no signer.");
 
-        var signer = cms.SignerInfos[0];
-        var cert = signer.Certificate;
+        var primaryCert = cms.SignerInfos[0].Certificate;
 
-        bool signerSignatureValid;
-        try { cms.CheckSignature(verifySignatureOnly: true); signerSignatureValid = true; }
-        catch { signerSignatureValid = false; }
-
-        // File integrity: the digest embedded in the SPC must match a fresh digest of the file.
-        bool digestMatches = SpcDigest.TryReadSha256(cms.ContentInfo.Content, out var embedded)
+        // File integrity: the CMS must encapsulate SpcIndirectDataContent (a real
+        // Authenticode verifier rejects any other content type), and the digest it embeds
+        // must match a fresh digest of the file. This is shared by every signer.
+        bool digestMatches =
+            cms.ContentInfo.ContentType?.Value == AuthenticodeOids.SpcIndirectDataContent
+            && SpcDigest.TryReadSha256(cms.ContentInfo.Content, out var embedded)
             && embedded.AsSpan().SequenceEqual(format.ComputeDigest(fileBytes));
 
-        var (chainTrusted, chainNote) = BuildChain(cert);
+        // Report every signer (a co-signed binary has more than one), and note a nested
+        // signature rather than silently ignoring it.
+        var signers = new List<SignerInfoSummary>();
+        bool hasNested = false;
+        foreach (SignerInfo si in cms.SignerInfos)
+        {
+            bool sigOk;
+            try { si.CheckSignature(verifySignatureOnly: true); sigOk = true; }
+            catch { sigOk = false; }
+            signers.Add(new SignerInfoSummary
+            {
+                Subject = si.Certificate?.Subject,
+                Issuer = si.Certificate?.Issuer,
+                SignatureValid = sigOk && digestMatches,
+                Timestamp = TryGetTimestamp(si),
+            });
+            hasNested |= si.UnsignedAttributes.Cast<CryptographicAttributeObject>()
+                .Any(a => a.Oid?.Value == AuthenticodeOids.NestedSignature);
+        }
+
+        var (chainTrusted, chainNote) = BuildChain(primaryCert);
 
         return new VerifyReport
         {
             IsSigned = true,
-            SignatureValid = signerSignatureValid && digestMatches,
-            SignerSubject = cert?.Subject,
-            SignerIssuer = cert?.Issuer,
-            SignerSerialNumber = cert?.SerialNumber,
-            Timestamp = TryGetTimestamp(signer),
+            SignatureValid = signers[0].SignatureValid,
+            SignerSubject = primaryCert?.Subject,
+            SignerIssuer = primaryCert?.Issuer,
+            SignerSerialNumber = primaryCert?.SerialNumber,
+            Timestamp = signers[0].Timestamp,
+            Signers = signers,
+            HasNestedSignature = hasNested,
             ChainTrusted = chainTrusted,
             ChainNote = chainNote,
         };
