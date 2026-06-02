@@ -2,7 +2,7 @@
 
 Native macOS Authenticode signing for Windows artifacts — **no Windows machine, no `osslsigncode`, no `jsign`, no OpenSSL/JVM.** A fully managed .NET 10 engine.
 
-> **Status: Phase 7.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies) and **PowerShell scripts** (`.ps1`), using a **local PFX certificate** or a **PKCS#11 token / HSM** (key never leaves the device), with optional **RFC3161 timestamping** — and **verifies** signatures (integrity + chain report). Azure Trusted Signing and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
+> **Status: Phase 6.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies), **PowerShell scripts** (`.ps1`), and **MSI installers** (`.msi`), using a **local PFX certificate** or a **PKCS#11 token / HSM** (key never leaves the device), with optional **RFC3161 timestamping** — and **verifies** signatures (integrity + chain report). Azure Trusted Signing is the remaining backend. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
 
 ## Why
 
@@ -14,6 +14,7 @@ The cross-platform tools for signing Windows binaries from a Mac are fiddly CLIs
 |---|---|
 | `src/MacSign.Signing` | The engine. No third-party deps; one Microsoft platform package (`System.Security.Cryptography.Pkcs`) for the CMS APIs. |
 | `src/MacSign.Signing.Pkcs11` | Optional PKCS#11/HSM backend, quarantined so `Pkcs11Interop` stays out of the core. Loaded only by consumers that sign with a token. |
+| `src/MacSign.Signing.Msi` | Optional MSI backend, quarantined so the `OpenMcdf` (CFBF) dependency stays out of the core. |
 | `src/MacSign.Cli` | A thin console harness (`macsign`) — manual signing and the seed of the eventual GUI. |
 | `src/MacSign.Fixture` | A trivial class library whose compiled DLL is the unsigned PE the tests/CI sign. |
 | `tests/MacSign.Signing.Tests` | xUnit: PE digest, CMS framing, sign→verify round-trip, secret hygiene. |

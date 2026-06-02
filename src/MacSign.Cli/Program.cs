@@ -17,8 +17,9 @@ namespace MacSign.Cli
     {
         public static async Task<int> Run(string[] args)
         {
-            // Enable CertMode.Pkcs11 in the core engine (the core never references Pkcs11Interop).
+            // Enable the optional backends in the core engine (the core references neither).
             MacSign.Signing.Pkcs11.Pkcs11Backend.Register();
+            MacSign.Signing.Msi.MsiBackend.Register();
 
             if (args.Length == 0)
             {
