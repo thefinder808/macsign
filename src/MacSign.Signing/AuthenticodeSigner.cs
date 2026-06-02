@@ -69,14 +69,14 @@ public sealed class AuthenticodeSigner
                 var format = FormatRegistry.For(file);
                 if (format is null)
                 {
-                    // A signable-in-principle file we don't implement yet (e.g. .msi/.ps1).
+                    // A signable-in-principle file we don't implement yet (e.g. .msi).
                     var ext = Path.GetExtension(file);
                     if (options.SignAllSignableFiles)
                     {
-                        log?.Report($"Skipping {Path.GetFileName(file)} — {ext} signing isn't implemented yet (Phase 1 is PE only).");
+                        log?.Report($"Skipping {Path.GetFileName(file)} — {ext} signing isn't implemented yet (PE and PowerShell only).");
                         continue;
                     }
-                    return SignResult.Fail($"{ext} signing isn't implemented yet (Phase 1 is PE only).");
+                    return SignResult.Fail($"{ext} signing isn't implemented yet (PE and PowerShell only).");
                 }
 
                 byte[] bytes = await File.ReadAllBytesAsync(file, ct);

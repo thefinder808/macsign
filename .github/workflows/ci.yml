@@ -25,13 +25,14 @@ jobs:
       - name: Test
         run: dotnet test -c Release --no-build
 
-      - name: Sign fixture PEs (on macOS — proves the cross-platform claim)
+      - name: Sign fixtures (on macOS — proves the cross-platform claim)
         env:
           PFX_PW: macsign-ci-throwaway
         run: |
           FIXTURE=src/MacSign.Fixture/bin/Release/net10.0/MacSign.Fixture.dll
           cp "$FIXTURE" "$RUNNER_TEMP/signed.dll"
           cp "$FIXTURE" "$RUNNER_TEMP/signed-ts.dll"
+          printf "Write-Host 'signed by MacSign'\n" > "$RUNNER_TEMP/install.ps1"
           dotnet run --project src/MacSign.Cli -c Release --no-build -- \
             gen-test-cert --pfx "$RUNNER_TEMP/test.pfx" --cer "$RUNNER_TEMP/test.cer" --password-env PFX_PW
           dotnet run --project src/MacSign.Cli -c Release --no-build -- \
@@ -39,6 +40,8 @@ jobs:
           dotnet run --project src/MacSign.Cli -c Release --no-build -- \
             sign --pfx "$RUNNER_TEMP/test.pfx" --password-env PFX_PW --description "MacSign CI (timestamped)" \
             --timestamp-url http://timestamp.digicert.com "$RUNNER_TEMP/signed-ts.dll"
+          dotnet run --project src/MacSign.Cli -c Release --no-build -- \
+            sign --pfx "$RUNNER_TEMP/test.pfx" --password-env PFX_PW --description "MacSign CI (ps1)" "$RUNNER_TEMP/install.ps1"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -46,6 +49,7 @@ jobs:
           path: |
             ${{ runner.temp }}/signed.dll
             ${{ runner.temp }}/signed-ts.dll
+            ${{ runner.temp }}/install.ps1
             ${{ runner.temp }}/test.cer
 
   # THE bar: a real Windows authority must accept the macOS-produced signature.
@@ -81,3 +85,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the timestamped PE (exit $LASTEXITCODE)." }
           if ($out -notmatch '(?i)timestamp') { throw "signtool reported no timestamp on signed-ts.dll." }
           Write-Host "signtool ACCEPTED the timestamped signature."
+
+      - name: Verify the PowerShell signature
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature signed\install.ps1
+          Write-Host "Status: $($sig.Status); Signer: $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "Get-AuthenticodeSignature rejected install.ps1: $($sig.Status)" }
+          Write-Host "PowerShell ACCEPTED the script signature."

@@ -68,6 +68,51 @@ internal static class SpcEncoder
         return w.Encode();
     }
 
+    // The PowerShell SIP GUID {603BCC1F-4B59-4E08-B724-D2C6297EF351}, raw bytes.
+    private static ReadOnlySpan<byte> PowerShellSipGuid =>
+        [0x1F, 0xCC, 0x3B, 0x60, 0x59, 0x4B, 0x08, 0x4E, 0xB7, 0x24, 0xD2, 0xC6, 0x29, 0x7E, 0xF3, 0x51];
+
+    /// <summary>The <c>SpcIndirectDataContent</c> for a PowerShell script (data = SpcSipInfo).</summary>
+    public static byte[] BuildScriptIndirectData(ReadOnlySpan<byte> fileDigest)
+    {
+        var w = new AsnWriter(AsnEncodingRules.DER);
+        using (w.PushSequence())
+        {
+            using (w.PushSequence()) // SpcAttributeTypeAndOptionalValue
+            {
+                w.WriteObjectIdentifier(AuthenticodeOids.SpcSipInfo);
+                w.WriteEncodedValue(BuildPowerShellSipInfo());
+            }
+            using (w.PushSequence()) // DigestInfo
+            {
+                using (w.PushSequence())
+                {
+                    w.WriteObjectIdentifier(AuthenticodeOids.Sha256);
+                    w.WriteNull();
+                }
+                w.WriteOctetString(fileDigest);
+            }
+        }
+        return w.Encode();
+    }
+
+    /// <summary>
+    /// <c>SpcSipInfo ::= SEQUENCE { INTEGER 65536, OCTET STRING guid, INTEGER 0 ×5 }</c>
+    /// — the fixed PowerShell SIP descriptor (mirrors osslsigncode/SignTool).
+    /// </summary>
+    private static byte[] BuildPowerShellSipInfo()
+    {
+        var w = new AsnWriter(AsnEncodingRules.DER);
+        using (w.PushSequence())
+        {
+            w.WriteInteger(65536);
+            w.WriteOctetString(PowerShellSipGuid);
+            for (int i = 0; i < 5; i++)
+                w.WriteInteger(0);
+        }
+        return w.Encode();
+    }
+
     /// <summary>
     /// <c>SpcStatementType ::= SEQUENCE OF OBJECT IDENTIFIER</c>, value =
     /// individualCodeSigning. Returned as the single attribute value DER.

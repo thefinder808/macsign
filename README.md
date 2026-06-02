@@ -2,7 +2,7 @@
 
 Native macOS Authenticode signing for Windows artifacts — **no Windows machine, no `osslsigncode`, no `jsign`, no OpenSSL/JVM.** A fully managed .NET 10 engine.
 
-> **Status: Phase 2.** Signs **PE files** (`.exe`/`.dll`/`.sys`, including managed assemblies) with a **local PFX certificate**, with optional **RFC3161 timestamping**. Azure Trusted Signing, PKCS#11/HSM, PowerShell, and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
+> **Status: Phase 5.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies) and **PowerShell scripts** (`.ps1`) with a **local PFX certificate**, with optional **RFC3161 timestamping**. Azure Trusted Signing, PKCS#11/HSM, and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
 
 ## Why
 
