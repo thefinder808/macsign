@@ -9,6 +9,9 @@ internal static class AuthenticodeOids
     /// <summary>SPC_PE_IMAGE_DATA_OBJID — the <c>data</c> member for PE images.</summary>
     public const string SpcPeImageData = "1.3.6.1.4.1.311.2.1.15";
 
+    /// <summary>SPC_SIPINFO_OBJID — the <c>data</c> member for scripts (PowerShell, etc.).</summary>
+    public const string SpcSipInfo = "1.3.6.1.4.1.311.2.1.30";
+
     /// <summary>SPC_SP_OPUS_INFO_OBJID — signed attribute carrying description + URL.</summary>
     public const string SpcSpOpusInfo = "1.3.6.1.4.1.311.2.1.12";
 

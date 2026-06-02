@@ -5,9 +5,10 @@ namespace MacSign.Signing;
 /// Windows Installer (<c>.msi</c>), and PowerShell (<c>.ps1</c>). Plain <c>.cmd</c>/<c>.bat</c>
 /// are NOT Authenticode-signable and are intentionally absent.
 ///
-/// NOTE: this lists what is signable *in principle*; Phase 1 only implements PE
-/// (see <c>FormatRegistry</c>). Non-PE signable files surface a clear "not yet
-/// implemented" message rather than silently being skipped.
+/// NOTE: this lists what is signable *in principle*; the engine currently
+/// implements PE and PowerShell (see <c>FormatRegistry</c>). Other signable
+/// files (e.g. <c>.msi</c>) surface a clear "not yet implemented" message
+/// rather than silently being skipped.
 /// </summary>
 public static class SignableExtensions
 {
