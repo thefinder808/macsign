@@ -19,6 +19,8 @@ public partial class MainWindowViewModel : ObservableObject
     {
         // Keep the Sign toolbar subtitle live as files/selection change.
         Sign.StateChanged += () => OnPropertyChanged(nameof(ToolbarSubtitle));
+        // Show "Verify another" only once a report exists.
+        Verify.ReportChanged += () => OnPropertyChanged(nameof(ShowVerifyAnother));
     }
 
     [ObservableProperty]
@@ -29,7 +31,11 @@ public partial class MainWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsActivity))]
     [NotifyPropertyChangedFor(nameof(ToolbarTitle))]
     [NotifyPropertyChangedFor(nameof(ToolbarSubtitle))]
+    [NotifyPropertyChangedFor(nameof(ShowVerifyAnother))]
     private AppView _currentView = AppView.Sign;
+
+    /// <summary>The "Verify another" toolbar action shows only on Verify, once a report exists.</summary>
+    public bool ShowVerifyAnother => IsVerify && Verify.HasReport;
 
     public object CurrentPage => CurrentView switch
     {
