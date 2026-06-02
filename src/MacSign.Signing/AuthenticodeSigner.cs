@@ -99,6 +99,8 @@ public sealed class AuthenticodeSigner
 
         try
         {
+            var failures = new List<string>();
+            int signedCount = 0;
             foreach (var file in targets)
             {
                 ct.ThrowIfCancellationRequested();
@@ -116,28 +118,36 @@ public sealed class AuthenticodeSigner
                     return SignResult.Fail($"{ext} signing isn't implemented yet (PE and PowerShell only).");
                 }
 
-                byte[] bytes = await File.ReadAllBytesAsync(file, ct);
-
-                if (ExistingSignatureGate.IsSigned(format, bytes, out var subject))
-                {
-                    log?.Report($"Skipping {Path.GetFileName(file)} — already signed ({subject ?? "unknown signer"}).");
-                    continue;
-                }
-
-                log?.Report($"Signing {Path.GetFileName(file)}…");
-                byte[] signed;
                 try
                 {
-                    signed = await SignEngine.SignFileBytesAsync(format, credential, options, bytes, ct);
-                }
-                catch (Exception ex)
-                {
-                    return SignResult.Fail($"Failed to sign {Path.GetFileName(file)}: {ex.Message}");
-                }
+                    byte[] bytes = await File.ReadAllBytesAsync(file, ct);
 
-                await WriteAtomicAsync(file, signed, ct);
-                log?.Report($"Signed {Path.GetFileName(file)}.");
+                    if (ExistingSignatureGate.IsSigned(format, bytes, out var subject))
+                    {
+                        log?.Report($"Skipping {Path.GetFileName(file)} — already signed ({subject ?? "unknown signer"}).");
+                        continue;
+                    }
+
+                    log?.Report($"Signing {Path.GetFileName(file)}…");
+                    byte[] signed = await SignEngine.SignFileBytesAsync(format, credential, options, bytes, ct);
+                    await WriteAtomicAsync(file, signed, ct);
+                    signedCount++;
+                    log?.Report($"Signed {Path.GetFileName(file)}.");
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Single-file mode fails fast; batch (--all) keeps going so one bad file
+                    // doesn't strand the rest, and every failure is reported at the end.
+                    if (!options.SignAllSignableFiles)
+                        return SignResult.Fail($"Failed to sign {Path.GetFileName(file)}: {ex.Message}");
+                    log?.Report($"Failed {Path.GetFileName(file)}: {ex.Message}");
+                    failures.Add($"{Path.GetFileName(file)}: {ex.Message}");
+                }
             }
+
+            if (failures.Count > 0)
+                return SignResult.Fail(
+                    $"Signed {signedCount} file(s); {failures.Count} failed:\n  " + string.Join("\n  ", failures));
 
             return SignResult.Ok();
         }
@@ -164,7 +174,14 @@ public sealed class AuthenticodeSigner
         var temp = file + ".signtmp";
         try
         {
-            await File.WriteAllBytesAsync(temp, content, ct);
+            using (var fs = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await fs.WriteAsync(content, ct);
+                fs.Flush(flushToDisk: true); // durability: bytes reach disk before the rename commits
+            }
+            // The rename swaps in a fresh inode, so carry the original's permission bits over.
+            if (!OperatingSystem.IsWindows() && File.Exists(file))
+                try { File.SetUnixFileMode(temp, File.GetUnixFileMode(file)); } catch { /* best effort */ }
             File.Move(temp, file, overwrite: true); // same volume → atomic rename
         }
         finally
