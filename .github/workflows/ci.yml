@@ -19,6 +19,9 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - name: Install SoftHSM + OpenSC (for the PKCS#11 lane)
+        run: brew install softhsm opensc
+
       - name: Build
         run: dotnet build -c Release
 
@@ -43,12 +46,26 @@ jobs:
           dotnet run --project src/MacSign.Cli -c Release --no-build -- \
             sign --pfx "$RUNNER_TEMP/test.pfx" --password-env PFX_PW --description "MacSign CI (ps1)" "$RUNNER_TEMP/install.ps1"
 
+          # PKCS#11 lane: put the same key+cert on a SoftHSM token, then sign with it.
+          MODULE="$(brew --prefix softhsm)/lib/softhsm/libsofthsm2.so"
+          export SOFTHSM2_CONF="$RUNNER_TEMP/softhsm2.conf"
+          mkdir -p "$RUNNER_TEMP/tokens"
+          printf 'directories.tokendir = %s/tokens\nobjectstore.backend = file\nlog.level = ERROR\n' "$RUNNER_TEMP" > "$SOFTHSM2_CONF"
+          softhsm2-util --init-token --free --label macsign --pin 1234 --so-pin 5678
+          openssl pkcs12 -in "$RUNNER_TEMP/test.pfx" -nocerts -nodes -passin pass:"$PFX_PW" | openssl pkcs8 -topk8 -nocrypt -out "$RUNNER_TEMP/key.p8"
+          softhsm2-util --import "$RUNNER_TEMP/key.p8" --token macsign --label codesign --id a1b2 --pin 1234
+          pkcs11-tool --module "$MODULE" --login --pin 1234 --write-object "$RUNNER_TEMP/test.cer" --type cert --id a1b2 --label codesign
+          cp "$FIXTURE" "$RUNNER_TEMP/signed-hsm.dll"
+          PIN=1234 dotnet run --project src/MacSign.Cli -c Release --no-build -- \
+            sign --pkcs11-module "$MODULE" --password-env PIN --description "MacSign CI (HSM)" "$RUNNER_TEMP/signed-hsm.dll"
+
       - uses: actions/upload-artifact@v4
         with:
           name: signed
           path: |
             ${{ runner.temp }}/signed.dll
             ${{ runner.temp }}/signed-ts.dll
+            ${{ runner.temp }}/signed-hsm.dll
             ${{ runner.temp }}/install.ps1
             ${{ runner.temp }}/test.cer
 
@@ -85,6 +102,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the timestamped PE (exit $LASTEXITCODE)." }
           if ($out -notmatch '(?i)timestamp') { throw "signtool reported no timestamp on signed-ts.dll." }
           Write-Host "signtool ACCEPTED the timestamped signature."
+
+          # Phase 4 gate: the HSM (PKCS#11) signature — key never left the token.
+          & $st verify /pa /v signed\signed-hsm.dll
+          if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the HSM-signed PE (exit $LASTEXITCODE)." }
+          Write-Host "signtool ACCEPTED the PKCS#11/HSM signature."
 
       - name: Verify the PowerShell signature
         shell: pwsh

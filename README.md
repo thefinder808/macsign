@@ -2,7 +2,7 @@
 
 Native macOS Authenticode signing for Windows artifacts — **no Windows machine, no `osslsigncode`, no `jsign`, no OpenSSL/JVM.** A fully managed .NET 10 engine.
 
-> **Status: Phase 5.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies) and **PowerShell scripts** (`.ps1`) with a **local PFX certificate**, with optional **RFC3161 timestamping**. Azure Trusted Signing, PKCS#11/HSM, and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
+> **Status: Phase 4.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies) and **PowerShell scripts** (`.ps1`), using a **local PFX certificate** or a **PKCS#11 token / HSM** (key never leaves the device), with optional **RFC3161 timestamping**. Azure Trusted Signing and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
 
 ## Why
 
@@ -13,6 +13,7 @@ The cross-platform tools for signing Windows binaries from a Mac are fiddly CLIs
 | Project | What |
 |---|---|
 | `src/MacSign.Signing` | The engine. No third-party deps; one Microsoft platform package (`System.Security.Cryptography.Pkcs`) for the CMS APIs. |
+| `src/MacSign.Signing.Pkcs11` | Optional PKCS#11/HSM backend, quarantined so `Pkcs11Interop` stays out of the core. Loaded only by consumers that sign with a token. |
 | `src/MacSign.Cli` | A thin console harness (`macsign`) — manual signing and the seed of the eventual GUI. |
 | `src/MacSign.Fixture` | A trivial class library whose compiled DLL is the unsigned PE the tests/CI sign. |
 | `tests/MacSign.Signing.Tests` | xUnit: PE digest, CMS framing, sign→verify round-trip, secret hygiene. |
@@ -35,6 +36,10 @@ PFX_PW=secret dotnet run --project src/MacSign.Cli -- \
 PFX_PW=secret dotnet run --project src/MacSign.Cli -- \
   sign --pfx test.pfx --password-env PFX_PW --description "My App" \
   --timestamp-url http://timestamp.digicert.com some.dll
+
+# Sign with a PKCS#11 token / HSM instead (key never leaves the device):
+PIN=1234 dotnet run --project src/MacSign.Cli -- \
+  sign --pkcs11-module /path/to/pkcs11.so --password-env PIN some.dll
 ```
 
 The password is read from an environment variable (or `--password`), never logged, and never placed on a child-process command line.

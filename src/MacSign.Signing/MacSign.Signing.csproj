@@ -13,6 +13,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="MacSign.Signing.Tests" />
+    <!-- The PKCS#11 backend implements the internal ICredentialSigner + registration hook. -->
+    <InternalsVisibleTo Include="MacSign.Signing.Pkcs11" />
   </ItemGroup>
 
   <ItemGroup>

@@ -13,6 +13,13 @@ public sealed record SigningOptions
     /// <summary>Path to the <c>.pfx</c>/<c>.p12</c> file.</summary>
     public string? PfxPath { get; init; }
 
+    // ── PKCS#11 / HSM mode (requires the MacSign.Signing.Pkcs11 backend) ───────
+    /// <summary>Path to the PKCS#11 module (the vendor's <c>.so</c>/<c>.dylib</c>).</summary>
+    public string? Pkcs11ModulePath { get; init; }
+
+    /// <summary>Optional certificate thumbprint to disambiguate when the token holds several.</summary>
+    public string? Pkcs11CertThumbprint { get; init; }
+
     // ── Shared ─────────────────────────────────────────────────────────────────
     /// <summary>Signature description (SpcSpOpusInfo program name). Optional.</summary>
     public string? Description { get; init; }
