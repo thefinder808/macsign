@@ -73,28 +73,8 @@ internal static class SpcEncoder
         [0x1F, 0xCC, 0x3B, 0x60, 0x59, 0x4B, 0x08, 0x4E, 0xB7, 0x24, 0xD2, 0xC6, 0x29, 0x7E, 0xF3, 0x51];
 
     /// <summary>The <c>SpcIndirectDataContent</c> for a PowerShell script (data = SpcSipInfo).</summary>
-    public static byte[] BuildScriptIndirectData(ReadOnlySpan<byte> fileDigest)
-    {
-        var w = new AsnWriter(AsnEncodingRules.DER);
-        using (w.PushSequence())
-        {
-            using (w.PushSequence()) // SpcAttributeTypeAndOptionalValue
-            {
-                w.WriteObjectIdentifier(AuthenticodeOids.SpcSipInfo);
-                w.WriteEncodedValue(BuildPowerShellSipInfo());
-            }
-            using (w.PushSequence()) // DigestInfo
-            {
-                using (w.PushSequence())
-                {
-                    w.WriteObjectIdentifier(AuthenticodeOids.Sha256);
-                    w.WriteNull();
-                }
-                w.WriteOctetString(fileDigest);
-            }
-        }
-        return w.Encode();
-    }
+    public static byte[] BuildScriptIndirectData(ReadOnlySpan<byte> fileDigest) =>
+        BuildSipIndirectData(BuildPowerShellSipInfo(), fileDigest);
 
     /// <summary>
     /// <c>SpcSipInfo ::= SEQUENCE { INTEGER 65536, OCTET STRING guid, INTEGER 0 ×5 }</c>
@@ -109,6 +89,50 @@ internal static class SpcEncoder
             w.WriteOctetString(PowerShellSipGuid);
             for (int i = 0; i < 5; i++)
                 w.WriteInteger(0);
+        }
+        return w.Encode();
+    }
+
+    // The MSI SIP GUID {F1100C00-0000-0000-C000-000000000046}, exact on-the-wire bytes.
+    private static ReadOnlySpan<byte> MsiSipGuid =>
+        [0xF1, 0x10, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46];
+
+    /// <summary>The <c>SpcIndirectDataContent</c> for an MSI (data = SpcSipInfo, magic 1).</summary>
+    public static byte[] BuildMsiIndirectData(ReadOnlySpan<byte> fileDigest) =>
+        BuildSipIndirectData(BuildMsiSipInfo(), fileDigest);
+
+    private static byte[] BuildMsiSipInfo()
+    {
+        var w = new AsnWriter(AsnEncodingRules.DER);
+        using (w.PushSequence())
+        {
+            w.WriteInteger(1);
+            w.WriteOctetString(MsiSipGuid);
+            for (int i = 0; i < 5; i++)
+                w.WriteInteger(0);
+        }
+        return w.Encode();
+    }
+
+    private static byte[] BuildSipIndirectData(byte[] sipInfo, ReadOnlySpan<byte> fileDigest)
+    {
+        var w = new AsnWriter(AsnEncodingRules.DER);
+        using (w.PushSequence())
+        {
+            using (w.PushSequence())
+            {
+                w.WriteObjectIdentifier(AuthenticodeOids.SpcSipInfo);
+                w.WriteEncodedValue(sipInfo);
+            }
+            using (w.PushSequence())
+            {
+                using (w.PushSequence())
+                {
+                    w.WriteObjectIdentifier(AuthenticodeOids.Sha256);
+                    w.WriteNull();
+                }
+                w.WriteOctetString(fileDigest);
+            }
         }
         return w.Encode();
     }

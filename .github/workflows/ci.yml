@@ -59,9 +59,14 @@ jobs:
           PIN=1234 dotnet run --project src/MacSign.Cli -c Release --no-build -- \
             sign --pkcs11-module "$MODULE" --password-env PIN --description "MacSign CI (HSM)" "$RUNNER_TEMP/signed-hsm.dll"
 
+          # MSI lane: sign a committed test MSI fixture (OpenMcdf-backed).
+          cp tests/MacSign.Signing.Tests/fixtures/test.msi "$RUNNER_TEMP/signed.msi"
+          dotnet run --project src/MacSign.Cli -c Release --no-build -- \
+            sign --pfx "$RUNNER_TEMP/test.pfx" --password-env PFX_PW --description "MacSign CI (msi)" "$RUNNER_TEMP/signed.msi"
+
       - name: Cross-check with MacSign's own verify (macOS)
         run: |
-          for f in signed.dll signed-ts.dll signed-hsm.dll install.ps1; do
+          for f in signed.dll signed-ts.dll signed-hsm.dll install.ps1 signed.msi; do
             echo "--- verify $f ---"
             dotnet run --project src/MacSign.Cli -c Release --no-build -- verify "$RUNNER_TEMP/$f"
           done
@@ -74,6 +79,7 @@ jobs:
             ${{ runner.temp }}/signed-ts.dll
             ${{ runner.temp }}/signed-hsm.dll
             ${{ runner.temp }}/install.ps1
+            ${{ runner.temp }}/signed.msi
             ${{ runner.temp }}/test.cer
 
   # THE bar: a real Windows authority must accept the macOS-produced signature.
@@ -114,6 +120,11 @@ jobs:
           & $st verify /pa /v signed\signed-hsm.dll
           if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the HSM-signed PE (exit $LASTEXITCODE)." }
           Write-Host "signtool ACCEPTED the PKCS#11/HSM signature."
+
+          # Phase 6 gate: the MSI signature.
+          & $st verify /pa /v signed\signed.msi
+          if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the signed MSI (exit $LASTEXITCODE)." }
+          Write-Host "signtool ACCEPTED the MSI signature."
 
       - name: Verify the PowerShell signature
         shell: pwsh

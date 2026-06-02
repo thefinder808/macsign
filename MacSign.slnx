@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/MacSign.Cli/MacSign.Cli.csproj" />
     <Project Path="src/MacSign.Fixture/MacSign.Fixture.csproj" />
+    <Project Path="src/MacSign.Signing.Msi/MacSign.Signing.Msi.csproj" />
     <Project Path="src/MacSign.Signing.Pkcs11/MacSign.Signing.Pkcs11.csproj" />
     <Project Path="src/MacSign.Signing/MacSign.Signing.csproj" />
   </Folder>

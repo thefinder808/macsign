@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>MacSign.Signing.Msi</RootNamespace>
+    <AssemblyName>MacSign.Signing.Msi</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MacSign.Signing\MacSign.Signing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenMcdf" Version="3.1.4" />
+  </ItemGroup>
+
+</Project>
