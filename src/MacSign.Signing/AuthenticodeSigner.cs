@@ -130,7 +130,7 @@ public sealed class AuthenticodeSigner
 
                     log?.Report($"Signing {Path.GetFileName(file)}…");
                     byte[] signed = await SignEngine.SignFileBytesAsync(format, credential, options, bytes, ct);
-                    await WriteAtomicAsync(file, signed, ct);
+                    await AtomicFile.WriteAsync(file, signed, ct);
                     signedCount++;
                     log?.Report($"Signed {Path.GetFileName(file)}.");
                 }
@@ -168,26 +168,4 @@ public sealed class AuthenticodeSigner
             .ToList();
     }
 
-    /// <summary>Write to a sibling temp file, then atomically rename over the original.</summary>
-    private static async Task WriteAtomicAsync(string file, byte[] content, CancellationToken ct)
-    {
-        var temp = file + ".signtmp";
-        try
-        {
-            using (var fs = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                await fs.WriteAsync(content, ct);
-                fs.Flush(flushToDisk: true); // durability: bytes reach disk before the rename commits
-            }
-            // The rename swaps in a fresh inode, so carry the original's permission bits over.
-            if (!OperatingSystem.IsWindows() && File.Exists(file))
-                try { File.SetUnixFileMode(temp, File.GetUnixFileMode(file)); } catch { /* best effort */ }
-            File.Move(temp, file, overwrite: true); // same volume → atomic rename
-        }
-        finally
-        {
-            if (File.Exists(temp))
-                try { File.Delete(temp); } catch { /* best effort */ }
-        }
-    }
 }

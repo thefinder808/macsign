@@ -34,6 +34,7 @@ namespace MacSign.Cli
                 {
                     "sign" => await Sign(new Flags(args[1..])),
                     "verify" => Verify(new Flags(args[1..])),
+                    "remove" => Remove(new Flags(args[1..])),
                     "gen-test-cert" => GenTestCert(new Flags(args[1..])),
                     "-h" or "--help" or "help" => Usage(),
                     var other => Fail($"Unknown command '{other}'."),
@@ -106,6 +107,16 @@ namespace MacSign.Cli
             if (!r.ChainTrusted && r.ChainNote is not null) Console.WriteLine($"             ({r.ChainNote})");
 
             return r.SignatureValid ? 0 : 2;
+        }
+
+        private static int Remove(Flags f)
+        {
+            var file = f.Positional ?? throw new ArgumentException("Missing the file to remove the signature from.");
+            if (SignatureRemover.Remove(file))
+                Console.WriteLine($"Removed the signature from {Path.GetFileName(file)}.");
+            else
+                Console.WriteLine($"{Path.GetFileName(file)} was not signed — nothing to remove.");
+            return 0;
         }
 
         private static int GenTestCert(Flags f)
@@ -186,6 +197,8 @@ namespace MacSign.Cli
                                (no token flag → Azure.Identity: az login / env service principal / managed identity)
 
                   macsign verify <file>
+
+                  macsign remove <file>
 
                   macsign gen-test-cert --pfx <out.pfx> --cer <out.cer>
                                [--password <pw> | --password-env <VAR>] [--subject <CN>]

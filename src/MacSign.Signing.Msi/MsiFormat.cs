@@ -82,6 +82,30 @@ internal sealed class MsiFormat : ISignatureFormat
         }
     }
 
+    public bool TryRemoveSignature(byte[] fileBytes, out byte[] unsignedBytes)
+    {
+        using var ms = new MemoryStream();
+        ms.Write(fileBytes, 0, fileBytes.Length);
+        ms.Position = 0;
+
+        bool removed = false;
+        using (var root = RootStorage.Open(ms, StorageModeFlags.Transacted | StorageModeFlags.LeaveOpen))
+        {
+            foreach (var name in new[] { DigitalSignature, MsiDigitalSignatureEx })
+            {
+                if (root.EnumerateEntries().Any(e => e.Type == EntryType.Stream && e.Name == name))
+                {
+                    root.Delete(name);
+                    removed = true;
+                }
+            }
+            if (removed) root.Commit();
+        }
+
+        unsignedBytes = removed ? ms.ToArray() : fileBytes;
+        return removed;
+    }
+
     private static void HashStorage(Storage storage, IncrementalHash hash)
     {
         var entries = storage.EnumerateEntries().ToList();
