@@ -1,0 +1,173 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MacSign primitive styles. Class-based, token-driven (DynamicResource),
+         mapped from the Native Pro prototype's primitives (np-theme.jsx).
+         ════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── Text roles ── -->
+
+    <!-- Section eyebrow: 11/700 uppercase tertiary. (Write the text uppercase
+         in markup — Avalonia TextBlock has no text-transform.) -->
+    <Style Selector="TextBlock.section">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ink3}" />
+    </Style>
+
+    <Style Selector="TextBlock.title">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+    </Style>
+
+    <Style Selector="TextBlock.subtitle">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Ink2}" />
+    </Style>
+
+    <Style Selector="TextBlock.fieldlabel">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ink2}" />
+    </Style>
+
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+    </Style>
+
+    <Style Selector="TextBlock.dim">
+        <Setter Property="Foreground" Value="{DynamicResource Ink3}" />
+    </Style>
+
+    <!-- ── Buttons ── base resets the Fluent look; classes paint the variants. -->
+
+    <Style Selector="Button">
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
+    <!-- primary -->
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{DynamicResource Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentInk}" />
+    </Style>
+    <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Accent}" />
+        <Setter Property="Opacity" Value="0.92" />
+    </Style>
+    <Style Selector="Button.primary:pressed">
+        <Setter Property="RenderTransform" Value="translateY(0.5px)" />
+    </Style>
+
+    <!-- secondary -->
+    <Style Selector="Button.secondary">
+        <Setter Property="Background" Value="{DynamicResource Field}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Hair}" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Button.secondary /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Field}" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Hair}" />
+    </Style>
+
+    <!-- ghost -->
+    <Style Selector="Button.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Ink2}" />
+    </Style>
+    <Style Selector="Button.ghost /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Hair}" />
+    </Style>
+
+    <!-- ── Text fields ── -->
+
+    <Style Selector="TextBox">
+        <Setter Property="Background" Value="{DynamicResource Field}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Hair}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource Hair2}" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentLine}" />
+    </Style>
+    <Style Selector="TextBox.mono">
+        <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+    </Style>
+
+    <!-- ── Cards & surfaces ── -->
+
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource Panel}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Hair}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="BoxShadow" Value="0 1 3 0 #0A000000" />
+    </Style>
+
+    <Style Selector="Border.cardSolid">
+        <Setter Property="Background" Value="{DynamicResource PanelSolid}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Hair}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+
+    <!-- Dashed drop hint -->
+    <Style Selector="Border.dropHint">
+        <Setter Property="BorderBrush" Value="{DynamicResource Hair2}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+
+    <!-- ── Pills (status chips) ── Border.pill + a tone class. -->
+
+    <Style Selector="Border.pill">
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="8,3" />
+    </Style>
+    <Style Selector="Border.pill.ok">
+        <Setter Property="Background" Value="{DynamicResource OkSoft}" />
+    </Style>
+    <Style Selector="Border.pill.ok TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Ok}" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.pill.accent">
+        <Setter Property="Background" Value="{DynamicResource AccentSoft}" />
+    </Style>
+    <Style Selector="Border.pill.accent TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+</Styles>

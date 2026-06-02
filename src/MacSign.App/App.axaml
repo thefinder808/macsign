@@ -6,6 +6,87 @@
     <!-- Default follows the macOS appearance (light/dark). -->
     <Application.Styles>
         <FluentTheme />
+        <StyleInclude Source="avares://MacSign/Themes/Controls.axaml" />
     </Application.Styles>
+
+    <Application.Resources>
+        <ResourceDictionary>
+
+            <!-- ── Design tokens (from the Native Pro prototype np-theme.jsx) ──
+                 Light is default; Dark is a full theme. oklch / rgba / color-mix
+                 values are pre-converted to concrete sRGB #AARRGGBB. -->
+            <ResourceDictionary.ThemeDictionaries>
+
+                <ResourceDictionary x:Key="Light">
+                    <!-- window gradient -->
+                    <SolidColorBrush x:Key="Bg1" Color="#EEF1F6" />
+                    <SolidColorBrush x:Key="Bg2" Color="#E6EAF1" />
+                    <!-- materials -->
+                    <SolidColorBrush x:Key="Sidebar" Color="#B8F8FAFD" />
+                    <SolidColorBrush x:Key="Panel" Color="#B8FFFFFF" />
+                    <SolidColorBrush x:Key="PanelSolid" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="Toolbar" Color="#8CFFFFFF" />
+                    <SolidColorBrush x:Key="Field" Color="#FFFFFFFF" />
+                    <!-- ink -->
+                    <SolidColorBrush x:Key="Ink" Color="#E0000000" />
+                    <SolidColorBrush x:Key="Ink2" Color="#80000000" />
+                    <SolidColorBrush x:Key="Ink3" Color="#52000000" />
+                    <!-- hairlines -->
+                    <SolidColorBrush x:Key="Hair" Color="#17000000" />
+                    <SolidColorBrush x:Key="Hair2" Color="#24000000" />
+                    <SolidColorBrush x:Key="WinRing" Color="#29000000" />
+                    <!-- accent (Indigo) -->
+                    <Color x:Key="AccentColor">#3F49C9</Color>
+                    <SolidColorBrush x:Key="Accent" Color="#3F49C9" />
+                    <SolidColorBrush x:Key="AccentInk" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="AccentSoft" Color="#213F49C9" />
+                    <SolidColorBrush x:Key="AccentLine" Color="#523F49C9" />
+                    <!-- status -->
+                    <SolidColorBrush x:Key="Ok" Color="#1F8A4D" />
+                    <SolidColorBrush x:Key="OkSoft" Color="#241F8A4D" />
+                    <SolidColorBrush x:Key="Warn" Color="#B7791F" />
+                    <SolidColorBrush x:Key="Fail" Color="#D6453D" />
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="Bg1" Color="#21242C" />
+                    <SolidColorBrush x:Key="Bg2" Color="#15171D" />
+                    <SolidColorBrush x:Key="Sidebar" Color="#A822262E" />
+                    <SolidColorBrush x:Key="Panel" Color="#8C2A2E37" />
+                    <SolidColorBrush x:Key="PanelSolid" Color="#272B33" />
+                    <SolidColorBrush x:Key="Toolbar" Color="#8C1E2128" />
+                    <SolidColorBrush x:Key="Field" Color="#0FFFFFFF" />
+                    <SolidColorBrush x:Key="Ink" Color="#EBFFFFFF" />
+                    <SolidColorBrush x:Key="Ink2" Color="#8FFFFFFF" />
+                    <SolidColorBrush x:Key="Ink3" Color="#5CFFFFFF" />
+                    <SolidColorBrush x:Key="Hair" Color="#1AFFFFFF" />
+                    <SolidColorBrush x:Key="Hair2" Color="#29FFFFFF" />
+                    <SolidColorBrush x:Key="WinRing" Color="#1AFFFFFF" />
+                    <Color x:Key="AccentColor">#3F49C9</Color>
+                    <SolidColorBrush x:Key="Accent" Color="#3F49C9" />
+                    <SolidColorBrush x:Key="AccentInk" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="AccentSoft" Color="#383F49C9" />
+                    <SolidColorBrush x:Key="AccentLine" Color="#753F49C9" />
+                    <SolidColorBrush x:Key="Ok" Color="#42C97E" />
+                    <SolidColorBrush x:Key="OkSoft" Color="#3342C97E" />
+                    <SolidColorBrush x:Key="Warn" Color="#E0A73B" />
+                    <SolidColorBrush x:Key="Fail" Color="#E5675F" />
+                </ResourceDictionary>
+
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- File-type badge base colors (theme-independent; the chip applies
+                 ~14% fill / ~28% border / full-strength label off these). -->
+            <SolidColorBrush x:Key="BadgeExe" Color="#5A78D6" />
+            <SolidColorBrush x:Key="BadgeDll" Color="#3E93A6" />
+            <SolidColorBrush x:Key="BadgeSys" Color="#7E6CC0" />
+            <SolidColorBrush x:Key="BadgeMsi" Color="#2F9E63" />
+            <SolidColorBrush x:Key="BadgePs1" Color="#4A84D6" />
+
+            <!-- Shared monospace stack for paths / hashes / account names. -->
+            <FontFamily x:Key="MonoFont">ui-monospace, SF Mono, JetBrains Mono, Menlo, monospace</FontFamily>
+
+        </ResourceDictionary>
+    </Application.Resources>
 
 </Application>
