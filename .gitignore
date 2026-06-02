@@ -3,6 +3,9 @@ bin/
 obj/
 *.user
 
+# macOS packaging output (build-macos.sh)
+dist/
+
 # Test results
 [Tt]est[Rr]esults/
 *.trx
