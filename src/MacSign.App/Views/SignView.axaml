@@ -42,10 +42,16 @@
                     </Border>
 
                     <!-- drop hint -->
-                    <Border DockPanel.Dock="Bottom" Classes="dropHint" Margin="12" Padding="14,11"
+                    <Border DockPanel.Dock="Bottom" Classes="dropHint" Margin="12" Padding="14,8"
                             HorizontalAlignment="Center" IsVisible="{Binding HasFiles}">
-                        <TextBlock Classes="dim" FontSize="12.5"
-                                   Text="Drop .exe · .dll · .sys · .msi · .ps1 here" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Classes="dim" FontSize="12.5" Text="Drop more files here, or"
+                                       VerticalAlignment="Center" />
+                            <Button Classes="ghost" Height="26" Padding="8,0" FontSize="12.5" Content="Add files"
+                                    Foreground="{DynamicResource Accent}" Command="{Binding AddFilesCommand}" />
+                            <Button Classes="ghost" Height="26" Padding="8,0" FontSize="12.5" Content="Add folder"
+                                    Foreground="{DynamicResource Accent}" Command="{Binding AddFolderCommand}" />
+                        </StackPanel>
                     </Border>
 
                     <!-- rows / empty state -->
