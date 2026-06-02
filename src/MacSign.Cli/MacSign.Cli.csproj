@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Thin console harness: manual signing + the seed of the eventual GUI app. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>MacSign.Cli</RootNamespace>
+    <AssemblyName>macsign</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MacSign.Signing\MacSign.Signing.csproj" />
+  </ItemGroup>
+
+</Project>

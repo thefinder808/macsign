@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Build, run the macOS test suite, and SIGN a fixture PE — all on macOS.
+  build-test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Sign a fixture PE (on macOS — proves the cross-platform claim)
+        env:
+          PFX_PW: macsign-ci-throwaway
+        run: |
+          cp src/MacSign.Fixture/bin/Release/net10.0/MacSign.Fixture.dll "$RUNNER_TEMP/signed.dll"
+          dotnet run --project src/MacSign.Cli -c Release --no-build -- \
+            gen-test-cert --pfx "$RUNNER_TEMP/test.pfx" --cer "$RUNNER_TEMP/test.cer" --password-env PFX_PW
+          dotnet run --project src/MacSign.Cli -c Release --no-build -- \
+            sign --pfx "$RUNNER_TEMP/test.pfx" --password-env PFX_PW --description "MacSign CI" "$RUNNER_TEMP/signed.dll"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed
+          path: |
+            ${{ runner.temp }}/signed.dll
+            ${{ runner.temp }}/test.cer
+
+  # THE bar: a real Windows authority must accept the macOS-produced signature.
+  windows-verify:
+    runs-on: windows-latest
+    needs: build-test-macos
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed
+          path: signed
+
+      - name: Trust the throwaway test certificate (deterministic chain trust)
+        shell: pwsh
+        run: certutil -addstore -f Root signed\test.cer
+
+      - name: signtool verify /pa
+        shell: pwsh
+        run: |
+          $st = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+                 Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1).FullName
+          if (-not $st) { throw "signtool.exe not found on the runner." }
+          Write-Host "Using $st"
+          & $st verify /pa /v signed\signed.dll
+          if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the macOS-produced PE (exit $LASTEXITCODE)." }
+          Write-Host "signtool ACCEPTED the macOS-produced signature."
