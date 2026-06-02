@@ -2,7 +2,7 @@
 
 Native macOS Authenticode signing for Windows artifacts — **no Windows machine, no `osslsigncode`, no `jsign`, no OpenSSL/JVM.** A fully managed .NET 10 engine.
 
-> **Status: Phase 4.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies) and **PowerShell scripts** (`.ps1`), using a **local PFX certificate** or a **PKCS#11 token / HSM** (key never leaves the device), with optional **RFC3161 timestamping**. Azure Trusted Signing and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
+> **Status: Phase 7.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies) and **PowerShell scripts** (`.ps1`), using a **local PFX certificate** or a **PKCS#11 token / HSM** (key never leaves the device), with optional **RFC3161 timestamping** — and **verifies** signatures (integrity + chain report). Azure Trusted Signing and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
 
 ## Why
 
@@ -40,7 +40,12 @@ PFX_PW=secret dotnet run --project src/MacSign.Cli -- \
 # Sign with a PKCS#11 token / HSM instead (key never leaves the device):
 PIN=1234 dotnet run --project src/MacSign.Cli -- \
   sign --pkcs11-module /path/to/pkcs11.so --password-env PIN some.dll
+
+# Verify a signature (reports signer, timestamp, integrity, and chain trust):
+dotnet run --project src/MacSign.Cli -- verify some.dll
 ```
+
+`verify` reports **signature integrity** (file unmodified + signer signature valid) separately from **chain trust** — on macOS the Microsoft roots aren't in the system store, so chain trust usually can't be established, but integrity can be asserted authoritatively.
 
 The password is read from an environment variable (or `--password`), never logged, and never placed on a child-process command line.
 

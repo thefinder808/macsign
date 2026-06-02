@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using MacSign.Cli;
 using MacSign.Signing;
+using MacSign.Signing.Verification;
 
 return await App.Run(args);
 
@@ -30,6 +31,7 @@ namespace MacSign.Cli
                 return args[0] switch
                 {
                     "sign" => await Sign(new Flags(args[1..])),
+                    "verify" => Verify(new Flags(args[1..])),
                     "gen-test-cert" => GenTestCert(new Flags(args[1..])),
                     "-h" or "--help" or "help" => Usage(),
                     var other => Fail($"Unknown command '{other}'."),
@@ -74,6 +76,25 @@ namespace MacSign.Cli
 
             Console.WriteLine("Done.");
             return 0;
+        }
+
+        private static int Verify(Flags f)
+        {
+            var file = f.Positional ?? throw new ArgumentException("Missing the file to verify.");
+            var r = SignatureVerifier.Verify(file);
+
+            if (r.Error is not null) return Fail(r.Error);
+            if (!r.IsSigned) { Console.WriteLine("Not signed."); return 1; }
+
+            Console.WriteLine("Signed:      yes");
+            Console.WriteLine($"Integrity:   {(r.SignatureValid ? "VALID — unmodified, signature verifies" : "INVALID")}");
+            Console.WriteLine($"Signer:      {r.SignerSubject}");
+            Console.WriteLine($"Issuer:      {r.SignerIssuer}");
+            if (r.Timestamp is { } ts) Console.WriteLine($"Timestamp:   {ts:u}");
+            Console.WriteLine($"Chain trust: {(r.ChainTrusted ? "trusted on this OS" : "not validated on this OS")}");
+            if (!r.ChainTrusted && r.ChainNote is not null) Console.WriteLine($"             ({r.ChainNote})");
+
+            return r.SignatureValid ? 0 : 2;
         }
 
         private static int GenTestCert(Flags f)
@@ -121,6 +142,8 @@ namespace MacSign.Cli
 
                   macsign sign --pkcs11-module <lib> [--password-env <VAR>]
                                [--pkcs11-thumbprint <hex>] [--timestamp-url <url>] <file>
+
+                  macsign verify <file>
 
                   macsign gen-test-cert --pfx <out.pfx> --cer <out.cer>
                                [--password <pw> | --password-env <VAR>] [--subject <CN>]
