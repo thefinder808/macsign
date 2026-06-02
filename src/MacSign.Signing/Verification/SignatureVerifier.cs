@@ -12,10 +12,29 @@ namespace MacSign.Signing.Verification;
 /// </summary>
 public static class SignatureVerifier
 {
-    public static VerifyReport Verify(string filePath) =>
-        Verify(File.ReadAllBytes(filePath), filePath);
+    public static VerifyReport Verify(string filePath)
+    {
+        byte[] fileBytes;
+        try { fileBytes = File.ReadAllBytes(filePath); }
+        catch (Exception ex) { return VerifyReport.Failed("Couldn't read file: " + ex.Message); }
+        return Verify(fileBytes, filePath);
+    }
 
     internal static VerifyReport Verify(byte[] fileBytes, string fileName)
+    {
+        try
+        {
+            return VerifyCore(fileBytes, fileName);
+        }
+        catch (Exception ex)
+        {
+            // A signing tool is fed hostile/malformed files on purpose; verify must report a
+            // failure, never throw out of the public entry point.
+            return VerifyReport.Failed("Couldn't verify the signature: " + ex.Message);
+        }
+    }
+
+    private static VerifyReport VerifyCore(byte[] fileBytes, string fileName)
     {
         var format = FormatRegistry.For(fileName);
         if (format is null)
@@ -63,7 +82,11 @@ public static class SignatureVerifier
         {
             if (attr.Oid?.Value != AuthenticodeOids.Rfc3161Timestamp)
                 continue;
-            if (Rfc3161TimestampToken.TryDecode(attr.Values[0].RawData, out var token, out _))
+            // Decode AND cryptographically validate the token: its own signature must verify
+            // and its imprint must bind THIS signer's signature value. The unsigned-attribute
+            // bag isn't covered by the signature, so an unvalidated time is forgeable.
+            if (Rfc3161TimestampToken.TryDecode(attr.Values[0].RawData, out var token, out _)
+                && token.VerifySignatureForSignerInfo(signer, out _))
                 return token.TokenInfo.Timestamp;
         }
         return null;

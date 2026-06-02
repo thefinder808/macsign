@@ -31,14 +31,20 @@ internal sealed class TrustedSigningRsa : RSA
     public override void ImportParameters(RSAParameters parameters) =>
         throw new NotSupportedException("This RSA key is backed by Azure Trusted Signing and is import-only via its certificate.");
 
-    public override byte[] SignHash(byte[] hash, HashAlgorithmName hashAlgorithm, RSASignaturePadding padding) =>
-        _signHash(hash, AlgorithmId(hashAlgorithm, padding));
+    public override byte[] SignHash(byte[] hash, HashAlgorithmName hashAlgorithm, RSASignaturePadding padding)
+    {
+        byte[] signature = _signHash(hash, AlgorithmId(hashAlgorithm, padding));
+        EnsureVerifies(hash, signature, hashAlgorithm, padding);
+        return signature;
+    }
 
     public override bool TrySignHash(
         ReadOnlySpan<byte> hash, Span<byte> destination, HashAlgorithmName hashAlgorithm,
         RSASignaturePadding padding, out int bytesWritten)
     {
-        var signature = _signHash(hash.ToArray(), AlgorithmId(hashAlgorithm, padding));
+        byte[] hashBytes = hash.ToArray();
+        var signature = _signHash(hashBytes, AlgorithmId(hashAlgorithm, padding));
+        EnsureVerifies(hashBytes, signature, hashAlgorithm, padding);
         if (signature.Length > destination.Length)
         {
             bytesWritten = 0;
@@ -47,6 +53,19 @@ internal sealed class TrustedSigningRsa : RSA
         signature.CopyTo(destination);
         bytesWritten = signature.Length;
         return true;
+    }
+
+    /// <summary>
+    /// Verify the signature the service returned against the leaf's public key before it is
+    /// embedded. A wrong/garbled signature (service bug, truncated transfer, a tampered
+    /// response) then fails loudly instead of producing a silently-invalid Authenticode
+    /// signature — there is no other self-check on the Trusted Signing path.
+    /// </summary>
+    private void EnsureVerifies(byte[] hash, byte[] signature, HashAlgorithmName hashAlgorithm, RSASignaturePadding padding)
+    {
+        if (!VerifyHash(hash, signature, hashAlgorithm, padding))
+            throw new CryptographicException(
+                "Azure Trusted Signing returned a signature that does not verify under the certificate's public key.");
     }
 
     public override bool VerifyHash(byte[] hash, byte[] signature, HashAlgorithmName hashAlgorithm, RSASignaturePadding padding)

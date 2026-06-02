@@ -58,7 +58,10 @@ internal sealed class PeFormat : ISignatureFormat
     public byte[] Embed(byte[] fileBytes, byte[] pkcs7Der)
     {
         var layout = PeLayout.Parse(fileBytes);
-        int fileSize = fileBytes.Length;
+        // If a (trailing, 8-aligned) attribute certificate table is already present, replace
+        // it rather than appending after it — a leftover table would fall inside the hashed
+        // region at verify time and invalidate the new signature.
+        int fileSize = layout.HasCertTable ? layout.CertTableOffset : fileBytes.Length;
         int tableOffset = Align8(fileSize);
 
         int sigLen = pkcs7Der.Length;
