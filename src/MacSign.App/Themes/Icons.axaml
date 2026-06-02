@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Line-icon geometries (24×24 grid, rendered as 1.6px strokes, no fill)
+         ported verbatim from the prototype's icon set (directions/shared.jsx).
+         Render with: <Path Data="{StaticResource IcoX}" Stroke="..."
+                            StrokeThickness="1.6" Stretch="Uniform"/> -->
+
+    <StreamGeometry x:Key="IcoShield">M12 3l7 3v5c0 4.2-2.9 7.4-7 8.5C7.9 18.4 5 15.2 5 11V6l7-3z M9 11.5l2 2 4-4.2</StreamGeometry>
+    <StreamGeometry x:Key="IcoCheck">M5 12.5l4.5 4.5L19 7</StreamGeometry>
+    <StreamGeometry x:Key="IcoKey">M11 12h9 M17 12v3 M20 12v3.5 M4.8 12a3.2 3.2 0 1 0 6.4 0 a3.2 3.2 0 1 0 -6.4 0</StreamGeometry>
+    <StreamGeometry x:Key="IcoChip">M8.5 6h7a2.5 2.5 0 0 1 2.5 2.5v7a2.5 2.5 0 0 1 -2.5 2.5h-7a2.5 2.5 0 0 1 -2.5 -2.5v-7a2.5 2.5 0 0 1 2.5 -2.5z M9.5 9.5h5v5h-5z M9 3v2 M15 3v2 M9 19v2 M15 19v2 M3 9h2 M3 15h2 M19 9h2 M19 15h2</StreamGeometry>
+    <StreamGeometry x:Key="IcoCloud">M7 18a4 4 0 010-8 5 5 0 019.6-1.3A3.5 3.5 0 0117 18H7z</StreamGeometry>
+    <StreamGeometry x:Key="IcoClock">M4 12a8 8 0 1 0 16 0 a8 8 0 1 0 -16 0 M12 8v4.2l2.8 1.8</StreamGeometry>
+    <StreamGeometry x:Key="IcoDoc">M7 3h7l4 4v14H7z M14 3v4h4</StreamGeometry>
+    <StreamGeometry x:Key="IcoPlus">M12 6v12 M6 12h12</StreamGeometry>
+    <StreamGeometry x:Key="IcoChevR">M9 5l7 7-7 7</StreamGeometry>
+    <StreamGeometry x:Key="IcoBolt">M13 3L5 13h6l-1 8 8-10h-6l1-8z</StreamGeometry>
+    <StreamGeometry x:Key="IcoReturn">M9 10l-4 4 4 4 M5 14h11a3 3 0 003-3V6</StreamGeometry>
+    <StreamGeometry x:Key="IcoLock">M7 11h10a2 2 0 0 1 2 2v5a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-5a2 2 0 0 1 2 -2z M8 11V8a4 4 0 018 0v3</StreamGeometry>
+    <StreamGeometry x:Key="IcoActivity">M3 12h4l2 6 4-12 2 6h6</StreamGeometry>
+    <StreamGeometry x:Key="IcoFingerprint">M12 5a7 7 0 00-7 7v2 M19 12a7 7 0 00-3-5.7 M8.5 12a3.5 3.5 0 017 0v3 M12 12v4 M15.5 16.5a8 8 0 01-.5 2.5 M5.5 16a10 10 0 00.5 4</StreamGeometry>
+    <StreamGeometry x:Key="IcoAlert">M12 4l9 16H3l9-16z M12 10v4 M12 17.5v.2</StreamGeometry>
+
+    <!-- App-glyph (100×100 grid) — heraldic shield + check, from np-icon.jsx. -->
+    <StreamGeometry x:Key="GlyphShield">M50 7 L84 19 L84 49 C84 73 69 89 50 96 C31 89 16 73 16 49 L16 19 Z</StreamGeometry>
+    <StreamGeometry x:Key="GlyphCheck">M35 52 L46 64 L67 38</StreamGeometry>
+
+</ResourceDictionary>

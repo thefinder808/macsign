@@ -12,13 +12,19 @@
     <Application.Resources>
         <ResourceDictionary>
 
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://MacSign/Themes/Icons.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+
             <!-- ── Design tokens (from the Native Pro prototype np-theme.jsx) ──
                  Light is default; Dark is a full theme. oklch / rgba / color-mix
                  values are pre-converted to concrete sRGB #AARRGGBB. -->
             <ResourceDictionary.ThemeDictionaries>
 
                 <ResourceDictionary x:Key="Light">
-                    <!-- window gradient -->
+                    <!-- window gradient (Color forms for the gradient brush) -->
+                    <Color x:Key="Bg1Color">#EEF1F6</Color>
+                    <Color x:Key="Bg2Color">#E6EAF1</Color>
                     <SolidColorBrush x:Key="Bg1" Color="#EEF1F6" />
                     <SolidColorBrush x:Key="Bg2" Color="#E6EAF1" />
                     <!-- materials -->
@@ -49,6 +55,8 @@
                 </ResourceDictionary>
 
                 <ResourceDictionary x:Key="Dark">
+                    <Color x:Key="Bg1Color">#21242C</Color>
+                    <Color x:Key="Bg2Color">#15171D</Color>
                     <SolidColorBrush x:Key="Bg1" Color="#21242C" />
                     <SolidColorBrush x:Key="Bg2" Color="#15171D" />
                     <SolidColorBrush x:Key="Sidebar" Color="#A822262E" />

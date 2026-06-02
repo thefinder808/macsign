@@ -1,0 +1,6 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MacSign.App.Views.SignView">
+    <TextBlock Text="Sign view — phase 4" Classes="dim"
+               HorizontalAlignment="Center" VerticalAlignment="Center" />
+</UserControl>
