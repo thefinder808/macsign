@@ -32,6 +32,6 @@ public partial class SignView : UserControl
             .Where(p => !string.IsNullOrEmpty(p))
             .ToList();
 
-        if (paths.Count > 0) vm.AddPaths(paths);
+        if (paths.Count > 0) _ = vm.AddPathsAsync(paths);
     }
 }

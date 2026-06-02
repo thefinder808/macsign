@@ -31,6 +31,6 @@ public partial class VerifyView : UserControl
         var path = e.DataTransfer?.TryGetFiles()?
             .Select(f => f.Path.LocalPath)
             .FirstOrDefault(p => !string.IsNullOrEmpty(p));
-        if (!string.IsNullOrEmpty(path)) vm.VerifyPath(path!);
+        if (!string.IsNullOrEmpty(path)) _ = vm.VerifyPathAsync(path!);
     }
 }

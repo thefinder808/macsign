@@ -38,7 +38,8 @@ public partial class SignViewModel : ObservableObject
     // ── credential mode ──
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPfx), nameof(IsPkcs11), nameof(IsAzure),
-        nameof(CredBlurb), nameof(ActiveCredentialName), nameof(ActiveCredentialSub))]
+        nameof(CredBlurb), nameof(ActiveCredentialName), nameof(ActiveCredentialSub), nameof(CredentialReady))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
     private CredMode _credMode = CredMode.Azure;
 
     public bool IsPfx => CredMode == CredMode.Pfx;
@@ -60,14 +61,29 @@ public partial class SignViewModel : ObservableObject
     }
 
     // ── credential fields (transient; never persisted) ──
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(ActiveCredentialSub))] private string _pfxPath = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveCredentialSub), nameof(CredentialReady))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    private string _pfxPath = "";
     [ObservableProperty] private string _pfxPassword = "";
-    [ObservableProperty] private string _modulePath = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CredentialReady))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    private string _modulePath = "";
     [ObservableProperty] private string _thumbprint = "";
     [ObservableProperty] private string _pin = "";
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(ActiveCredentialSub))] private string _account = "my-signing-account";
-    [ObservableProperty] private string _profile = "my-cert-profile";
-    [ObservableProperty] private string _endpoint = "eus.codesigning.azure.net";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveCredentialSub), nameof(CredentialReady))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    private string _account = "my-signing-account";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CredentialReady))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    private string _profile = "my-cert-profile";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CredentialReady))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    private string _endpoint = "eus.codesigning.azure.net";
 
     // ── options ──
     [ObservableProperty] private string _description = "";
@@ -88,6 +104,7 @@ public partial class SignViewModel : ObservableObject
     [ObservableProperty] private string _bannerTitle = "";
     [ObservableProperty] private string _bannerDetail = "";
     [ObservableProperty] private bool _bannerIsError;
+    [ObservableProperty] private string _signProgress = "";
 
     // ── derived counts ──
     public int FilesCount => Files.Count;
@@ -115,22 +132,37 @@ public partial class SignViewModel : ObservableObject
 
     // ════════════════ files ════════════════
 
-    public void AddPaths(IEnumerable<string> paths)
+    public async Task AddPathsAsync(IEnumerable<string> paths)
     {
-        foreach (var p in paths)
+        var candidates = paths
+            .Where(_engine.IsSignable)
+            .Where(p => !Files.Any(f => string.Equals(f.Path, p, StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (candidates.Count == 0) return;
+
+        // The "already signed" probe is a full verify (read + digest); scan off the UI thread
+        // so a large file or a multi-file drop doesn't freeze the window.
+        var scanned = await Task.Run(() => candidates
+            .Select(p => new FileItemViewModel(p, _engine.IsAlreadySigned(p), SafeSize(p)))
+            .ToList());
+
+        foreach (var item in scanned)
         {
-            if (!_engine.IsSignable(p)) continue;
-            if (Files.Any(f => string.Equals(f.Path, p, StringComparison.OrdinalIgnoreCase))) continue;
-            long size = 0;
-            try { size = new FileInfo(p).Length; } catch { /* size best-effort */ }
-            Files.Add(new FileItemViewModel(p, _engine.IsAlreadySigned(p), size));
+            if (Files.Any(f => string.Equals(f.Path, item.Path, StringComparison.OrdinalIgnoreCase))) continue;
+            Files.Add(item);
         }
         if (SignState == SignState.Done) SignState = SignState.Idle;
         RaiseCounts();
     }
 
+    private static long SafeSize(string p)
+    {
+        try { return new FileInfo(p).Length; } catch { return 0; }
+    }
+
     [RelayCommand]
-    private async Task AddFilesAsync() => AddPaths(await FileDialogs.PickSignablesAsync());
+    private async Task AddFilesAsync() => await AddPathsAsync(await FileDialogs.PickSignablesAsync());
 
     [RelayCommand]
     private async Task ChoosePfxAsync()
@@ -182,7 +214,15 @@ public partial class SignViewModel : ObservableObject
     /// <summary>Raised when a run finishes, so the shell can record it in Activity.</summary>
     public event Action<RunData>? RunRecorded;
 
-    private bool CanSign() => IsIdle && HasToSign;
+    /// <summary>The minimum fields for the active credential are filled in.</summary>
+    public bool CredentialReady => CredMode switch
+    {
+        CredMode.Pfx => !string.IsNullOrWhiteSpace(PfxPath),
+        CredMode.Pkcs11 => !string.IsNullOrWhiteSpace(ModulePath),
+        _ => !string.IsNullOrWhiteSpace(Account) && !string.IsNullOrWhiteSpace(Profile) && !string.IsNullOrWhiteSpace(Endpoint),
+    };
+
+    private bool CanSign() => IsIdle && HasToSign && CredentialReady;
 
     [RelayCommand(CanExecute = nameof(CanSign))]
     private async Task SignAsync()
@@ -203,20 +243,33 @@ public partial class SignViewModel : ObservableObject
         }
 
         SignState = SignState.Signing;
+        _cts?.Dispose();
         _cts = new CancellationTokenSource();
         var log = new Progress<string>(_ => { /* per-file state drives the UI */ });
 
         int ok = 0;
         string? firstError = null;
+        bool canceled = false;
 
-        foreach (var file in targets)
+        for (int i = 0; i < targets.Count; i++)
         {
+            if (_cts.IsCancellationRequested) { canceled = true; break; }
+
+            var file = targets[i];
             file.RunState = FileRunState.Signing;
+            SignProgress = targets.Count == 1 ? "Signing…" : $"Signing {i + 1} of {targets.Count}…";
+
             SignResult result;
             try
             {
                 // Offload the crypto/IO so the UI stays responsive.
                 result = await Task.Run(() => _engine.SignOneAsync(signer, file.Path, options, log, _cts.Token));
+            }
+            catch (OperationCanceledException)
+            {
+                file.RunState = FileRunState.None;
+                canceled = true;
+                break;
             }
             catch (Exception ex)
             {
@@ -227,7 +280,18 @@ public partial class SignViewModel : ObservableObject
             else { file.RunState = FileRunState.None; firstError ??= result.Error; }
         }
 
+        SignProgress = "";
         SignState = SignState.Done;
+
+        if (canceled)
+        {
+            BannerIsError = true;
+            BannerTitle = "Signing canceled";
+            BannerDetail = ok > 0 ? $"{ok} file{(ok == 1 ? "" : "s")} signed before canceling." : "No files were signed.";
+            Record(ok, "warn", $"canceled after {ok}/{targets.Count}");
+            return;
+        }
+
         BannerIsError = ok == 0;
         if (ok == targets.Count)
         {
@@ -246,6 +310,9 @@ public partial class SignViewModel : ObservableObject
             : ok == 0 ? (firstError ?? "failed") : $"{ok}/{targets.Count} — {firstError}";
         Record(ok > 0 ? ok : targets.Count, status, detail);
     }
+
+    [RelayCommand]
+    private void Cancel() => _cts?.Cancel();
 
     private void Record(int count, string status, string detail) =>
         RunRecorded?.Invoke(new RunData

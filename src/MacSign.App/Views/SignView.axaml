@@ -126,14 +126,18 @@
                             </StackPanel>
                         </Button>
                         <!-- signing -->
-                        <Button Classes="primary" HorizontalAlignment="Stretch" IsVisible="{Binding IsSigning}"
-                                IsEnabled="False">
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                <Path Classes="spin" Data="{StaticResource IcoSpinner}" Stroke="{DynamicResource AccentInk}"
-                                      StrokeThickness="2.5" Stretch="Uniform" Width="15" Height="15" />
-                                <TextBlock Text="Signing…" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                        <StackPanel Spacing="8" IsVisible="{Binding IsSigning}">
+                            <Button Classes="primary" HorizontalAlignment="Stretch" IsEnabled="False">
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                    <Path Classes="spin" Data="{StaticResource IcoSpinner}" Stroke="{DynamicResource AccentInk}"
+                                          StrokeThickness="2.5" Stretch="Uniform" Width="15" Height="15" />
+                                    <TextBlock Text="{Binding SignProgress}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="secondary" HorizontalAlignment="Stretch" Command="{Binding CancelCommand}">
+                                <TextBlock Text="Cancel" HorizontalAlignment="Center" />
+                            </Button>
+                        </StackPanel>
                         <!-- done -->
                         <Button Classes="secondary" HorizontalAlignment="Stretch" Height="38"
                                 IsVisible="{Binding IsDone}" Command="{Binding SignMoreCommand}">
