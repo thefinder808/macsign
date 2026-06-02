@@ -48,9 +48,10 @@ public sealed record SigningOptions
     public bool SignAllSignableFiles { get; init; }
 
     /// <summary>
-    /// RFC3161 timestamp server URL (e.g. <c>http://timestamp.digicert.com</c>).
-    /// When set, the signature is timestamped so it stays valid after the
-    /// certificate expires. Empty/null skips timestamping.
+    /// RFC3161 timestamp server URL (e.g. <c>http://timestamp.digicert.com</c>), or a
+    /// comma-separated list tried in order so one TSA outage doesn't fail the sign. When set,
+    /// the signature is timestamped so it stays valid after the certificate expires.
+    /// Empty/null skips timestamping.
     /// </summary>
     public string? TimestampUrl { get; init; }
 

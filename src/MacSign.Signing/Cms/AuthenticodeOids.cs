@@ -26,4 +26,7 @@ internal static class AuthenticodeOids
 
     /// <summary>szOID_RFC3161_counterSign — the unsigned attribute holding an RFC3161 timestamp token.</summary>
     public const string Rfc3161Timestamp = "1.3.6.1.4.1.311.3.3.1";
+
+    /// <summary>szOID_NESTED_SIGNATURE — the unsigned attribute carrying a nested (e.g. dual-sign) signature.</summary>
+    public const string NestedSignature = "1.3.6.1.4.1.311.2.4.1";
 }

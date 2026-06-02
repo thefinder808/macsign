@@ -102,6 +102,14 @@ namespace MacSign.Cli
             Console.WriteLine($"Integrity:   {(r.SignatureValid ? "VALID — unmodified, signature verifies" : "INVALID")}");
             Console.WriteLine($"Signer:      {r.SignerSubject}");
             Console.WriteLine($"Issuer:      {r.SignerIssuer}");
+            if (r.Signers.Count > 1)
+            {
+                Console.WriteLine($"Signers:     {r.Signers.Count} (co-signed)");
+                foreach (var s in r.Signers)
+                    Console.WriteLine($"             - {s.Subject} [{(s.SignatureValid ? "valid" : "INVALID")}]");
+            }
+            if (r.HasNestedSignature)
+                Console.WriteLine("Nested sig:  present (the signer above is the primary)");
             if (r.Timestamp is { } ts) Console.WriteLine($"Timestamp:   {ts:u}");
             Console.WriteLine($"Chain trust: {(r.ChainTrusted ? "trusted on this OS" : "not validated on this OS")}");
             if (!r.ChainTrusted && r.ChainNote is not null) Console.WriteLine($"             ({r.ChainNote})");
@@ -184,16 +192,16 @@ namespace MacSign.Cli
                 macsign — native Authenticode signing (PE / PowerShell / MSI)
 
                   macsign sign --pfx <file> [--password <pw> | --password-env <VAR>]
-                               [--description <text>] [--url <url>] [--timestamp-url <url>]
+                               [--description <text>] [--url <url>] [--timestamp-url <url[,url2,…]>]
                                [--all] <file-or-folder>
 
                   macsign sign --pkcs11-module <lib> [--password-env <VAR>]
-                               [--pkcs11-thumbprint <hex>] [--timestamp-url <url>] <file>
+                               [--pkcs11-thumbprint <hex>] [--timestamp-url <url[,url2,…]>] <file>
 
                   macsign sign --trusted-signing-endpoint <host> --trusted-signing-account <acct>
                                --trusted-signing-profile <profile>
                                [--trusted-signing-token <jwt> | --trusted-signing-token-env <VAR>]
-                               [--timestamp-url <url>] <file>
+                               [--timestamp-url <url[,url2,…]>] <file>
                                (no token flag → Azure.Identity: az login / env service principal / managed identity)
 
                   macsign verify <file>

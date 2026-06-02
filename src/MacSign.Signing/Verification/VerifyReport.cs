@@ -20,6 +20,15 @@ public sealed record VerifyReport
     /// <summary>The RFC3161 timestamp time, if the signature is timestamped.</summary>
     public DateTimeOffset? Timestamp { get; init; }
 
+    /// <summary>
+    /// Every signer on the file (a co-signed binary has more than one). The first entry
+    /// mirrors the <c>Signer*</c>/<c>Timestamp</c> fields above.
+    /// </summary>
+    public IReadOnlyList<SignerInfoSummary> Signers { get; init; } = [];
+
+    /// <summary>True if the primary signature carries a nested signature (e.g. SHA-1 + SHA-256 dual sign).</summary>
+    public bool HasNestedSignature { get; init; }
+
     /// <summary>True only if the certificate chain builds to a trusted root on this OS.</summary>
     public bool ChainTrusted { get; init; }
 
@@ -31,4 +40,17 @@ public sealed record VerifyReport
 
     public static VerifyReport Unsigned() => new() { IsSigned = false };
     public static VerifyReport Failed(string error) => new() { IsSigned = false, Error = error };
+}
+
+/// <summary>One signer on a verified file.</summary>
+public sealed record SignerInfoSummary
+{
+    public string? Subject { get; init; }
+    public string? Issuer { get; init; }
+
+    /// <summary>True if this signer's signature verifies and the file digest matches.</summary>
+    public bool SignatureValid { get; init; }
+
+    /// <summary>This signer's RFC3161 timestamp, if validated.</summary>
+    public DateTimeOffset? Timestamp { get; init; }
 }
