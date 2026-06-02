@@ -155,6 +155,16 @@
         <Setter Property="CornerRadius" Value="10" />
     </Style>
 
+    <!-- Drop targets light up while a valid file drag is hovering. -->
+    <Style Selector="Border.dropHint.dragover">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentLine}" />
+        <Setter Property="Background" Value="{DynamicResource AccentSoft}" />
+    </Style>
+    <Style Selector="Border.card.dragover">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentLine}" />
+        <Setter Property="Background" Value="{DynamicResource AccentSoft}" />
+    </Style>
+
     <!-- ── Sidebar nav items ── Button.nav + class-bound .active. -->
 
     <Style Selector="Button.nav">

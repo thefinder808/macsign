@@ -11,18 +11,22 @@ public partial class SignView : UserControl
     {
         InitializeComponent();
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
     }
 
-    private static void OnDragOver(object? sender, DragEventArgs e)
+    private void OnDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = e.DataTransfer is { } dt && dt.Contains(DataFormat.File)
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
+        bool ok = e.DataTransfer is { } dt && dt.Contains(DataFormat.File);
+        e.DragEffects = ok ? DragDropEffects.Copy : DragDropEffects.None;
+        DragHighlight.Set(FilesCard, "dragover", ok);
     }
+
+    private void OnDragLeave(object? sender, DragEventArgs e) => DragHighlight.Set(FilesCard, "dragover", false);
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
+        DragHighlight.Set(FilesCard, "dragover", false);
         if (DataContext is not SignViewModel vm) return;
         var files = e.DataTransfer?.TryGetFiles();
         if (files is null) return;

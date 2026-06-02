@@ -51,7 +51,9 @@
                     <SolidColorBrush x:Key="Ok" Color="#1F8A4D" />
                     <SolidColorBrush x:Key="OkSoft" Color="#241F8A4D" />
                     <SolidColorBrush x:Key="Warn" Color="#B7791F" />
+                    <SolidColorBrush x:Key="WarnSoft" Color="#24B7791F" />
                     <SolidColorBrush x:Key="Fail" Color="#D6453D" />
+                    <SolidColorBrush x:Key="FailSoft" Color="#24D6453D" />
                 </ResourceDictionary>
 
                 <ResourceDictionary x:Key="Dark">
@@ -78,7 +80,9 @@
                     <SolidColorBrush x:Key="Ok" Color="#42C97E" />
                     <SolidColorBrush x:Key="OkSoft" Color="#3342C97E" />
                     <SolidColorBrush x:Key="Warn" Color="#E0A73B" />
+                    <SolidColorBrush x:Key="WarnSoft" Color="#33E0A73B" />
                     <SolidColorBrush x:Key="Fail" Color="#E5675F" />
+                    <SolidColorBrush x:Key="FailSoft" Color="#33E5675F" />
                 </ResourceDictionary>
 
             </ResourceDictionary.ThemeDictionaries>

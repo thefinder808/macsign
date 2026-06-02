@@ -113,6 +113,7 @@ public partial class SignViewModel : ObservableObject
     public int ToSignCount => SelectedCount;
     public bool HasToSign => ToSignCount > 0;
     public bool HasFiles => Files.Count > 0;
+    public bool HasNoFiles => Files.Count == 0;
     public string SubtitleText => $"{FilesCount} files · {SelectedCount} selected · {SignedCount} already signed";
     public string SignButtonText => ToSignCount == 1 ? "Sign 1 file" : $"Sign {ToSignCount} files";
 
@@ -165,6 +166,17 @@ public partial class SignViewModel : ObservableObject
     private async Task AddFilesAsync() => await AddPathsAsync(await FileDialogs.PickSignablesAsync());
 
     [RelayCommand]
+    private async Task AddFolderAsync()
+    {
+        var folder = await FileDialogs.PickFolderAsync();
+        if (folder is null) return;
+        var files = await Task.Run(() =>
+            Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories)
+                .Where(_engine.IsSignable).ToList());
+        await AddPathsAsync(files);
+    }
+
+    [RelayCommand]
     private async Task ChoosePfxAsync()
     {
         var p = await FileDialogs.PickOneAsync("Choose PFX / P12", new[] { "*.pfx", "*.p12" });
@@ -203,6 +215,7 @@ public partial class SignViewModel : ObservableObject
         OnPropertyChanged(nameof(ToSignCount));
         OnPropertyChanged(nameof(HasToSign));
         OnPropertyChanged(nameof(HasFiles));
+        OnPropertyChanged(nameof(HasNoFiles));
         OnPropertyChanged(nameof(SubtitleText));
         OnPropertyChanged(nameof(SignButtonText));
         SignCommand.NotifyCanExecuteChanged();
