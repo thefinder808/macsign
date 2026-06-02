@@ -71,6 +71,8 @@ NOTARY_PROFILE=your-notary-profile ./build-macos.sh
 # (omit the env vars for an unsigned local build)
 ```
 
+**Releases are tag-driven:** push a `v*` tag and CI builds, signs, notarizes, and publishes the `arm64` + `x64` DMGs to a GitHub Release (`.github/workflows/release.yml`). Setup + required secrets: [`docs/RELEASE-SIGNING.md`](docs/RELEASE-SIGNING.md).
+
 The password is read from an environment variable (or `--password`), never logged, and never placed on a child-process command line.
 
 ## Verifying the signature
