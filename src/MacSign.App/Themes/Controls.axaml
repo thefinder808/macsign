@@ -122,6 +122,14 @@
     <Style Selector="TextBox.mono">
         <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
     </Style>
+    <!-- borderless inline-editable text (profile name) -->
+    <Style Selector="TextBox.bare">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Height" Value="24" />
+    </Style>
 
     <!-- ── Cards & surfaces ── -->
 

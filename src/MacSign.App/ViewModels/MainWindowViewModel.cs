@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MacSign.App.Services;
 
 namespace MacSign.App.ViewModels;
 
@@ -10,17 +11,34 @@ namespace MacSign.App.ViewModels;
 /// </summary>
 public partial class MainWindowViewModel : ObservableObject
 {
+    private readonly SettingsStore _store = new();
+
     public SignViewModel Sign { get; } = new();
     public VerifyViewModel Verify { get; } = new();
-    public ProfilesViewModel Profiles { get; } = new();
-    public ActivityViewModel Activity { get; } = new();
+    public ProfilesViewModel Profiles { get; }
+    public ActivityViewModel Activity { get; }
 
     public MainWindowViewModel()
     {
+        var data = _store.Load();
+        Profiles = new ProfilesViewModel(data, _store);
+        Activity = new ActivityViewModel(data, _store);
+
         // Keep the Sign toolbar subtitle live as files/selection change.
         Sign.StateChanged += () => OnPropertyChanged(nameof(ToolbarSubtitle));
         // Show "Verify another" only once a report exists.
         Verify.ReportChanged += () => OnPropertyChanged(nameof(ShowVerifyAnother));
+        // Completed runs flow into Activity (persisted).
+        Sign.RunRecorded += Activity.Record;
+        // "Sign with…" a profile applies it and jumps to the Sign screen.
+        Profiles.SignWithRequested += p => { Sign.ApplyProfile(p); CurrentView = AppView.Sign; };
+    }
+
+    [RelayCommand]
+    private void NewProfile()
+    {
+        Profiles.Add(Sign.CreateProfileSnapshot());
+        CurrentView = AppView.Profiles;
     }
 
     [ObservableProperty]

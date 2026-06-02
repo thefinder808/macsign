@@ -165,6 +165,15 @@
                             IsVisible="{Binding ShowVerifyAnother}" Command="{Binding Verify.VerifyAnotherCommand}">
                         <TextBlock Text="Verify another" VerticalAlignment="Center" />
                     </Button>
+                    <Button Grid.Column="1" Classes="primary" VerticalAlignment="Center" Height="30"
+                            IsVisible="{Binding IsProfiles}" Command="{Binding NewProfileCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <Path Data="{StaticResource IcoPlus}" Stroke="{DynamicResource AccentInk}"
+                                  StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14"
+                                  VerticalAlignment="Center" />
+                            <TextBlock Text="New profile" VerticalAlignment="Center" FontSize="13" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
             </Border>
 

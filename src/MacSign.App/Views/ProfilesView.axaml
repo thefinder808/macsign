@@ -1,6 +1,71 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="MacSign.App.Views.ProfilesView">
-    <TextBlock Text="Profiles view — phase 6" Classes="dim"
-               HorizontalAlignment="Center" VerticalAlignment="Center" />
+             xmlns:vm="using:MacSign.App.ViewModels"
+             x:Class="MacSign.App.Views.ProfilesView"
+             x:DataType="vm:ProfilesViewModel">
+    <Panel>
+
+        <!-- empty state -->
+        <StackPanel IsVisible="{Binding IsEmpty}" Spacing="8" Margin="40"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380">
+            <TextBlock Text="No profiles yet" FontSize="15" FontWeight="Bold"
+                       Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" />
+            <TextBlock TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource Ink2}" FontSize="12.5"
+                       Text="Click “New profile” to save the current Sign credential + options as a reusable preset. Secrets are never stored." />
+        </StackPanel>
+
+        <!-- grid -->
+        <ScrollViewer IsVisible="{Binding HasProfiles}">
+            <ItemsControl ItemsSource="{Binding Profiles}" Margin="18,18,4,18">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:ProfileItemViewModel">
+                        <Border Classes="card" CornerRadius="14" Margin="0,0,14,14" Padding="16">
+                            <StackPanel Spacing="12">
+                                <Grid ColumnDefinitions="38,*,Auto">
+                                    <Border Grid.Column="0" Width="38" Height="38" CornerRadius="10"
+                                            Background="{DynamicResource AccentSoft}">
+                                        <Panel Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource IcoKey}" Stroke="{DynamicResource Accent}"
+                                                  StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding IsPfx}" />
+                                            <Path Data="{StaticResource IcoChip}" Stroke="{DynamicResource Accent}"
+                                                  StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding IsPkcs11}" />
+                                            <Path Data="{StaticResource IcoCloud}" Stroke="{DynamicResource Accent}"
+                                                  StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding IsAzure}" />
+                                        </Panel>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Margin="11,0,0,0" Spacing="2" VerticalAlignment="Center">
+                                        <TextBox Classes="bare" Text="{Binding Name, Mode=TwoWay}" FontSize="14"
+                                                 FontWeight="Bold" Foreground="{DynamicResource Ink}" />
+                                        <TextBlock Text="{Binding Summary}" Classes="mono dim" FontSize="11.5"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Classes="ghost" Width="28" Height="28" Padding="0"
+                                            VerticalAlignment="Top" Content="✕" FontSize="13"
+                                            Foreground="{DynamicResource Ink3}" Command="{Binding DeleteCommand}" />
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <Button Grid.Column="0" Classes="primary" Height="32" Command="{Binding SignWithCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+                                            <Path Data="{StaticResource IcoBolt}" Stroke="{DynamicResource AccentInk}"
+                                                  StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14"
+                                                  VerticalAlignment="Center" />
+                                            <TextBlock Text="Sign with…" FontSize="13" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <TextBlock Grid.Column="1" Text="{Binding LastUsedText}" Classes="dim"
+                                               FontSize="11" VerticalAlignment="Center" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </Panel>
 </UserControl>

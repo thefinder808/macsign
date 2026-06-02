@@ -179,11 +179,17 @@ public partial class SignViewModel : ObservableObject
 
     // ════════════════ signing ════════════════
 
+    /// <summary>Raised when a run finishes, so the shell can record it in Activity.</summary>
+    public event Action<RunData>? RunRecorded;
+
     private bool CanSign() => IsIdle && HasToSign;
 
     [RelayCommand(CanExecute = nameof(CanSign))]
     private async Task SignAsync()
     {
+        var targets = Files.Where(f => f.IsSelected && f.IsSelectable).ToList();
+        if (targets.Count == 0) return;
+
         var options = BuildOptions();
         var signer = _engine.TryCreateSigner(options, out var error);
         if (signer is null)
@@ -192,14 +198,14 @@ public partial class SignViewModel : ObservableObject
             BannerTitle = "Couldn’t start signing";
             BannerDetail = error ?? "Unknown error.";
             SignState = SignState.Done;
+            Record(targets.Count, "fail", error ?? "could not start");
             return;
         }
 
         SignState = SignState.Signing;
         _cts = new CancellationTokenSource();
-        var log = new Progress<string>(_ => { /* per-file state drives the UI; log reserved for Activity */ });
+        var log = new Progress<string>(_ => { /* per-file state drives the UI */ });
 
-        var targets = Files.Where(f => f.IsSelected && f.IsSelectable).ToList();
         int ok = 0;
         string? firstError = null;
 
@@ -233,6 +239,60 @@ public partial class SignViewModel : ObservableObject
             BannerTitle = $"{ok} of {targets.Count} signed";
             BannerDetail = firstError ?? "Some files failed.";
         }
+
+        var status = ok == 0 ? "fail" : ok == targets.Count ? "ok" : "warn";
+        var detail = ok == targets.Count
+            ? (TimestampEnabled ? "signed + timestamped" : "signed")
+            : ok == 0 ? (firstError ?? "failed") : $"{ok}/{targets.Count} — {firstError}";
+        Record(ok > 0 ? ok : targets.Count, status, detail);
+    }
+
+    private void Record(int count, string status, string detail) =>
+        RunRecorded?.Invoke(new RunData
+        {
+            FileCount = count,
+            Credential = CredentialLabel,
+            Detail = detail,
+            Status = status,
+            WhenIso = DateTime.Now.ToString("o"),
+        });
+
+    private string CredentialLabel => CredMode switch
+    {
+        CredMode.Pfx => $"PFX · {(string.IsNullOrWhiteSpace(PfxPath) ? "pfx" : Path.GetFileName(PfxPath))}",
+        CredMode.Pkcs11 => "PKCS#11 token",
+        _ => $"Azure · {Profile}",
+    };
+
+    // ── Profiles interop ──
+    public ProfileData CreateProfileSnapshot() => new()
+    {
+        Name = ActiveCredentialName,
+        CredMode = CredMode.ToString(),
+        PfxPath = NullIfEmpty(PfxPath),
+        ModulePath = NullIfEmpty(ModulePath),
+        Thumbprint = NullIfEmpty(Thumbprint),
+        Account = NullIfEmpty(Account),
+        Profile = NullIfEmpty(Profile),
+        Endpoint = NullIfEmpty(Endpoint),
+        Timestamp = TimestampEnabled,
+        Description = NullIfEmpty(Description),
+        Url = NullIfEmpty(MoreInfoUrl),
+    };
+
+    public void ApplyProfile(ProfileData p)
+    {
+        CredMode = p.CredMode switch { "Pfx" => CredMode.Pfx, "Pkcs11" => CredMode.Pkcs11, _ => CredMode.Azure };
+        PfxPath = p.PfxPath ?? "";
+        ModulePath = p.ModulePath ?? "";
+        Thumbprint = p.Thumbprint ?? "";
+        if (p.Account is not null) Account = p.Account;
+        if (p.Profile is not null) Profile = p.Profile;
+        if (p.Endpoint is not null) Endpoint = p.Endpoint;
+        TimestampEnabled = p.Timestamp;
+        Description = p.Description ?? "";
+        MoreInfoUrl = p.Url ?? "";
+        StateChanged?.Invoke();
     }
 
     [RelayCommand]
