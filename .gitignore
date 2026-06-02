@@ -18,6 +18,7 @@ coverage*.json
 !tests/**/fixtures/*.pfx
 secrets/
 scratch/
+scripts/azure.env
 
 # Tooling / agent state
 .remember/
