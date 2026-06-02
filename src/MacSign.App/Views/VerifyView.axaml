@@ -1,0 +1,149 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MacSign.App.ViewModels"
+             xmlns:controls="using:MacSign.App.Controls"
+             x:Class="MacSign.App.Views.VerifyView"
+             x:DataType="vm:VerifyViewModel"
+             DragDrop.AllowDrop="True">
+
+    <ScrollViewer>
+        <Grid Margin="24">
+
+            <!-- ════ empty state ════ -->
+            <Border x:Name="EmptyCard" IsVisible="{Binding IsEmpty}"
+                    MaxWidth="520" MinHeight="280" Cursor="Hand"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Classes="dropHint" Background="{DynamicResource Panel}" CornerRadius="16">
+                <StackPanel Spacing="14" Margin="40" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Width="56" Height="56" CornerRadius="16" HorizontalAlignment="Center"
+                            Background="{DynamicResource AccentSoft}">
+                        <Path Data="{StaticResource IcoShield}" Stroke="{DynamicResource Accent}"
+                              StrokeThickness="1.6" Stretch="Uniform" Width="30" Height="30"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="Drop a file to verify" FontSize="15" FontWeight="Bold"
+                               Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" />
+                    <TextBlock FontSize="12.5" Foreground="{DynamicResource Ink2}" MaxWidth="320"
+                               TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"
+                               Text="Reports signature integrity, signer, timestamp, and chain trust. Click to pick a file." />
+                </StackPanel>
+            </Border>
+
+            <!-- ════ report ════ -->
+            <Border IsVisible="{Binding HasReport}" MaxWidth="640"
+                    HorizontalAlignment="Center" VerticalAlignment="Top"
+                    Classes="card" CornerRadius="16" ClipToBounds="True">
+                <StackPanel>
+
+                    <!-- header -->
+                    <Border Background="{DynamicResource OkSoft}" Padding="20"
+                            BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <controls:ExtBadge Grid.Column="0" Ext="{Binding Ext}" Size="40" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding FileName}" FontSize="15" FontWeight="Bold"
+                                           Foreground="{DynamicResource Ink}" />
+                                <TextBlock Text="{Binding FileMeta}" FontSize="12" Foreground="{DynamicResource Ink2}" />
+                            </StackPanel>
+                            <Border Grid.Column="2" CornerRadius="10" Padding="13,7" VerticalAlignment="Center"
+                                    Background="{DynamicResource Ok}" IsVisible="{Binding IntegrityValid}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Path Data="{StaticResource IcoCheck}" Stroke="White" StrokeThickness="2.4"
+                                          Stretch="Uniform" Width="14" Height="14" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding IntegrityHeadline}" Foreground="White"
+                                               FontSize="13.5" FontWeight="Bold" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" CornerRadius="10" Padding="13,7" VerticalAlignment="Center"
+                                    Background="{DynamicResource Fail}" IsVisible="{Binding IntegrityBad}">
+                                <TextBlock Text="{Binding IntegrityHeadline}" Foreground="White"
+                                           FontSize="13.5" FontWeight="Bold" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- detail rows -->
+                    <StackPanel Margin="20,6,20,16">
+
+                        <!-- Integrity -->
+                        <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
+                            <Grid ColumnDefinitions="110,*">
+                                <TextBlock Grid.Column="0" Text="Integrity" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Ink2}" />
+                                <Panel Grid.Column="1">
+                                    <TextBlock Text="{Binding IntegrityDetail}" FontSize="12.5" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Ok}" IsVisible="{Binding IntegrityValid}" />
+                                    <TextBlock Text="{Binding IntegrityDetail}" FontSize="12.5" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Fail}" IsVisible="{Binding IntegrityBad}" />
+                                </Panel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Signer -->
+                        <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
+                            <Grid ColumnDefinitions="110,*">
+                                <TextBlock Grid.Column="0" Text="Signer" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Ink2}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Signer}" Classes="mono" FontSize="12.5"
+                                           Foreground="{DynamicResource Ink}" TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Issuer -->
+                        <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
+                            <Grid ColumnDefinitions="110,*">
+                                <TextBlock Grid.Column="0" Text="Issuer" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Ink2}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Issuer}" FontSize="12.5"
+                                           Foreground="{DynamicResource Ink}" TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Serial -->
+                        <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
+                            <Grid ColumnDefinitions="110,*">
+                                <TextBlock Grid.Column="0" Text="Serial" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Ink2}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Serial}" Classes="mono" FontSize="12.5"
+                                           Foreground="{DynamicResource Ink}" TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Timestamp -->
+                        <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
+                            <Grid ColumnDefinitions="110,*">
+                                <TextBlock Grid.Column="0" Text="Timestamp" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Ink2}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                    <Path Data="{StaticResource IcoClock}" Stroke="{DynamicResource Ink2}"
+                                          StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14"
+                                          VerticalAlignment="Center" IsVisible="{Binding HasTimestamp}" />
+                                    <TextBlock Text="{Binding TimestampText}" FontSize="12.5"
+                                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Chain trust -->
+                        <Border Padding="0,11">
+                            <Grid ColumnDefinitions="110,*">
+                                <TextBlock Grid.Column="0" Text="Chain trust" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Ink2}" />
+                                <StackPanel Grid.Column="1" Spacing="3">
+                                    <TextBlock Text="{Binding ChainText}" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ok}" IsVisible="{Binding ChainTrusted}" />
+                                    <TextBlock Text="{Binding ChainText}" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Warn}" IsVisible="{Binding ChainBad}" />
+                                    <TextBlock Text="{Binding ChainNote}" Classes="dim" FontSize="11.5"
+                                               TextWrapping="Wrap" IsVisible="{Binding HasChainNote}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </Grid>
+    </ScrollViewer>
+</UserControl>

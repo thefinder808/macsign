@@ -1,0 +1,282 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MacSign.App.ViewModels"
+             xmlns:controls="using:MacSign.App.Controls"
+             x:Class="MacSign.App.Views.SignView"
+             x:DataType="vm:SignViewModel"
+             DragDrop.AllowDrop="True">
+
+    <Grid ColumnDefinitions="*,330">
+
+        <!-- ════════ Files list (left) ════════ -->
+        <DockPanel Grid.Column="0" Margin="18" LastChildFill="True">
+
+            <!-- done / error banner -->
+            <Border DockPanel.Dock="Top" IsVisible="{Binding IsDone}" Margin="0,0,0,14"
+                    CornerRadius="12" Padding="13,12"
+                    Background="{DynamicResource OkSoft}"
+                    BorderBrush="{DynamicResource Ok}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="11" VerticalAlignment="Center">
+                    <Path Data="{StaticResource IcoShield}" Stroke="{DynamicResource Ok}"
+                          StrokeThickness="1.6" Stretch="Uniform" Width="20" Height="20" VerticalAlignment="Center" />
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding BannerTitle}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Ink}" />
+                        <TextBlock Text="{Binding BannerDetail}" FontSize="12" Foreground="{DynamicResource Ink2}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- files card -->
+            <Border Classes="card" ClipToBounds="True">
+                <DockPanel LastChildFill="True">
+
+                    <!-- header -->
+                    <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource Hair}"
+                            BorderThickness="0,0,0,1" Padding="12,9">
+                        <Grid ColumnDefinitions="16,30,*,Auto">
+                            <TextBlock Grid.Column="2" Classes="section" Text="FILE" Margin="11,0,0,0" />
+                            <TextBlock Grid.Column="3" Classes="section" Text="STATUS" />
+                        </Grid>
+                    </Border>
+
+                    <!-- drop hint -->
+                    <Border DockPanel.Dock="Bottom" Classes="dropHint" Margin="12" Padding="14,11"
+                            HorizontalAlignment="Center">
+                        <TextBlock Classes="dim" FontSize="12.5"
+                                   Text="Drop .exe · .dll · .sys · .msi · .ps1 here" />
+                    </Border>
+
+                    <!-- rows -->
+                    <ScrollViewer>
+                        <ItemsControl ItemsSource="{Binding Files}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:FileItemViewModel">
+                                    <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1"
+                                            Padding="12,9" Opacity="{Binding RowOpacity}">
+                                        <Grid ColumnDefinitions="16,30,*,Auto">
+
+                                            <!-- checkbox / spinner / done check -->
+                                            <Panel Grid.Column="0" Width="16" Height="16" VerticalAlignment="Center">
+                                                <ToggleButton Classes="check" IsVisible="{Binding ShowCheckbox}"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                <Path Classes="spin" Data="{StaticResource IcoSpinner}"
+                                                      Stroke="{DynamicResource Accent}" StrokeThickness="2.5"
+                                                      Stretch="Uniform" Width="15" Height="15"
+                                                      IsVisible="{Binding ShowSpinner}" />
+                                                <Path Data="{StaticResource IcoCheck}" Stroke="{DynamicResource Ok}"
+                                                      StrokeThickness="2.2" Stretch="Uniform" Width="13" Height="13"
+                                                      IsVisible="{Binding ShowDoneCheck}" />
+                                            </Panel>
+
+                                            <controls:ExtBadge Grid.Column="1" Ext="{Binding Ext}" Size="30"
+                                                               VerticalAlignment="Center" />
+
+                                            <StackPanel Grid.Column="2" Margin="11,0,0,0" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource Ink}" />
+                                                <TextBlock Text="{Binding SizeText}" Classes="mono dim" FontSize="11.5" />
+                                            </StackPanel>
+
+                                            <Panel Grid.Column="3" VerticalAlignment="Center">
+                                                <Border Classes="pill ok" IsVisible="{Binding ShowSignedPill}">
+                                                    <TextBlock Text="Signed" />
+                                                </Border>
+                                                <Border Classes="pill ok" IsVisible="{Binding ShowDonePill}">
+                                                    <TextBlock Text="Signed now" />
+                                                </Border>
+                                                <TextBlock Text="Signing…" Classes="dim" FontSize="12"
+                                                           IsVisible="{Binding ShowSigningText}" />
+                                                <TextBlock Text="Unsigned" Classes="dim" FontSize="12"
+                                                           IsVisible="{Binding ShowUnsignedText}" />
+                                            </Panel>
+
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                </DockPanel>
+            </Border>
+        </DockPanel>
+
+        <!-- ════════ Inspector (right, 330) ════════ -->
+        <Border Grid.Column="1" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Hair}" BorderThickness="1,0,0,0">
+            <DockPanel LastChildFill="True">
+
+                <!-- footer: primary action -->
+                <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Hair}"
+                        BorderThickness="0,1,0,0" Padding="18">
+                    <Panel>
+                        <!-- idle -->
+                        <Button Classes="primary" HorizontalAlignment="Stretch" IsVisible="{Binding IsIdle}"
+                                Command="{Binding SignCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <Path Data="{StaticResource IcoShield}" Stroke="{DynamicResource AccentInk}"
+                                      StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding SignButtonText}" VerticalAlignment="Center" />
+                                <Border CornerRadius="5" Padding="6,2" Background="#33FFFFFF" VerticalAlignment="Center">
+                                    <TextBlock Text="⌘S" FontFamily="{DynamicResource MonoFont}" FontSize="11"
+                                               Foreground="{DynamicResource AccentInk}" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
+                        <!-- signing -->
+                        <Button Classes="primary" HorizontalAlignment="Stretch" IsVisible="{Binding IsSigning}"
+                                IsEnabled="False">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <Path Classes="spin" Data="{StaticResource IcoSpinner}" Stroke="{DynamicResource AccentInk}"
+                                      StrokeThickness="2.5" Stretch="Uniform" Width="15" Height="15" />
+                                <TextBlock Text="Signing…" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <!-- done -->
+                        <Button Classes="secondary" HorizontalAlignment="Stretch" Height="38"
+                                IsVisible="{Binding IsDone}" Command="{Binding SignMoreCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <Path Data="{StaticResource IcoPlus}" Stroke="{DynamicResource Ink}"
+                                      StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14" VerticalAlignment="Center" />
+                                <TextBlock Text="Sign more files" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Panel>
+                </Border>
+
+                <!-- inspector body -->
+                <ScrollViewer>
+                    <StackPanel Margin="18" Spacing="18">
+
+                        <!-- Credential -->
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="section" Text="CREDENTIAL" />
+
+                            <Border Background="{DynamicResource Hair}" CornerRadius="9" Padding="3">
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="3">
+                                    <Button Grid.Column="0" Classes="segment" Classes.active="{Binding IsPfx}"
+                                            Command="{Binding SetCredModeCommand}" CommandParameter="{x:Static vm:CredMode.Pfx}">
+                                        <StackPanel Spacing="4">
+                                            <Path Data="{StaticResource IcoKey}" StrokeThickness="1.6" Stretch="Uniform"
+                                                  Width="19" Height="19" HorizontalAlignment="Center" />
+                                            <TextBlock Text="PFX" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="1" Classes="segment" Classes.active="{Binding IsPkcs11}"
+                                            Command="{Binding SetCredModeCommand}" CommandParameter="{x:Static vm:CredMode.Pkcs11}">
+                                        <StackPanel Spacing="4">
+                                            <Path Data="{StaticResource IcoChip}" StrokeThickness="1.6" Stretch="Uniform"
+                                                  Width="19" Height="19" HorizontalAlignment="Center" />
+                                            <TextBlock Text="Token" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="2" Classes="segment" Classes.active="{Binding IsAzure}"
+                                            Command="{Binding SetCredModeCommand}" CommandParameter="{x:Static vm:CredMode.Azure}">
+                                        <StackPanel Spacing="4">
+                                            <Path Data="{StaticResource IcoCloud}" StrokeThickness="1.6" Stretch="Uniform"
+                                                  Width="19" Height="19" HorizontalAlignment="Center" />
+                                            <TextBlock Text="Azure" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Text="{Binding CredBlurb}" Classes="dim" FontSize="12" TextWrapping="Wrap" />
+
+                            <!-- PFX fields -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsPfx}">
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="PFX / P12 file" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBox Grid.Column="0" Classes="mono" Text="{Binding PfxPath}"
+                                                 Watermark="…/codesign.pfx" />
+                                        <Button Grid.Column="1" Classes="ghost" Height="32" Padding="10,0"
+                                                Content="Choose…" Foreground="{DynamicResource Accent}"
+                                                Command="{Binding ChoosePfxCommand}" />
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="Password" />
+                                    <TextBox PasswordChar="•" Text="{Binding PfxPassword}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Token (PKCS#11) fields -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsPkcs11}">
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="PKCS#11 module" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBox Grid.Column="0" Classes="mono" Text="{Binding ModulePath}"
+                                                 Watermark="/usr/local/lib/…-pkcs11.so" />
+                                        <Button Grid.Column="1" Classes="ghost" Height="32" Padding="10,0"
+                                                Content="Choose…" Foreground="{DynamicResource Accent}"
+                                                Command="{Binding ChooseModuleCommand}" />
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="Certificate thumbprint" />
+                                    <TextBox Classes="mono" Text="{Binding Thumbprint}" Watermark="auto-detect" />
+                                </StackPanel>
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="PIN" />
+                                    <TextBox PasswordChar="•" Text="{Binding Pin}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Azure fields -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsAzure}">
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="Account" />
+                                    <TextBox Classes="mono" Text="{Binding Account}" />
+                                </StackPanel>
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="Certificate profile" />
+                                    <TextBox Classes="mono" Text="{Binding Profile}" />
+                                </StackPanel>
+                                <Border Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,9">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Path Data="{StaticResource IcoFingerprint}" Stroke="{DynamicResource Accent}"
+                                              StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16"
+                                              VerticalAlignment="Top" />
+                                        <TextBlock Text="Signed in via az login — token acquired automatically."
+                                                   FontSize="12" Foreground="{DynamicResource Ink2}"
+                                                   TextWrapping="Wrap" MaxWidth="230" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Border Height="1" Background="{DynamicResource Hair}" />
+
+                        <!-- Options -->
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="section" Text="OPTIONS" />
+                            <StackPanel Spacing="5">
+                                <TextBlock Classes="fieldlabel" Text="Description" />
+                                <TextBox Text="{Binding Description}" />
+                            </StackPanel>
+                            <StackPanel Spacing="5">
+                                <TextBlock Classes="fieldlabel" Text="More-info URL" />
+                                <TextBox Text="{Binding MoreInfoUrl}" Watermark="optional" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <ToggleButton Classes="switch" IsChecked="{Binding TimestampEnabled, Mode=TwoWay}"
+                                              VerticalAlignment="Center" />
+                                <StackPanel Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="RFC 3161 timestamp" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink}" />
+                                    <TextBlock Text="{Binding TimestampUrl}" Classes="mono dim" FontSize="11" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</UserControl>

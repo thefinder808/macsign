@@ -1,0 +1,8 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MacSign.App.Controls.ExtBadge">
+    <Border Name="Chip" CornerRadius="7" BorderThickness="1">
+        <TextBlock Name="Label" FontFamily="{DynamicResource MonoFont}" FontWeight="Bold"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Border>
+</UserControl>

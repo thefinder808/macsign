@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>MacSign.App</RootNamespace>
+    <!-- .app executable + CFBundleExecutable. Distinct from the CLI's 'macsign'. -->
+    <AssemblyName>MacSign</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The GUI consumes the engine in-process and opts into all three backends;
+         the core engine references none of them (they self-register — see App). -->
+    <ProjectReference Include="..\MacSign.Signing\MacSign.Signing.csproj" />
+    <ProjectReference Include="..\MacSign.Signing.Pkcs11\MacSign.Signing.Pkcs11.csproj" />
+    <ProjectReference Include="..\MacSign.Signing.Msi\MacSign.Signing.Msi.csproj" />
+    <ProjectReference Include="..\MacSign.Signing.Azure\MacSign.Signing.Azure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.17" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.17" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.17" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.17" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+</Project>

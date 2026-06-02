@@ -1,0 +1,187 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:MacSign.App.Views"
+        xmlns:vm="using:MacSign.App.ViewModels"
+        x:Class="MacSign.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="MacSign"
+        Width="1120" Height="740"
+        MinWidth="1000" MinHeight="680"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1">
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Meta+S" Command="{Binding Sign.SignCommand}" />
+    </Window.KeyBindings>
+
+    <Window.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Offset="0" Color="{DynamicResource Bg1Color}" />
+            <GradientStop Offset="1" Color="{DynamicResource Bg2Color}" />
+        </LinearGradientBrush>
+    </Window.Background>
+
+    <!-- VM → View mapping for the content host. -->
+    <Window.DataTemplates>
+        <DataTemplate DataType="vm:SignViewModel"><views:SignView /></DataTemplate>
+        <DataTemplate DataType="vm:VerifyViewModel"><views:VerifyView /></DataTemplate>
+        <DataTemplate DataType="vm:ProfilesViewModel"><views:ProfilesView /></DataTemplate>
+        <DataTemplate DataType="vm:ActivityViewModel"><views:ActivityView /></DataTemplate>
+    </Window.DataTemplates>
+
+    <Grid ColumnDefinitions="218,*">
+
+        <!-- ── Sidebar ── -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource Sidebar}"
+                BorderBrush="{DynamicResource Hair}"
+                BorderThickness="0,0,1,0">
+            <DockPanel LastChildFill="True">
+
+                <!-- traffic-light zone (OS draws the lights here) -->
+                <Border DockPanel.Dock="Top" Height="44" />
+
+                <!-- brand -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                            Spacing="9" Margin="16,2,16,14" VerticalAlignment="Center">
+                    <Border Width="26" Height="26" CornerRadius="6" ClipToBounds="True">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                <GradientStop Offset="0" Color="#6172EA" />
+                                <GradientStop Offset="0.58" Color="#3F49C9" />
+                                <GradientStop Offset="1" Color="#2C33A3" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Viewbox Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Canvas Width="100" Height="100">
+                                <Path Data="{StaticResource GlyphShield}" Fill="White" />
+                                <Path Data="{StaticResource GlyphCheck}" Stroke="#3F49C9"
+                                      StrokeThickness="9.5" StrokeLineCap="Round" StrokeJoin="Round" />
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <TextBlock Text="MacSign" FontSize="14" FontWeight="Bold"
+                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- nav -->
+                <StackPanel DockPanel.Dock="Top" Margin="10,0" Spacing="2">
+
+                    <Button Classes="nav" Classes.active="{Binding IsSign}"
+                            Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Sign}">
+                        <Grid ColumnDefinitions="17,*,Auto">
+                            <Path Grid.Column="0" Data="{StaticResource IcoBolt}" StrokeThickness="1.6"
+                                  Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="Sign" Margin="9,0,0,0" VerticalAlignment="Center" />
+                            <Border Grid.Column="2" Classes="navbadge" VerticalAlignment="Center"
+                                    IsVisible="{Binding Sign.HasToSign}">
+                                <TextBlock Text="{Binding Sign.ToSignCount}" />
+                            </Border>
+                        </Grid>
+                    </Button>
+
+                    <Button Classes="nav" Classes.active="{Binding IsVerify}"
+                            Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Verify}">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Path Data="{StaticResource IcoShield}" StrokeThickness="1.6"
+                                  Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="Verify" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav" Classes.active="{Binding IsProfiles}"
+                            Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Profiles}">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Path Data="{StaticResource IcoLock}" StrokeThickness="1.6"
+                                  Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="Profiles" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav" Classes.active="{Binding IsActivity}"
+                            Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Activity}">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Path Data="{StaticResource IcoActivity}" StrokeThickness="1.6"
+                                  Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="Activity" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                </StackPanel>
+
+                <!-- active credential (bottom) -->
+                <Border DockPanel.Dock="Bottom" Classes="cardSolid" Margin="12" Padding="11">
+                    <StackPanel Spacing="7">
+                        <TextBlock Classes="section" Text="ACTIVE CREDENTIAL" />
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Panel Width="18" Height="18" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IcoKey}" Stroke="{DynamicResource Accent}"
+                                      StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding Sign.IsPfx}" />
+                                <Path Data="{StaticResource IcoChip}" Stroke="{DynamicResource Accent}"
+                                      StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding Sign.IsPkcs11}" />
+                                <Path Data="{StaticResource IcoCloud}" Stroke="{DynamicResource Accent}"
+                                      StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding Sign.IsAzure}" />
+                            </Panel>
+                            <StackPanel Spacing="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Sign.ActiveCredentialName}" FontSize="12.5"
+                                           FontWeight="SemiBold" Foreground="{DynamicResource Ink}" />
+                                <TextBlock Text="{Binding Sign.ActiveCredentialSub}" Classes="mono dim" FontSize="11" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- filler -->
+                <Panel />
+
+            </DockPanel>
+        </Border>
+
+        <!-- ── Main column ── -->
+        <Grid Grid.Column="1" RowDefinitions="56,*">
+
+            <!-- toolbar -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource Toolbar}"
+                    BorderBrush="{DynamicResource Hair}"
+                    BorderThickness="0,0,0,1">
+                <Grid Margin="20,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Classes="title" Text="{Binding ToolbarTitle}" />
+                        <TextBlock Classes="subtitle" Text="{Binding ToolbarSubtitle}" />
+                    </StackPanel>
+
+                    <!-- contextual right actions -->
+                    <Button Grid.Column="1" Classes="secondary" VerticalAlignment="Center"
+                            IsVisible="{Binding IsSign}" Command="{Binding Sign.AddFilesCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <Path Data="{StaticResource IcoPlus}" Stroke="{DynamicResource Ink}"
+                                  StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14"
+                                  VerticalAlignment="Center" />
+                            <TextBlock Text="Add files" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="1" Classes="secondary" VerticalAlignment="Center"
+                            IsVisible="{Binding ShowVerifyAnother}" Command="{Binding Verify.VerifyAnotherCommand}">
+                        <TextBlock Text="Verify another" VerticalAlignment="Center" />
+                    </Button>
+                    <Button Grid.Column="1" Classes="primary" VerticalAlignment="Center" Height="30"
+                            IsVisible="{Binding IsProfiles}" Command="{Binding NewProfileCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <Path Data="{StaticResource IcoPlus}" Stroke="{DynamicResource AccentInk}"
+                                  StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14"
+                                  VerticalAlignment="Center" />
+                            <TextBlock Text="New profile" VerticalAlignment="Center" FontSize="13" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- content host -->
+            <ContentControl Grid.Row="1" Content="{Binding CurrentPage}" />
+
+        </Grid>
+
+    </Grid>
+
+</Window>

@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MacSign.App/MacSign.App.csproj" />
     <Project Path="src/MacSign.Cli/MacSign.Cli.csproj" />
     <Project Path="src/MacSign.Fixture/MacSign.Fixture.csproj" />
     <Project Path="src/MacSign.Signing.Azure/MacSign.Signing.Azure.csproj" />

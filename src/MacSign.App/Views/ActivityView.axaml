@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MacSign.App.ViewModels"
+             x:Class="MacSign.App.Views.ActivityView"
+             x:DataType="vm:ActivityViewModel">
+    <Panel>
+
+        <!-- empty state -->
+        <StackPanel IsVisible="{Binding IsEmpty}" Spacing="8" Margin="40"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380">
+            <TextBlock Text="No signing runs yet" FontSize="15" FontWeight="Bold"
+                       Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" />
+            <TextBlock TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource Ink2}" FontSize="12.5"
+                       Text="Completed signing runs appear here. Secrets are never logged." />
+        </StackPanel>
+
+        <!-- list -->
+        <ScrollViewer IsVisible="{Binding HasRuns}">
+            <Border Classes="card" Margin="18" ClipToBounds="True">
+                <ItemsControl ItemsSource="{Binding Runs}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:RunItemViewModel">
+                            <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="16,12">
+                                <Grid ColumnDefinitions="26,130,*,Auto">
+
+                                    <!-- status square -->
+                                    <Panel Grid.Column="0" Width="26" Height="26" VerticalAlignment="Center">
+                                        <Border Background="#291F8A4D" CornerRadius="8" IsVisible="{Binding IsOk}">
+                                            <Path Data="{StaticResource IcoCheck}" Stroke="{DynamicResource Ok}"
+                                                  StrokeThickness="2" Stretch="Uniform" Width="14" Height="14"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <Border Background="#29B7791F" CornerRadius="8" IsVisible="{Binding IsWarn}">
+                                            <Path Data="{StaticResource IcoClock}" Stroke="{DynamicResource Warn}"
+                                                  StrokeThickness="1.6" Stretch="Uniform" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <Border Background="#29D6453D" CornerRadius="8" IsVisible="{Binding IsFail}">
+                                            <Path Data="{StaticResource IcoAlert}" Stroke="{DynamicResource Fail}"
+                                                  StrokeThickness="1.6" Stretch="Uniform" Width="15" Height="15"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Panel>
+
+                                    <TextBlock Grid.Column="1" Text="{Binding FilesText}" Margin="13,0,0,0"
+                                               FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Ink}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding DetailText}" Classes="mono" FontSize="12"
+                                               Foreground="{DynamicResource Ink2}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="3" Text="{Binding WhenText}" Classes="dim" FontSize="11.5"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+        </ScrollViewer>
+
+    </Panel>
+</UserControl>
