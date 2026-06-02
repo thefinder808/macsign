@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The signing engine. No THIRD-PARTY dependencies by design (keeps the eventual
+    notarized app dependency-clean and auditable). The single PackageReference below
+    is System.Security.Cryptography.Pkcs — a Microsoft first-party platform package
+    that supplies the CMS APIs (it is not bundled in the base framework ref pack).
+  -->
+  <PropertyGroup>
+    <RootNamespace>MacSign.Signing</RootNamespace>
+    <AssemblyName>MacSign.Signing</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MacSign.Signing.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.8" />
+  </ItemGroup>
+
+</Project>

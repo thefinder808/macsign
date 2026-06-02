@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A trivial class library whose compiled DLL is a valid, unsigned managed PE.
+    `dotnet build` emits it on any OS (including macOS), so it is the Authenticode
+    target our tests and CI sign — no committed binary needed.
+  -->
+  <PropertyGroup>
+    <RootNamespace>MacSign.Fixture</RootNamespace>
+    <AssemblyName>MacSign.Fixture</AssemblyName>
+  </PropertyGroup>
+
+</Project>

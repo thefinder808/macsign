@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MacSign.Cli/MacSign.Cli.csproj" />
+    <Project Path="src/MacSign.Fixture/MacSign.Fixture.csproj" />
+    <Project Path="src/MacSign.Signing/MacSign.Signing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MacSign.Signing.Tests/MacSign.Signing.Tests.csproj" />
+  </Folder>
+</Solution>
