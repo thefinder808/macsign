@@ -14,6 +14,39 @@
         <KeyBinding Gesture="Meta+S" Command="{Binding Sign.SignCommand}" />
     </Window.KeyBindings>
 
+    <!-- macOS menu bar. (Avalonia auto-provides the bold app menu + Quit.) -->
+    <NativeMenu.Menu>
+        <NativeMenu>
+            <NativeMenuItem Header="File">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="Add Files…" Gesture="Meta+O"
+                                        Command="{Binding Sign.AddFilesCommand}" />
+                        <NativeMenuItem Header="Sign" Gesture="Meta+S"
+                                        Command="{Binding Sign.SignCommand}" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="Verify File…" Gesture="Meta+Shift+O"
+                                        Command="{Binding Verify.PickAndVerifyCommand}" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
+            <NativeMenuItem Header="View">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="Sign" Gesture="Meta+1"
+                                        Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Sign}" />
+                        <NativeMenuItem Header="Verify" Gesture="Meta+2"
+                                        Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Verify}" />
+                        <NativeMenuItem Header="Profiles" Gesture="Meta+3"
+                                        Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Profiles}" />
+                        <NativeMenuItem Header="Activity" Gesture="Meta+4"
+                                        Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Activity}" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
+        </NativeMenu>
+    </NativeMenu.Menu>
+
     <Window.Background>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
             <GradientStop Offset="0" Color="{DynamicResource Bg1Color}" />
@@ -38,11 +71,13 @@
                 BorderThickness="0,0,1,0">
             <DockPanel LastChildFill="True">
 
-                <!-- traffic-light zone (OS draws the lights here) -->
-                <Border DockPanel.Dock="Top" Height="44" />
+                <!-- traffic-light zone (OS draws the lights here) — drag to move -->
+                <Border DockPanel.Dock="Top" Height="44" Background="Transparent"
+                        PointerPressed="OnTitleBarPressed" />
 
-                <!-- brand -->
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                <!-- brand (drag to move) -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Background="Transparent"
+                            PointerPressed="OnTitleBarPressed"
                             Spacing="9" Margin="16,2,16,14" VerticalAlignment="Center">
                     <Border Width="26" Height="26" CornerRadius="6" ClipToBounds="True">
                         <Border.Background>
@@ -140,11 +175,12 @@
         <!-- ── Main column ── -->
         <Grid Grid.Column="1" RowDefinitions="56,*">
 
-            <!-- toolbar -->
+            <!-- toolbar (drag to move) -->
             <Border Grid.Row="0"
                     Background="{DynamicResource Toolbar}"
                     BorderBrush="{DynamicResource Hair}"
-                    BorderThickness="0,0,0,1">
+                    BorderThickness="0,0,0,1"
+                    PointerPressed="OnTitleBarPressed">
                 <Grid Margin="20,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="1">
                         <TextBlock Classes="title" Text="{Binding ToolbarTitle}" />
