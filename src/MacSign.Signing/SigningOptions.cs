@@ -2,8 +2,9 @@ namespace MacSign.Signing;
 
 /// <summary>
 /// Options for a signing run. <see cref="Secret"/> (the PFX password) is supplied
-/// transiently for a single run and is NEVER persisted, logged, or placed on a
-/// command line.
+/// transiently for a single run and is never persisted or logged by MacSign. Prefer the
+/// CLI's <c>--password-env</c> (an environment variable) over a plaintext argument so the
+/// secret doesn't land in shell history or the process list.
 /// </summary>
 public sealed record SigningOptions
 {
@@ -54,8 +55,8 @@ public sealed record SigningOptions
     public string? TimestampUrl { get; init; }
 
     /// <summary>
-    /// The credential secret — for PFX mode, the file's password. Transient; never
-    /// persisted. May be null for a password-less PFX.
+    /// The credential secret — for PFX mode, the file's password. Transient; never persisted
+    /// or logged by MacSign. May be null for a password-less PFX.
     /// </summary>
     public string? Secret { get; init; }
 }

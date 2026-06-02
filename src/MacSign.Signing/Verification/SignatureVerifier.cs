@@ -57,8 +57,12 @@ public static class SignatureVerifier
         try { cms.CheckSignature(verifySignatureOnly: true); signerSignatureValid = true; }
         catch { signerSignatureValid = false; }
 
-        // File integrity: the digest embedded in the SPC must match a fresh digest of the file.
-        bool digestMatches = SpcDigest.TryReadSha256(cms.ContentInfo.Content, out var embedded)
+        // File integrity: the CMS must encapsulate SpcIndirectDataContent (a real
+        // Authenticode verifier rejects any other content type), and the digest it embeds
+        // must match a fresh digest of the file.
+        bool digestMatches =
+            cms.ContentInfo.ContentType?.Value == AuthenticodeOids.SpcIndirectDataContent
+            && SpcDigest.TryReadSha256(cms.ContentInfo.Content, out var embedded)
             && embedded.AsSpan().SequenceEqual(format.ComputeDigest(fileBytes));
 
         var (chainTrusted, chainNote) = BuildChain(cert);

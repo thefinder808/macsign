@@ -58,8 +58,12 @@ internal sealed class AuthenticodeCmsBuilder : ICmsBuilder
             throw new ArgumentException($"Invalid timestamp URL: '{timestampUrl}'.");
 
         var signerInfo = cms.SignerInfos[0];
+        // A fresh nonce lets ProcessResponse detect a replayed/substituted token on the
+        // (usually plaintext-HTTP) TSA channel.
         var request = Rfc3161TimestampRequest.CreateFromSignerInfo(
-            signerInfo, HashAlgorithmName.SHA256, requestSignerCertificates: true);
+            signerInfo, HashAlgorithmName.SHA256,
+            nonce: RandomNumberGenerator.GetBytes(16),
+            requestSignerCertificates: true);
 
         var token = await new TimestampClient().RequestAsync(request, uri, ct);
 

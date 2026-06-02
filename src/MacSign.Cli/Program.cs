@@ -127,15 +127,16 @@ namespace MacSign.Cli
             using var cert = req.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(3));
 
             File.WriteAllBytes(pfxPath, cert.Export(X509ContentType.Pfx, password));
+            RestrictToOwner(pfxPath); // the PFX holds the private key — keep it owner-readable only
             File.WriteAllBytes(cerPath, cert.Export(X509ContentType.Cert)); // DER public cert
-            Console.WriteLine($"Wrote test PFX → {pfxPath}");
+            Console.WriteLine($"Wrote test PFX → {pfxPath}  (throwaway self-signed cert — not for production)");
             Console.WriteLine($"Wrote public cert → {cerPath}");
             return 0;
         }
 
         private static string? ResolvePassword(Flags f)
         {
-            if (f.Get("password") is { } direct) return direct;
+            if (f.Get("password") is { } direct) { WarnPlaintextSecret("--password"); return direct; }
             if (f.Get("password-env") is { } envVar)
                 return Environment.GetEnvironmentVariable(envVar)
                     ?? throw new ArgumentException($"Environment variable '{envVar}' is not set.");
@@ -144,11 +145,26 @@ namespace MacSign.Cli
 
         private static string? ResolveTrustedSigningToken(Flags f)
         {
-            if (f.Get("trusted-signing-token") is { } direct) return direct;
+            if (f.Get("trusted-signing-token") is { } direct) { WarnPlaintextSecret("--trusted-signing-token"); return direct; }
             if (f.Get("trusted-signing-token-env") is { } envVar)
                 return Environment.GetEnvironmentVariable(envVar)
                     ?? throw new ArgumentException($"Environment variable '{envVar}' is not set.");
             return null; // fall back to Azure.Identity (az login / env service principal / managed identity)
+        }
+
+        /// <summary>A plaintext secret on argv lands in shell history and the process list — nudge to the env form.</summary>
+        private static void WarnPlaintextSecret(string flag) =>
+            Console.Error.WriteLine(
+                $"warning: {flag} puts the secret in your shell history and the process list (ps); prefer {flag}-env.");
+
+        private static void RestrictToOwner(string path)
+        {
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                    File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            catch { /* best effort — file permissions are advisory for a throwaway cert */ }
         }
 
         private static int Usage()

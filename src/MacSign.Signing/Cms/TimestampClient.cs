@@ -10,8 +10,21 @@ namespace MacSign.Signing.Cms;
 /// </summary>
 internal sealed class TimestampClient
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private static readonly HttpClient Http = CreateClient();
     private const int MaxAttempts = 3;
+
+    private static HttpClient CreateClient()
+    {
+        // Don't follow redirects (a TSA shouldn't bounce the timestamp POST elsewhere) and
+        // cap the response so a hostile/compromised server can't exhaust memory — RFC3161
+        // tokens are a few KB; the token's correctness is still gated by ProcessResponse.
+        var handler = new SocketsHttpHandler { AllowAutoRedirect = false };
+        return new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(30),
+            MaxResponseContentBufferSize = 1024 * 1024,
+        };
+    }
 
     /// <summary>Request a timestamp token for <paramref name="request"/> from <paramref name="tsaUrl"/>.</summary>
     public async Task<Rfc3161TimestampToken> RequestAsync(
