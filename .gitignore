@@ -22,3 +22,4 @@ scratch/
 # Tooling / agent state
 .remember/
 .claude/
+CLAUDE.md
