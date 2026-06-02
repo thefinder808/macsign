@@ -20,4 +20,7 @@ internal static class AuthenticodeOids
 
     /// <summary>SHA-256 digest algorithm.</summary>
     public const string Sha256 = "2.16.840.1.101.3.4.2.1";
+
+    /// <summary>szOID_RFC3161_counterSign — the unsigned attribute holding an RFC3161 timestamp token.</summary>
+    public const string Rfc3161Timestamp = "1.3.6.1.4.1.311.3.3.1";
 }

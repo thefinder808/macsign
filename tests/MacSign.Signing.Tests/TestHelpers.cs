@@ -65,6 +65,24 @@ internal sealed class ListProgress : IProgress<string>
     public void Report(string value) => Messages.Add(value);
 }
 
+/// <summary>Network reachability probe so network-dependent tests self-skip when offline.</summary>
+internal static class Net
+{
+    public static async Task<bool> CanReachAsync(string url)
+    {
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            using var _ = await http.GetAsync(url); // any HTTP response means the host is reachable
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
 internal static class Bytes
 {
     public static bool Contains(byte[] haystack, byte[] needle)

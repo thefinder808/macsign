@@ -10,5 +10,6 @@ namespace MacSign.Signing.Cms;
 /// </summary>
 internal interface ICmsBuilder
 {
-    byte[] Build(byte[] spcIndirectDataDer, ICredentialSigner credential, SigningOptions options);
+    Task<byte[]> BuildAsync(
+        byte[] spcIndirectDataDer, ICredentialSigner credential, SigningOptions options, CancellationToken ct);
 }

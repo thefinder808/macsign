@@ -91,7 +91,7 @@ public sealed class AuthenticodeSigner
                 byte[] signed;
                 try
                 {
-                    signed = SignEngine.SignFileBytes(format, credential, options, bytes);
+                    signed = await SignEngine.SignFileBytesAsync(format, credential, options, bytes, ct);
                 }
                 catch (Exception ex)
                 {

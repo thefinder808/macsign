@@ -2,7 +2,7 @@
 
 Native macOS Authenticode signing for Windows artifacts — **no Windows machine, no `osslsigncode`, no `jsign`, no OpenSSL/JVM.** A fully managed .NET 10 engine.
 
-> **Status: Phase 1 (the spine).** Signs **PE files** (`.exe`/`.dll`/`.sys`, including managed assemblies) with a **local PFX certificate**. Timestamping, Azure Trusted Signing, PKCS#11/HSM, PowerShell, and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
+> **Status: Phase 2.** Signs **PE files** (`.exe`/`.dll`/`.sys`, including managed assemblies) with a **local PFX certificate**, with optional **RFC3161 timestamping**. Azure Trusted Signing, PKCS#11/HSM, PowerShell, and MSI come in later phases. See `OVERVIEW.md` and the design doc in the Obsidian vault (`Development/Projects/MacSign/Native Signing Engine.md`).
 
 ## Why
 
@@ -31,9 +31,10 @@ dotnet test
 PFX_PW=secret dotnet run --project src/MacSign.Cli -- \
   gen-test-cert --pfx test.pfx --cer test.cer --password-env PFX_PW
 
-# Sign a PE in place:
+# Sign a PE in place (optionally RFC3161-timestamped):
 PFX_PW=secret dotnet run --project src/MacSign.Cli -- \
-  sign --pfx test.pfx --password-env PFX_PW --description "My App" some.dll
+  sign --pfx test.pfx --password-env PFX_PW --description "My App" \
+  --timestamp-url http://timestamp.digicert.com some.dll
 ```
 
 The password is read from an environment variable (or `--password`), never logged, and never placed on a child-process command line.

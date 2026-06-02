@@ -12,7 +12,8 @@ namespace MacSign.Signing.Cms;
 /// </summary>
 internal sealed class AuthenticodeCmsBuilder : ICmsBuilder
 {
-    public byte[] Build(byte[] spcIndirectDataDer, ICredentialSigner credential, SigningOptions options)
+    public async Task<byte[]> BuildAsync(
+        byte[] spcIndirectDataDer, ICredentialSigner credential, SigningOptions options, CancellationToken ct)
     {
         // The encapsulated content is the raw SpcIndirectDataContent SEQUENCE under
         // the SPC content-type OID. (Authenticode requires this NOT be re-wrapped in
@@ -40,6 +41,28 @@ internal sealed class AuthenticodeCmsBuilder : ICmsBuilder
             signer.Certificates.Add(intermediate);
 
         cms.ComputeSignature(signer);
+
+        // Phase 2: attach an RFC3161 timestamp (over the signer's signature value)
+        // as an unsigned attribute, so the signature outlives the cert's validity.
+        if (!string.IsNullOrWhiteSpace(options.TimestampUrl))
+            await AddTimestampAsync(cms, options.TimestampUrl, ct);
+
         return cms.Encode();
+    }
+
+    private static async Task AddTimestampAsync(SignedCms cms, string timestampUrl, CancellationToken ct)
+    {
+        if (!Uri.TryCreate(timestampUrl, UriKind.Absolute, out var uri))
+            throw new ArgumentException($"Invalid timestamp URL: '{timestampUrl}'.");
+
+        var signerInfo = cms.SignerInfos[0];
+        var request = Rfc3161TimestampRequest.CreateFromSignerInfo(
+            signerInfo, HashAlgorithmName.SHA256, requestSignerCertificates: true);
+
+        var token = await new TimestampClient().RequestAsync(request, uri, ct);
+
+        // szOID_RFC3161_counterSign, value = the timestamp token's full SignedData.
+        signerInfo.AddUnsignedAttribute(new AsnEncodedData(
+            new Oid(AuthenticodeOids.Rfc3161Timestamp), token.AsSignedCms().Encode()));
     }
 }
