@@ -18,15 +18,32 @@ public sealed class AuthenticodeSigner
     /// </summary>
     public static AuthenticodeSigner? TryCreate(SigningOptions options, out string? error)
     {
-        if (options.CertMode != CertMode.Pfx)
+        switch (options.CertMode)
         {
-            error = $"MacSign Phase 1 supports only PFX signing (got {options.CertMode}).";
-            return null;
-        }
-        if (string.IsNullOrWhiteSpace(options.PfxPath) || !File.Exists(options.PfxPath))
-        {
-            error = $"PFX file not found: {options.PfxPath ?? "(none)"}";
-            return null;
+            case CertMode.Pfx:
+                if (string.IsNullOrWhiteSpace(options.PfxPath) || !File.Exists(options.PfxPath))
+                {
+                    error = $"PFX file not found: {options.PfxPath ?? "(none)"}";
+                    return null;
+                }
+                break;
+
+            case CertMode.Pkcs11:
+                if (CredentialBackends.Pkcs11Factory is null)
+                {
+                    error = "PKCS#11 support isn't loaded — reference MacSign.Signing.Pkcs11 and call Pkcs11Backend.Register().";
+                    return null;
+                }
+                if (string.IsNullOrWhiteSpace(options.Pkcs11ModulePath) || !File.Exists(options.Pkcs11ModulePath))
+                {
+                    error = $"PKCS#11 module not found: {options.Pkcs11ModulePath ?? "(none)"}";
+                    return null;
+                }
+                break;
+
+            default:
+                error = $"MacSign doesn't implement {options.CertMode} signing yet.";
+                return null;
         }
 
         error = null;
@@ -53,11 +70,13 @@ public sealed class AuthenticodeSigner
         ICredentialSigner credential;
         try
         {
-            credential = new PfxCredentialSigner(options.PfxPath!, options.Secret);
+            credential = options.CertMode == CertMode.Pkcs11
+                ? CredentialBackends.Pkcs11Factory!(options)
+                : new PfxCredentialSigner(options.PfxPath!, options.Secret);
         }
         catch (Exception ex)
         {
-            return SignResult.Fail($"Could not load the PFX: {ex.Message}");
+            return SignResult.Fail($"Could not load the signing credential: {ex.Message}");
         }
 
         try

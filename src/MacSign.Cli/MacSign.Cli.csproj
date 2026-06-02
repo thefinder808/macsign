@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MacSign.Signing\MacSign.Signing.csproj" />
+    <!-- The harness opts into PKCS#11; this keeps Pkcs11Interop out of the core engine. -->
+    <ProjectReference Include="..\MacSign.Signing.Pkcs11\MacSign.Signing.Pkcs11.csproj" />
   </ItemGroup>
 
 </Project>

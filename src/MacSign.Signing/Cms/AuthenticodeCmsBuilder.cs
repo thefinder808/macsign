@@ -21,7 +21,9 @@ internal sealed class AuthenticodeCmsBuilder : ICmsBuilder
         var content = new ContentInfo(new Oid(AuthenticodeOids.SpcIndirectDataContent), spcIndirectDataDer);
         var cms = new SignedCms(content, detached: false);
 
-        var signer = new CmsSigner(SubjectIdentifierType.IssuerAndSerialNumber, credential.Certificate)
+        // Pass the signing key explicitly so a delegating key (PKCS#11 / cloud) works
+        // the same as an in-proc PFX key — the private key never has to be in this process.
+        var signer = new CmsSigner(SubjectIdentifierType.IssuerAndSerialNumber, credential.Certificate, credential.SigningKey)
         {
             DigestAlgorithm = new Oid(AuthenticodeOids.Sha256),
             // Phase 1 uses self-signed test certs, so embed the leaf only. (Real CA

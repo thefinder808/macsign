@@ -16,6 +16,9 @@ namespace MacSign.Cli
     {
         public static async Task<int> Run(string[] args)
         {
+            // Enable CertMode.Pkcs11 in the core engine (the core never references Pkcs11Interop).
+            MacSign.Signing.Pkcs11.Pkcs11Backend.Register();
+
             if (args.Length == 0)
             {
                 Usage();
@@ -41,14 +44,16 @@ namespace MacSign.Cli
         private static async Task<int> Sign(Flags f)
         {
             var file = f.Positional ?? throw new ArgumentException("Missing the file (or folder, with --all) to sign.");
-            var pfx = f.Require("pfx");
             var password = ResolvePassword(f);
             bool all = f.Has("all");
+            var modulePath = f.Get("pkcs11-module");
 
             var options = new SigningOptions
             {
-                CertMode = CertMode.Pfx,
-                PfxPath = pfx,
+                CertMode = modulePath is null ? CertMode.Pfx : CertMode.Pkcs11,
+                PfxPath = f.Get("pfx"),
+                Pkcs11ModulePath = modulePath,
+                Pkcs11CertThumbprint = f.Get("pkcs11-thumbprint"),
                 Secret = password,
                 Description = f.Get("description"),
                 Url = f.Get("url"),
@@ -113,6 +118,9 @@ namespace MacSign.Cli
                   macsign sign --pfx <file> [--password <pw> | --password-env <VAR>]
                                [--description <text>] [--url <url>] [--timestamp-url <url>]
                                [--all] <file-or-folder>
+
+                  macsign sign --pkcs11-module <lib> [--password-env <VAR>]
+                               [--pkcs11-thumbprint <hex>] [--timestamp-url <url>] <file>
 
                   macsign gen-test-cert --pfx <out.pfx> --cer <out.cer>
                                [--password <pw> | --password-env <VAR>] [--subject <CN>]

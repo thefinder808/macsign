@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Optional PKCS#11 / HSM backend, QUARANTINED in its own assembly so the core
+    engine stays free of the third-party + native Pkcs11Interop dependency. Only
+    consumers who sign with a token reference this.
+  -->
+  <PropertyGroup>
+    <RootNamespace>MacSign.Signing.Pkcs11</RootNamespace>
+    <AssemblyName>MacSign.Signing.Pkcs11</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pkcs11Interop.X509Store" Version="1.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MacSign.Signing\MacSign.Signing.csproj" />
+  </ItemGroup>
+
+</Project>
