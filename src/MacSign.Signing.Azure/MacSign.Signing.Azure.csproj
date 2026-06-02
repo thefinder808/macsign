@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Optional Azure Trusted Signing (a.k.a. Azure Artifact Signing) backend,
+    QUARANTINED in its own assembly so the core engine stays free of the
+    Azure.Identity dependency. Only consumers who sign with a cloud key profile
+    reference this. The signing key never leaves Azure: SigningKey is a delegating
+    RSA that POSTs the digest to the Trusted Signing sign endpoint.
+  -->
+  <PropertyGroup>
+    <RootNamespace>MacSign.Signing.Azure</RootNamespace>
+    <AssemblyName>MacSign.Signing.Azure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.13.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MacSign.Signing\MacSign.Signing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The contract test injects a fake HttpMessageHandler + token to prove the
+         delegated path offline (no live Azure account needed). -->
+    <InternalsVisibleTo Include="MacSign.Signing.Tests" />
+  </ItemGroup>
+
+</Project>

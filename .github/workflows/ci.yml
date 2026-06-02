@@ -133,3 +133,82 @@ jobs:
           Write-Host "Status: $($sig.Status); Signer: $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "Get-AuthenticodeSignature rejected install.ps1: $($sig.Status)" }
           Write-Host "PowerShell ACCEPTED the script signature."
+
+  # Phase 3 (Azure Trusted Signing) — LIVE lane, gated on secrets. It no-ops until the
+  # repo has the Azure Trusted Signing creds; the offline contract test in the suite
+  # above already proves the delegated path is byte-identical to the signtool-proven
+  # in-proc path. Provide these secrets to enable the real end-to-end signtool proof:
+  #   AZURE_TRUSTED_SIGNING_ENDPOINT / _ACCOUNT / _PROFILE  +  a service principal
+  #   (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_CLIENT_SECRET, used by DefaultAzureCredential).
+  azure-sign-macos:
+    runs-on: macos-latest
+    outputs:
+      signed: ${{ steps.gate.outputs.signed }}
+    env:
+      TS_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+      TS_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+      TS_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+    steps:
+      - id: gate
+        run: |
+          if [ -n "$TS_ACCOUNT" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "Azure Trusted Signing secrets not configured — skipping the live lane (the offline contract test still ran)."
+          fi
+
+      - uses: actions/checkout@v4
+        if: ${{ steps.gate.outputs.signed == 'true' }}
+      - uses: actions/setup-dotnet@v4
+        if: ${{ steps.gate.outputs.signed == 'true' }}
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build
+        if: ${{ steps.gate.outputs.signed == 'true' }}
+        run: dotnet build -c Release
+
+      - name: Sign a fixture PE via Azure Trusted Signing (key never leaves Azure)
+        if: ${{ steps.gate.outputs.signed == 'true' }}
+        run: |
+          FIXTURE=src/MacSign.Fixture/bin/Release/net10.0/MacSign.Fixture.dll
+          cp "$FIXTURE" "$RUNNER_TEMP/signed-azure.dll"
+          dotnet run --project src/MacSign.Cli -c Release --no-build -- \
+            sign --trusted-signing-endpoint "$TS_ENDPOINT" \
+                 --trusted-signing-account "$TS_ACCOUNT" \
+                 --trusted-signing-profile "$TS_PROFILE" \
+                 --description "MacSign CI (Azure)" "$RUNNER_TEMP/signed-azure.dll"
+          dotnet run --project src/MacSign.Cli -c Release --no-build -- verify "$RUNNER_TEMP/signed-azure.dll"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ steps.gate.outputs.signed == 'true' }}
+        with:
+          name: signed-azure
+          path: ${{ runner.temp }}/signed-azure.dll
+
+  # A real Windows authority must accept the Azure-signed PE. Runs only when the live
+  # lane above actually signed (Trusted Signing certs are publicly trusted, so no root
+  # install is needed — this is the full end-to-end proof).
+  azure-windows-verify:
+    runs-on: windows-latest
+    needs: azure-sign-macos
+    if: ${{ needs.azure-sign-macos.outputs.signed == 'true' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed-azure
+          path: signed-azure
+
+      - name: signtool verify /pa
+        shell: pwsh
+        run: |
+          $st = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+                 Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1).FullName
+          if (-not $st) { throw "signtool.exe not found on the runner." }
+          & $st verify /pa /v signed-azure\signed-azure.dll
+          if ($LASTEXITCODE -ne 0) { throw "signtool REJECTED the Azure Trusted Signing PE (exit $LASTEXITCODE)." }
+          Write-Host "signtool ACCEPTED the Azure Trusted Signing signature."

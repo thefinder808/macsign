@@ -1,0 +1,155 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+
+namespace MacSign.Signing.Azure;
+
+/// <summary>The terminal result of a Trusted Signing sign operation.</summary>
+internal sealed record TrustedSigningResult(byte[] Signature, string? SigningCertificate);
+
+/// <summary>
+/// Minimal client for the Azure Trusted Signing data-plane <c>sign</c> endpoint.
+/// It POSTs a <b>pre-computed digest</b> (it never re-hashes anything) and polls the
+/// long-running operation until it yields the signature and the signing certificate
+/// chain. Transport is plain <see cref="HttpClient"/>; the handler is injectable so the
+/// delegated path can be proven offline with a fake endpoint.
+/// </summary>
+internal sealed class TrustedSigningClient : IDisposable
+{
+    private const string ApiVersion = "2022-06-15-preview";
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private readonly HttpClient _http;
+    private readonly string _host;          // normalized: no scheme, no trailing slash
+    private readonly string _account;
+    private readonly string _profile;
+    private readonly IAzureTokenProvider _tokens;
+    private readonly TimeSpan _pollInterval;
+    private readonly int _maxPolls;
+
+    public TrustedSigningClient(
+        string endpoint, string account, string profile, IAzureTokenProvider tokens,
+        HttpMessageHandler? handler = null, TimeSpan? pollInterval = null, int maxPolls = 60)
+    {
+        _host = NormalizeHost(endpoint);
+        _account = account;
+        _profile = profile;
+        _tokens = tokens;
+        _http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        _pollInterval = pollInterval ?? TimeSpan.FromSeconds(2);
+        _maxPolls = maxPolls;
+    }
+
+    /// <summary>Strips the scheme and any trailing slash so a host or full URI both work.</summary>
+    public static string NormalizeHost(string? endpoint)
+    {
+        var e = (endpoint ?? string.Empty).Trim();
+        if (e.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) e = e["https://".Length..];
+        else if (e.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) e = e["http://".Length..];
+        return e.TrimEnd('/');
+    }
+
+    /// <summary>
+    /// Sign <paramref name="digest"/> (already hashed) with the given JWA algorithm id
+    /// (e.g. <c>RS256</c>). Returns the raw signature plus, when present, the signing
+    /// certificate chain the service returns with each response.
+    /// </summary>
+    public async Task<TrustedSigningResult> SignDigestAsync(byte[] digest, string algorithm, CancellationToken ct)
+    {
+        var token = await _tokens.GetTokenAsync(ct).ConfigureAwait(false);
+
+        var signUrl =
+            $"https://{_host}/codesigningaccounts/{_account}/certificateprofiles/{_profile}/sign?api-version={ApiVersion}";
+        var payload = JsonSerializer.Serialize(new
+        {
+            signatureAlgorithm = algorithm,
+            digest = Convert.ToBase64String(digest),
+        });
+
+        using var post = new HttpRequestMessage(HttpMethod.Post, signUrl)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+        };
+        post.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+
+        using var postResp = await _http.SendAsync(post, ct).ConfigureAwait(false);
+        await ThrowIfError(postResp).ConfigureAwait(false);
+        var status = await ReadStatus(postResp).ConfigureAwait(false);
+
+        // Poll the long-running operation until it terminates. Prefer the service's
+        // Operation-Location header; otherwise construct the status URL from operationId.
+        var pollUrl = postResp.Headers.TryGetValues("Operation-Location", out var loc)
+            ? loc.FirstOrDefault()
+            : null;
+        pollUrl ??= status.OperationId is null
+            ? null
+            : $"https://{_host}/codesigningaccounts/{_account}/certificateprofiles/{_profile}/sign/{status.OperationId}?api-version={ApiVersion}";
+
+        for (int i = 0; !IsTerminal(status.Status) && pollUrl is not null && i < _maxPolls; i++)
+        {
+            await Task.Delay(_pollInterval, ct).ConfigureAwait(false);
+
+            using var get = new HttpRequestMessage(HttpMethod.Get, pollUrl);
+            get.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+            using var getResp = await _http.SendAsync(get, ct).ConfigureAwait(false);
+            await ThrowIfError(getResp).ConfigureAwait(false);
+            status = await ReadStatus(getResp).ConfigureAwait(false);
+        }
+
+        if (!string.Equals(status.Status, "Succeeded", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"Trusted Signing operation did not succeed (status: {status.Status ?? "unknown"}).");
+        if (status.Signature is null)
+            throw new InvalidOperationException("Trusted Signing succeeded but returned no signature.");
+
+        return new TrustedSigningResult(DecodeBase64(status.Signature), status.SigningCertificate);
+    }
+
+    private static bool IsTerminal(string? s) =>
+        string.Equals(s, "Succeeded", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(s, "Failed", StringComparison.OrdinalIgnoreCase);
+
+    private static async Task<SignStatus> ReadStatus(HttpResponseMessage resp)
+    {
+        var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(json)) return new SignStatus();
+        return JsonSerializer.Deserialize<SignStatus>(json, JsonOptions) ?? new SignStatus();
+    }
+
+    private static async Task ThrowIfError(HttpResponseMessage resp)
+    {
+        if (resp.IsSuccessStatusCode) return;
+
+        var detail = Trim(await resp.Content.ReadAsStringAsync().ConfigureAwait(false));
+        if (resp.StatusCode == HttpStatusCode.Forbidden)
+            throw new UnauthorizedAccessException(
+                "Trusted Signing returned 403 Forbidden. The signing identity likely needs the " +
+                "\"Artifact Signing Certificate Profile Signer\" role " +
+                "(2837e146-70d7-4cfd-ad55-7efa6464f958) on the certificate profile — role " +
+                "assignments can take a few minutes to propagate. Detail: " + detail);
+
+        throw new InvalidOperationException(
+            $"Trusted Signing request failed ({(int)resp.StatusCode} {resp.StatusCode}). Detail: {detail}");
+    }
+
+    private static string Trim(string s) => s.Length > 500 ? s[..500] : s;
+
+    /// <summary>Decode standard or URL-safe base64 (the service has used both).</summary>
+    private static byte[] DecodeBase64(string s)
+    {
+        s = s.Trim().Replace('-', '+').Replace('_', '/');
+        return Convert.FromBase64String((s.Length % 4) switch { 2 => s + "==", 3 => s + "=", _ => s });
+    }
+
+    public void Dispose() => _http.Dispose();
+
+    /// <summary>The poll-able operation envelope returned by both the POST and the GET.</summary>
+    private sealed class SignStatus
+    {
+        public string? OperationId { get; set; }
+        public string? Status { get; set; }
+        public string? Signature { get; set; }
+        public string? SigningCertificate { get; set; }
+    }
+}
