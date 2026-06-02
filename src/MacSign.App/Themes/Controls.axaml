@@ -201,6 +201,90 @@
         <Setter Property="Foreground" Value="{DynamicResource AccentInk}" />
     </Style>
 
+    <!-- ── Segmented control (credential selector) ── Button.segment + .active. -->
+    <Style Selector="Button.segment">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="7" />
+        <Setter Property="Height" Value="48" />
+        <Setter Property="Padding" Value="4,6" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.segment /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.segment.active /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelSolid}" />
+        <Setter Property="BoxShadow" Value="0 1 3 0 #1F000000" />
+    </Style>
+    <Style Selector="Button.segment Path">
+        <Setter Property="Stroke" Value="{DynamicResource Ink2}" />
+    </Style>
+    <Style Selector="Button.segment.active Path">
+        <Setter Property="Stroke" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="Button.segment TextBlock">
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ink2}" />
+    </Style>
+    <Style Selector="Button.segment.active TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Ink}" />
+    </Style>
+
+    <!-- ── Checkbox (file row) ── ToggleButton.check, custom 16px box. -->
+    <Style Selector="ToggleButton.check">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="box" Width="16" Height="16" CornerRadius="5"
+                        Background="Transparent"
+                        BorderBrush="{DynamicResource Ink3}" BorderThickness="1.5">
+                    <Path Name="tick" Data="{StaticResource IcoCheck}" Stroke="White"
+                          StrokeThickness="3" Stretch="Uniform" Width="9" Height="9"
+                          IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ToggleButton.check:checked /template/ Border#box">
+        <Setter Property="Background" Value="{DynamicResource Accent}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="ToggleButton.check:checked /template/ Path#tick">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <!-- ── Toggle switch (RFC 3161) ── ToggleButton.switch, 38×22 pill. -->
+    <Style Selector="ToggleButton.switch">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="track" Width="38" Height="22" CornerRadius="11"
+                        Background="{DynamicResource Hair2}">
+                    <Ellipse Name="knob" Width="18" Height="18" Fill="White"
+                             HorizontalAlignment="Left" Margin="2,0,0,0" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ToggleButton.switch:checked /template/ Border#track">
+        <Setter Property="Background" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="ToggleButton.switch:checked /template/ Ellipse#knob">
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="Margin" Value="0,0,2,0" />
+    </Style>
+
+    <!-- ── Spinner ── a 270° arc that rotates. -->
+    <Style Selector="Path.spin">
+        <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+        <Style.Animations>
+            <Animation Duration="0:0:0.8" IterationCount="Infinite">
+                <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0" /></KeyFrame>
+                <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360" /></KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+
     <!-- ── Pills (status chips) ── Border.pill + a tone class. -->
 
     <Style Selector="Border.pill">

@@ -4,8 +4,9 @@ using CommunityToolkit.Mvvm.Input;
 namespace MacSign.App.ViewModels;
 
 /// <summary>
-/// The app shell's single source of truth: which view is active, the contextual
-/// toolbar text, and the sidebar's "Active credential" summary + Sign badge.
+/// The app shell's single source of truth: which view is active and the
+/// contextual toolbar text. The sidebar's "Active credential" card + Sign badge
+/// bind directly to the Sign view-model.
 /// </summary>
 public partial class MainWindowViewModel : ObservableObject
 {
@@ -13,6 +14,12 @@ public partial class MainWindowViewModel : ObservableObject
     public VerifyViewModel Verify { get; } = new();
     public ProfilesViewModel Profiles { get; } = new();
     public ActivityViewModel Activity { get; } = new();
+
+    public MainWindowViewModel()
+    {
+        // Keep the Sign toolbar subtitle live as files/selection change.
+        Sign.StateChanged += () => OnPropertyChanged(nameof(ToolbarSubtitle));
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
@@ -24,7 +31,6 @@ public partial class MainWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ToolbarSubtitle))]
     private AppView _currentView = AppView.Sign;
 
-    /// <summary>The view-model the content host renders (DataTemplated to a view).</summary>
     public object CurrentPage => CurrentView switch
     {
         AppView.Verify => Verify,
@@ -51,19 +57,8 @@ public partial class MainWindowViewModel : ObservableObject
         AppView.Verify => "Check an existing Authenticode signature",
         AppView.Profiles => "Reusable credential + option presets",
         AppView.Activity => "Recent signing runs · secrets are never logged",
-        _ => "Choose files + a credential, then sign",
+        _ => Sign.SubtitleText,
     };
-
-    // ── Sidebar "Active credential" card + Sign badge (stubbed; wired to the
-    //    Sign view-model's real credential state in a later phase). ──
-    [ObservableProperty] private string _activeCredentialName = "Azure Trusted Signing";
-    [ObservableProperty] private string _activeCredentialSub = "my-signing-account";
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSignCount))]
-    private int _signCount = 3;
-
-    public bool HasSignCount => SignCount > 0;
 
     [RelayCommand]
     private void Show(AppView view) => CurrentView = view;

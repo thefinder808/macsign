@@ -10,6 +10,10 @@
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="-1">
 
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Meta+S" Command="{Binding Sign.SignCommand}" />
+    </Window.KeyBindings>
+
     <Window.Background>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
             <GradientStop Offset="0" Color="{DynamicResource Bg1Color}" />
@@ -70,8 +74,8 @@
                                   Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="Sign" Margin="9,0,0,0" VerticalAlignment="Center" />
                             <Border Grid.Column="2" Classes="navbadge" VerticalAlignment="Center"
-                                    IsVisible="{Binding HasSignCount}">
-                                <TextBlock Text="{Binding SignCount}" />
+                                    IsVisible="{Binding Sign.HasToSign}">
+                                <TextBlock Text="{Binding Sign.ToSignCount}" />
                             </Border>
                         </Grid>
                     </Button>
@@ -110,13 +114,18 @@
                     <StackPanel Spacing="7">
                         <TextBlock Classes="section" Text="ACTIVE CREDENTIAL" />
                         <StackPanel Orientation="Horizontal" Spacing="9">
-                            <Path Data="{StaticResource IcoCloud}" Stroke="{DynamicResource Accent}"
-                                  StrokeThickness="1.6" Stretch="Uniform" Width="18" Height="18"
-                                  VerticalAlignment="Center" />
+                            <Panel Width="18" Height="18" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IcoKey}" Stroke="{DynamicResource Accent}"
+                                      StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding Sign.IsPfx}" />
+                                <Path Data="{StaticResource IcoChip}" Stroke="{DynamicResource Accent}"
+                                      StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding Sign.IsPkcs11}" />
+                                <Path Data="{StaticResource IcoCloud}" Stroke="{DynamicResource Accent}"
+                                      StrokeThickness="1.6" Stretch="Uniform" IsVisible="{Binding Sign.IsAzure}" />
+                            </Panel>
                             <StackPanel Spacing="1" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding ActiveCredentialName}" FontSize="12.5"
+                                <TextBlock Text="{Binding Sign.ActiveCredentialName}" FontSize="12.5"
                                            FontWeight="SemiBold" Foreground="{DynamicResource Ink}" />
-                                <TextBlock Text="{Binding ActiveCredentialSub}" Classes="mono dim" FontSize="11" />
+                                <TextBlock Text="{Binding Sign.ActiveCredentialSub}" Classes="mono dim" FontSize="11" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -141,7 +150,17 @@
                         <TextBlock Classes="title" Text="{Binding ToolbarTitle}" />
                         <TextBlock Classes="subtitle" Text="{Binding ToolbarSubtitle}" />
                     </StackPanel>
-                    <!-- contextual right action lands per-view in later phases -->
+
+                    <!-- contextual right action -->
+                    <Button Grid.Column="1" Classes="secondary" VerticalAlignment="Center"
+                            IsVisible="{Binding IsSign}" Command="{Binding Sign.AddFilesCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <Path Data="{StaticResource IcoPlus}" Stroke="{DynamicResource Ink}"
+                                  StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14"
+                                  VerticalAlignment="Center" />
+                            <TextBlock Text="Add files" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
             </Border>
 
