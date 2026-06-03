@@ -19,20 +19,22 @@ namespace MacSign.App.ViewModels;
 /// </summary>
 public partial class AppleSignViewModel : ObservableObject
 {
-    private readonly AppleSigningService _apple = new();
+    private readonly AppleSigningService _apple;
     private readonly AppData _data;
     private readonly SettingsStore _store;
     private readonly string? _pendingIdentitySha1;
     private CancellationTokenSource? _cts;
     private bool _skipPreflight;
+    private bool _signContents;
 
     /// <summary>Raised when a run finishes, so the shell records it in Activity.</summary>
     public event Action<RunData>? RunRecorded;
 
     public ObservableCollection<SigningIdentity> Identities { get; } = new();
 
-    public AppleSignViewModel(AppData data, SettingsStore store)
+    public AppleSignViewModel(AppData data, SettingsStore store, AppleSigningService? apple = null)
     {
+        _apple = apple ?? new();
         _data = data;
         _store = store;
         var p = data.AppleSign;
@@ -110,6 +112,9 @@ public partial class AppleSignViewModel : ObservableObject
     /// <summary>Shown on the done banner when pre-flight blocked notarization,
     /// offering an override.</summary>
     [ObservableProperty] private bool _showNotarizeAnyway;
+    /// <summary>Shown on the pre-flight Done banner when the DMG's contents can be
+    /// repaired by signing the apps inside.</summary>
+    [ObservableProperty] private bool _showSignContents;
 
     public bool ShowOkBanner => IsDone && !BannerIsError;
     public bool ShowErrBanner => IsDone && BannerIsError;
@@ -175,9 +180,12 @@ public partial class AppleSignViewModel : ObservableObject
         SavePrefs();
         bool skipPreflight = _skipPreflight;   // consumed once; only NotarizeAnyway sets it
         _skipPreflight = false;
+        bool signContents = _signContents;     // consumed once; only SignContentsAndContinue sets it
+        _signContents = false;
         State = AppleSignState.Working;
         BannerTitle = ""; BannerDetail = ""; BannerIsError = false;
         ShowNotarizeAnyway = false;
+        ShowSignContents = false;
         LogText = "";
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
@@ -190,6 +198,15 @@ public partial class AppleSignViewModel : ObservableObject
 
         try
         {
+            if (signContents && AppleSigningService.Classify(target) == AppleTargetKind.Dmg)
+            {
+                ProgressText = "Signing apps inside the DMG…";
+                AppendLog("==> Signing apps inside the DMG");
+                var cr = await Task.Run(() => _apple.SignDmgContentsAsync(
+                    target, id, NullIfEmpty(EntitlementsPath), log, ct));
+                if (!cr.Success) { Finish(cr, ct); return; }
+            }
+
             ProgressText = "Signing…";
             AppendLog("==> Signing");
             var r = await Task.Run(() => _apple.SignAsync(target, id,
@@ -216,10 +233,16 @@ public partial class AppleSignViewModel : ObservableObject
                         State = AppleSignState.Done;
                         BannerIsError = true;
                         ShowNotarizeAnyway = true;
+                        ShowSignContents = pf.CanSignContents;
+                        if (pf.CanSignContents && string.IsNullOrWhiteSpace(EntitlementsPath))
+                            AppendLog("  • Tip: no entitlements set — apps needing JIT/.NET (allow-jit) will " +
+                                      "notarize but break. Set an Entitlements .plist, then Sign contents & continue.");
                         BannerTitle = "Won’t notarize — contents aren’t notarizable";
-                        BannerDetail = pf.Problems.Count == 1
-                            ? $"{pf.Problems[0]} Sign the app first, or Notarize anyway."
-                            : $"{pf.Problems.Count} problems (see the log). Sign the app first, or Notarize anyway.";
+                        BannerDetail = pf.CanSignContents
+                            ? "Sign contents & continue to fix the apps inside, or Notarize anyway."
+                            : pf.Problems.Count == 1
+                                ? $"{pf.Problems[0]} Sign the app first, or Notarize anyway."
+                                : $"{pf.Problems.Count} problems (see the log). Sign the app first, or Notarize anyway.";
                         Record("warn", "preflight blocked");
                         return;
                     }
@@ -279,6 +302,15 @@ public partial class AppleSignViewModel : ObservableObject
         await RunAsync();
     }
 
+    /// <summary>Fix a DMG with unsigned contents: re-run the flow signing the apps
+    /// inside the image first, which then lets pre-flight pass and notarization proceed.</summary>
+    [RelayCommand]
+    private async Task SignContentsAndContinue()
+    {
+        _signContents = true;
+        await RunAsync();
+    }
+
     [RelayCommand]
     private void UseProfileMode() => UseApiKey = false;
 
@@ -290,6 +322,7 @@ public partial class AppleSignViewModel : ObservableObject
     {
         BannerTitle = ""; BannerDetail = ""; BannerIsError = false;
         ShowNotarizeAnyway = false;
+        ShowSignContents = false;
         LogText = "";
         State = AppleSignState.Idle;
     }

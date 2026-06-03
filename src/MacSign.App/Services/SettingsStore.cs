@@ -11,11 +11,14 @@ public sealed class SettingsStore
 {
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
-    private static string Dir => Path.Combine(
+    private static string DefaultDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         "Library", "Application Support", "MacSign");
 
-    private static string FilePath => Path.Combine(Dir, "settings.json");
+    private readonly string _dir;
+    public SettingsStore(string? dir = null) => _dir = dir ?? DefaultDir;
+
+    private string FilePath => Path.Combine(_dir, "settings.json");
 
     public AppData Load()
     {
@@ -32,7 +35,7 @@ public sealed class SettingsStore
     {
         try
         {
-            Directory.CreateDirectory(Dir);
+            Directory.CreateDirectory(_dir);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(data, Options));
         }
         catch { /* best-effort */ }
