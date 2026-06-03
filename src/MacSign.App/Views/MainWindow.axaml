@@ -30,6 +30,17 @@
                     </NativeMenu>
                 </NativeMenuItem.Menu>
             </NativeMenuItem>
+            <NativeMenuItem Header="Edit">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="Cut" Gesture="Meta+X" Click="OnEditCut" />
+                        <NativeMenuItem Header="Copy" Gesture="Meta+C" Click="OnEditCopy" />
+                        <NativeMenuItem Header="Paste" Gesture="Meta+V" Click="OnEditPaste" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="Select All" Gesture="Meta+A" Click="OnEditSelectAll" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
             <NativeMenuItem Header="View">
                 <NativeMenuItem.Menu>
                     <NativeMenu>
@@ -43,6 +54,25 @@
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Profiles}" />
                         <NativeMenuItem Header="Activity" Gesture="Meta+5"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Activity}" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
+            <NativeMenuItem Header="Window">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="Minimize" Gesture="Meta+M" Click="OnWindowMinimize" />
+                        <NativeMenuItem Header="Zoom" Click="OnWindowZoom" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
+            <NativeMenuItem Header="Help">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="MacSign on GitHub" Click="OnHelpGitHub" />
+                        <NativeMenuItem Header="Report an Issue" Click="OnHelpIssue" />
+                        <NativeMenuItem Header="Release Notes" Click="OnHelpReleases" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="About MacSign" Click="OnHelpAbout" />
                     </NativeMenu>
                 </NativeMenuItem.Menu>
             </NativeMenuItem>
@@ -105,6 +135,8 @@
                 <!-- nav -->
                 <StackPanel DockPanel.Dock="Top" Margin="10,0" Spacing="2">
 
+                    <TextBlock Classes="section" Text="WINDOWS" Margin="6,2,6,4" />
+
                     <Button Classes="nav" Classes.active="{Binding IsSign}"
                             Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Sign}">
                         <Grid ColumnDefinitions="17,*,Auto">
@@ -127,6 +159,8 @@
                         </StackPanel>
                     </Button>
 
+                    <TextBlock Classes="section" Text="MACOS" Margin="6,12,6,4" />
+
                     <Button Classes="nav" Classes.active="{Binding IsApple}"
                             Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Apple}">
                         <StackPanel Orientation="Horizontal" Spacing="9">
@@ -135,6 +169,8 @@
                             <TextBlock Text="Mac apps" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
+
+                    <TextBlock Classes="section" Text="LIBRARY" Margin="6,12,6,4" />
 
                     <Button Classes="nav" Classes.active="{Binding IsProfiles}"
                             Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Profiles}">

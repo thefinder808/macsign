@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Input;
 using MacSign.App.ViewModels;
@@ -18,5 +19,40 @@ public partial class MainWindow : Window
     {
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             BeginMoveDrag(e);
+    }
+
+    // ── Edit menu: route to the focused text field (no-op when focus isn't a TextBox;
+    //    the ⌘ shortcuts already work intrinsically — this is for menu completeness). ──
+    private TextBox? FocusedTextBox() => FocusManager?.GetFocusedElement() as TextBox;
+    private void OnEditCut(object? sender, EventArgs e) => FocusedTextBox()?.Cut();
+    private void OnEditCopy(object? sender, EventArgs e) => FocusedTextBox()?.Copy();
+    private void OnEditPaste(object? sender, EventArgs e) => FocusedTextBox()?.Paste();
+    private void OnEditSelectAll(object? sender, EventArgs e) => FocusedTextBox()?.SelectAll();
+
+    // ── Window menu ──
+    private void OnWindowMinimize(object? sender, EventArgs e) => WindowState = WindowState.Minimized;
+    private void OnWindowZoom(object? sender, EventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    // ── Help menu ──
+    private void OnHelpGitHub(object? sender, EventArgs e) => OpenUrl("https://github.com/thefinder808/macsign");
+    private void OnHelpIssue(object? sender, EventArgs e) => OpenUrl("https://github.com/thefinder808/macsign/issues/new");
+    private void OnHelpReleases(object? sender, EventArgs e) => OpenUrl("https://github.com/thefinder808/macsign/releases");
+
+    private AboutWindow? _aboutWindow;
+    private void OnHelpAbout(object? sender, EventArgs e)
+    {
+        if (_aboutWindow is null)
+        {
+            _aboutWindow = new AboutWindow();
+            _aboutWindow.Closed += (_, _) => _aboutWindow = null;
+        }
+        _aboutWindow.Show(this);
+        _aboutWindow.Activate();
+    }
+
+    private void OpenUrl(string url)
+    {
+        try { _ = Launcher.LaunchUriAsync(new Uri(url)); } catch { /* best-effort */ }
     }
 }
