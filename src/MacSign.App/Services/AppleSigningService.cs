@@ -21,7 +21,13 @@ public sealed record AppleSignReport(AppleTargetKind Kind, bool Valid, string? S
 
 /// <summary>Result of a notarizability pre-flight: a pass flag + a human list of
 /// problems (empty when Ok) + the captured log.</summary>
-public sealed record PreflightResult(bool Ok, IReadOnlyList<string> Problems, string Log);
+public sealed record PreflightResult(bool Ok, IReadOnlyList<string> Problems, string Log)
+{
+    /// <summary>True only when the target is a .dmg whose contents are repairable by
+    /// signing the apps inside (mounted OK, ≥1 .app found, ≥1 signing-kind problem).
+    /// Drives the "Sign contents &amp; continue" recovery on the Mac apps screen.</summary>
+    public bool CanSignContents { get; init; }
+}
 
 /// <summary>The outcome of one Apple operation: a human title/detail + the full log.</summary>
 public sealed record AppleOpResult(bool Success, string Title, string Detail, string Log)
@@ -280,6 +286,7 @@ public sealed class AppleSigningService
         var kind = Classify(path);
         var problems = new List<string>();
         var logbuf = new System.Text.StringBuilder();
+        bool dmgHadApps = false;
 
         if (kind == AppleTargetKind.App)
         {
@@ -298,6 +305,7 @@ public sealed class AppleSigningService
                 var apps = Directory.Exists(mount)
                     ? Directory.EnumerateDirectories(mount, "*.app").ToList()
                     : new List<string>();
+                dmgHadApps = apps.Count > 0;
                 if (apps.Count == 0) problems.Add("No .app bundle found inside the .dmg to check.");
                 foreach (var a in apps) await CheckBundleAsync(a, problems, logbuf, log, ct);
             }
@@ -312,7 +320,10 @@ public sealed class AppleSigningService
             problems.Add("Choose a .app bundle or a .dmg file.");
         }
 
-        return new PreflightResult(problems.Count == 0, problems, logbuf.ToString());
+        return new PreflightResult(problems.Count == 0, problems, logbuf.ToString())
+        {
+            CanSignContents = kind == AppleTargetKind.Dmg && dmgHadApps && problems.Count > 0,
+        };
     }
 
     /// <summary>The signing state of a bundle used by BOTH PreflightAsync (to build

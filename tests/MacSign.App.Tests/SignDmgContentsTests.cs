@@ -138,4 +138,41 @@ public class SignDmgContentsTests
         Assert.Equal("Nothing to sign", r.Title);
         Assert.Contains(f.Calls, c => c.File.EndsWith("hdiutil") && c.Args.Contains("detach")); // still detaches via finally
     }
+
+    [Fact]
+    public async Task Preflight_dmg_with_unsigned_app_sets_CanSignContents()
+    {
+        var dmg = MakeDmg();
+        var f = new FakeRunner();
+        f.Respond = (file, args) =>
+        {
+            var a = args.ToList();
+            if (a.Contains("attach")) { var mp = a[a.IndexOf("-mountpoint") + 1]; Directory.CreateDirectory(Path.Combine(mp, "Demo.app")); return new ProcessResult(0, "", "", false); }
+            if (a.Contains("--verify")) return new ProcessResult(1, "", "not signed", false);
+            return new ProcessResult(0, "", "", false);
+        };
+
+        var r = await new AppleSigningService(f).PreflightAsync(dmg, null, default);
+
+        Assert.False(r.Ok);
+        Assert.True(r.CanSignContents);
+    }
+
+    [Fact]
+    public async Task Preflight_dmg_with_no_app_cannot_sign_contents()
+    {
+        var dmg = MakeDmg();
+        var f = new FakeRunner();
+        f.Respond = (file, args) =>
+        {
+            var a = args.ToList();
+            if (a.Contains("attach")) { Directory.CreateDirectory(a[a.IndexOf("-mountpoint") + 1]); return new ProcessResult(0, "", "", false); }
+            return new ProcessResult(0, "", "", false);
+        };
+
+        var r = await new AppleSigningService(f).PreflightAsync(dmg, null, default);
+
+        Assert.False(r.Ok);
+        Assert.False(r.CanSignContents);
+    }
 }
