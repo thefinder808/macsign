@@ -8,6 +8,21 @@ public sealed class AppData
 {
     public List<ProfileData> Profiles { get; set; } = new();
     public List<RunData> Activity { get; set; } = new();
+    public AppleSignPrefs AppleSign { get; set; } = new();
+}
+
+/// <summary>Remembered (non-secret) preferences for the Mac-app signing screen.
+/// Holds names + flags only — never key material; the API-key path is re-picked
+/// each run, like passwords/PINs on the Sign screen.</summary>
+public sealed class AppleSignPrefs
+{
+    public string? IdentitySha1 { get; set; }
+    public string? NotaryProfile { get; set; }
+    public bool HardenedRuntime { get; set; } = true;
+    public bool Deep { get; set; } = true;
+    public bool Notarize { get; set; }
+    public bool Staple { get; set; } = true;
+    public bool UseApiKey { get; set; }
 }
 
 /// <summary>A reusable credential + options preset (no secret).</summary>

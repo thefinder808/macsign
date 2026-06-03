@@ -15,12 +15,14 @@ public partial class MainWindowViewModel : ObservableObject
 
     public SignViewModel Sign { get; } = new();
     public VerifyViewModel Verify { get; } = new();
+    public AppleSignViewModel Apple { get; }
     public ProfilesViewModel Profiles { get; }
     public ActivityViewModel Activity { get; }
 
     public MainWindowViewModel()
     {
         var data = _store.Load();
+        Apple = new AppleSignViewModel(data, _store);
         Profiles = new ProfilesViewModel(data, _store);
         Activity = new ActivityViewModel(data, _store);
 
@@ -30,6 +32,7 @@ public partial class MainWindowViewModel : ObservableObject
         Verify.ReportChanged += () => OnPropertyChanged(nameof(ShowVerifyAnother));
         // Completed runs flow into Activity (persisted).
         Sign.RunRecorded += Activity.Record;
+        Apple.RunRecorded += Activity.Record;
         // "Sign with…" a profile applies it and jumps to the Sign screen.
         Profiles.SignWithRequested += p => { Sign.ApplyProfile(p); CurrentView = AppView.Sign; };
     }
@@ -45,6 +48,7 @@ public partial class MainWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
     [NotifyPropertyChangedFor(nameof(IsSign))]
     [NotifyPropertyChangedFor(nameof(IsVerify))]
+    [NotifyPropertyChangedFor(nameof(IsApple))]
     [NotifyPropertyChangedFor(nameof(IsProfiles))]
     [NotifyPropertyChangedFor(nameof(IsActivity))]
     [NotifyPropertyChangedFor(nameof(ToolbarTitle))]
@@ -58,6 +62,7 @@ public partial class MainWindowViewModel : ObservableObject
     public object CurrentPage => CurrentView switch
     {
         AppView.Verify => Verify,
+        AppView.Apple => Apple,
         AppView.Profiles => Profiles,
         AppView.Activity => Activity,
         _ => Sign,
@@ -65,12 +70,14 @@ public partial class MainWindowViewModel : ObservableObject
 
     public bool IsSign => CurrentView == AppView.Sign;
     public bool IsVerify => CurrentView == AppView.Verify;
+    public bool IsApple => CurrentView == AppView.Apple;
     public bool IsProfiles => CurrentView == AppView.Profiles;
     public bool IsActivity => CurrentView == AppView.Activity;
 
     public string ToolbarTitle => CurrentView switch
     {
         AppView.Verify => "Verify",
+        AppView.Apple => "Mac apps",
         AppView.Profiles => "Profiles",
         AppView.Activity => "Activity",
         _ => "Sign",
@@ -79,6 +86,7 @@ public partial class MainWindowViewModel : ObservableObject
     public string ToolbarSubtitle => CurrentView switch
     {
         AppView.Verify => "Check an existing Authenticode signature",
+        AppView.Apple => "Sign, notarize & staple a .app bundle",
         AppView.Profiles => "Reusable credential + option presets",
         AppView.Activity => "Recent signing runs · secrets are never logged",
         _ => Sign.SubtitleText,
