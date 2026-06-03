@@ -99,6 +99,15 @@
         <Setter Property="Background" Value="{DynamicResource Hair}" />
     </Style>
 
+    <!-- row remove (✕) — circular; hidden until its file row is hovered -->
+    <Style Selector="Button.rowx">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Border.row:pointerover Button.rowx">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+
     <!-- ── Text fields ── -->
 
     <Style Selector="TextBox">
