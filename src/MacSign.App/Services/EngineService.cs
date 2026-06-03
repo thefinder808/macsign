@@ -7,11 +7,15 @@ using MacSign.Signing.Verification;
 
 namespace MacSign.App.Services;
 
+/// <summary>Outcome of a signature-removal attempt. Removed=false with a null Error
+/// means the file simply wasn't signed; a non-null Error is an IO/format failure.</summary>
+public sealed record RemoveOutcome(bool Removed, string? Error);
+
 /// <summary>
 /// Thin façade over the MacSign.Signing engine — the one place the GUI touches
 /// the engine. Keeps view-models free of engine wiring.
 /// </summary>
-public sealed class EngineService
+public class EngineService
 {
     public bool IsSignable(string path) => SignableExtensions.IsSignable(path);
 
@@ -37,5 +41,13 @@ public sealed class EngineService
         return signer.SignAsync(dir, full, options, log, ct);
     }
 
-    public VerifyReport Verify(string filePath) => SignatureVerifier.Verify(filePath);
+    public virtual VerifyReport Verify(string filePath) => SignatureVerifier.Verify(filePath);
+
+    /// <summary>Strip a file's Authenticode signature in place. No-throw (like Verify):
+    /// IO/format failures come back as Error rather than an exception.</summary>
+    public virtual RemoveOutcome Remove(string filePath)
+    {
+        try { return new RemoveOutcome(SignatureRemover.Remove(filePath), null); }
+        catch (Exception ex) { return new RemoveOutcome(false, ex.Message); }
+    }
 }

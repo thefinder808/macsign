@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,10 +15,14 @@ namespace MacSign.App.ViewModels;
 /// </summary>
 public partial class VerifyViewModel : ObservableObject
 {
-    private readonly EngineService _engine = new();
+    private readonly EngineService _engine;
     private readonly AppleSigningService _apple;
 
-    public VerifyViewModel(AppleSigningService? apple = null) => _apple = apple ?? new();
+    public VerifyViewModel(AppleSigningService? apple = null, EngineService? engine = null)
+    {
+        _apple = apple ?? new();
+        _engine = engine ?? new();
+    }
 
     /// <summary>Raised when a report appears/clears, so the shell can toggle
     /// the "Verify another" toolbar action.</summary>
@@ -63,8 +68,34 @@ public partial class VerifyViewModel : ObservableObject
     [ObservableProperty] private bool _macStapled;
     [ObservableProperty] private bool _macGatekeeper;
 
+    // ── Remove signature state ──
+    private string _currentPath = "";
+    private CancellationTokenSource? _confirmCts;
+
+    /// <summary>True only for a signed Authenticode file with no verify error — the
+    /// only case where "Remove signature" applies.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveSignatureCommand))]
+    private bool _canRemove;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RemoveButtonText))]
+    private bool _confirmRemove;
+    public string RemoveButtonText => ConfirmRemove ? "Click again to remove" : "Remove signature";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRemoveError))]
+    private string _removeError = "";
+    public bool HasRemoveError => !string.IsNullOrEmpty(RemoveError);
+
     public async Task VerifyPathAsync(string path)
     {
+        _currentPath = path;
+        CancelConfirm();
+        ConfirmRemove = false;
+        RemoveError = "";
+        CanRemove = false;
+
         // A .app / .dmg is an Apple artifact — verify it via codesign/spctl/stapler
         // instead of the Authenticode engine, and show the Mac report block.
         if (AppleSigningService.Classify(path) is AppleTargetKind.App or AppleTargetKind.Dmg)
@@ -125,6 +156,8 @@ public partial class VerifyViewModel : ObservableObject
         ChainNote = r.ChainNote ?? "";
         HasChainNote = !string.IsNullOrWhiteSpace(ChainNote);
 
+        CanRemove = r.IsSigned && r.Error is null;
+
         HasReport = true;
         ReportChanged?.Invoke();
     }
@@ -141,8 +174,56 @@ public partial class VerifyViewModel : ObservableObject
     [RelayCommand]
     private void VerifyAnother()
     {
+        CancelConfirm();
+        ConfirmRemove = false;
+        RemoveError = "";
+        CanRemove = false;
+        _currentPath = "";
         HasReport = false;
         ReportChanged?.Invoke();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRemove))]
+    private async Task RemoveSignatureAsync()
+    {
+        if (!ConfirmRemove)
+        {
+            // First click: arm, and auto-revert after ~3s (Task.Delay — no Avalonia
+            // Dispatcher, so the headless VM tests stay green). Returns immediately so
+            // the second click can re-invoke the command.
+            ConfirmRemove = true;
+            RemoveError = "";
+            ArmConfirmTimeout();
+            return;
+        }
+
+        CancelConfirm();
+        ConfirmRemove = false;
+        var outcome = await Task.Run(() => _engine.Remove(_currentPath));
+        if (outcome.Removed) await VerifyPathAsync(_currentPath); // report flips to "Not signed"
+        else RemoveError = outcome.Error ?? "Couldn't remove the signature.";
+    }
+
+    private void ArmConfirmTimeout()
+    {
+        // Called only from the UI thread (RelayCommand) — no concurrent arm/cancel race.
+        CancelConfirm();
+        _confirmCts = new CancellationTokenSource();
+        _ = RevertConfirmAfterDelay(_confirmCts.Token);
+    }
+
+    private async Task RevertConfirmAfterDelay(CancellationToken token)
+    {
+        try { await Task.Delay(TimeSpan.FromSeconds(3), token); }
+        catch (OperationCanceledException) { return; }
+        ConfirmRemove = false;
+    }
+
+    private void CancelConfirm()
+    {
+        _confirmCts?.Cancel();
+        _confirmCts?.Dispose();
+        _confirmCts = null;
     }
 
     private static string Dash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
