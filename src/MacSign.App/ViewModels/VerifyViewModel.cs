@@ -15,6 +15,9 @@ namespace MacSign.App.ViewModels;
 public partial class VerifyViewModel : ObservableObject
 {
     private readonly EngineService _engine = new();
+    private readonly AppleSigningService _apple;
+
+    public VerifyViewModel(AppleSigningService? apple = null) => _apple = apple ?? new();
 
     /// <summary>Raised when a report appears/clears, so the shell can toggle
     /// the "Verify another" toolbar action.</summary>
@@ -53,8 +56,40 @@ public partial class VerifyViewModel : ObservableObject
     [ObservableProperty] private string _chainNote = "";
     [ObservableProperty] private bool _hasChainNote;
 
+    // ── Mac (codesign) report fields; shown when IsMacReport ──
+    [ObservableProperty] private bool _isMacReport;
+    [ObservableProperty] private string _macTeamId = "";
+    [ObservableProperty] private bool _macHardened;
+    [ObservableProperty] private bool _macStapled;
+    [ObservableProperty] private bool _macGatekeeper;
+
     public async Task VerifyPathAsync(string path)
     {
+        // A .app / .dmg is an Apple artifact — verify it via codesign/spctl/stapler
+        // instead of the Authenticode engine, and show the Mac report block.
+        if (AppleSigningService.Classify(path) is AppleTargetKind.App or AppleTargetKind.Dmg)
+        {
+            var mac = await Task.Run(() => _apple.InspectAsync(path, default));
+            IsMacReport = true;
+            FileName = Path.GetFileName(path);
+            Ext = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+            FileMeta = mac.Kind == AppleTargetKind.Dmg ? "Disk image" : "macOS app bundle";
+            IntegrityValid = mac.Valid;
+            IntegrityHeadline = mac.Valid ? "Signature VALID" : "Not validly signed";
+            IntegrityDetail = mac.Valid
+                ? "codesign --verify --deep --strict passes"
+                : "codesign could not validate the signature";
+            Signer = Dash(mac.Signer);
+            MacTeamId = Dash(mac.TeamId);
+            MacHardened = mac.HardenedRuntime;
+            MacStapled = mac.Stapled;
+            MacGatekeeper = mac.GatekeeperAccepted;
+            HasReport = true;
+            ReportChanged?.Invoke();
+            return;
+        }
+        IsMacReport = false;
+
         // Offload the read + digest + chain build so a large file (or a multi-file drop)
         // doesn't freeze the UI thread. The engine never throws, so a bad/unreadable file
         // comes back as a Failed report rather than crashing here.
@@ -98,8 +133,9 @@ public partial class VerifyViewModel : ObservableObject
     private async Task PickAndVerifyAsync()
     {
         var p = await FileDialogs.PickOneAsync(
-            "Verify a file", new[] { "*.exe", "*.dll", "*.sys", "*.msi", "*.ps1" });
+            "Verify a file", new[] { "*.exe", "*.dll", "*.sys", "*.msi", "*.ps1", "*.dmg" });
         if (p is not null) await VerifyPathAsync(p);
+        // (.app bundles are folders — drop them on the window to verify.)
     }
 
     [RelayCommand]

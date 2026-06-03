@@ -23,9 +23,9 @@
                     </Border>
                     <TextBlock Text="Drop a file to verify" FontSize="15" FontWeight="Bold"
                                Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" />
-                    <TextBlock FontSize="12.5" Foreground="{DynamicResource Ink2}" MaxWidth="320"
+                    <TextBlock FontSize="12.5" Foreground="{DynamicResource Ink2}" MaxWidth="340"
                                TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"
-                               Text="Reports signature integrity, signer, timestamp, and chain trust. Click to pick a file." />
+                               Text="A Windows artifact (PE/MSI/PS1) → integrity, signer, timestamp, chain. A Mac .app/.dmg → signer, Hardened Runtime, notarization. Click to pick, or drop one." />
                 </StackPanel>
             </Border>
 
@@ -89,6 +89,56 @@
                             </Grid>
                         </Border>
 
+                        <!-- ════ Mac (codesign) report — shown for .app/.dmg ════ -->
+                        <StackPanel IsVisible="{Binding IsMacReport}">
+                            <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="Team ID" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink2}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding MacTeamId}" Classes="mono" FontSize="12.5"
+                                               Foreground="{DynamicResource Ink}" />
+                                </Grid>
+                            </Border>
+                            <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="Hardened RT" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink2}" />
+                                    <Panel Grid.Column="1">
+                                        <TextBlock Text="Enabled" FontSize="12.5" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Ok}" IsVisible="{Binding MacHardened}" />
+                                        <TextBlock Text="Not enabled" FontSize="12.5" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Warn}" IsVisible="{Binding !MacHardened}" />
+                                    </Panel>
+                                </Grid>
+                            </Border>
+                            <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="Notarized" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink2}" />
+                                    <Panel Grid.Column="1">
+                                        <TextBlock Text="Stapled ticket present" FontSize="12.5"
+                                                   Foreground="{DynamicResource Ok}" IsVisible="{Binding MacStapled}" />
+                                        <TextBlock Text="No stapled ticket" FontSize="12.5"
+                                                   Foreground="{DynamicResource Ink}" IsVisible="{Binding !MacStapled}" />
+                                    </Panel>
+                                </Grid>
+                            </Border>
+                            <Border Padding="0,11">
+                                <Grid ColumnDefinitions="110,*">
+                                    <TextBlock Grid.Column="0" Text="Gatekeeper" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink2}" />
+                                    <Panel Grid.Column="1">
+                                        <TextBlock Text="Accepted" FontSize="12.5" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Ok}" IsVisible="{Binding MacGatekeeper}" />
+                                        <TextBlock Text="Not accepted (needs notarization)" FontSize="12.5" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Warn}" IsVisible="{Binding !MacGatekeeper}" />
+                                    </Panel>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ════ Authenticode report — shown for PE/MSI/PS1 ════ -->
+                        <StackPanel IsVisible="{Binding !IsMacReport}">
                         <!-- Issuer -->
                         <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1" Padding="0,11">
                             <Grid ColumnDefinitions="110,*">
@@ -139,6 +189,7 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+                        </StackPanel>
 
                     </StackPanel>
                 </StackPanel>
