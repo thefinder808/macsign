@@ -11,11 +11,11 @@ using MacSign.App.Services;
 namespace MacSign.App.ViewModels;
 
 /// <summary>
-/// The "Mac apps" screen: choose a .app, pick a Developer ID identity, then
-/// sign → verify → (optionally) notarize → staple by driving Apple's own tools
-/// through <see cref="AppleSigningService"/>. Mirrors the Sign screen's patterns
-/// (RelayCommand, off-thread work, Idle/Working/Done, banner, RunRecorded).
-/// Secrets are never persisted; the live tool output streams into the log.
+/// The "Mac apps" screen: choose a .app bundle or a .dmg disk image, pick a
+/// Developer ID identity, then sign → verify → (optionally) notarize → staple by
+/// driving Apple's own tools through <see cref="AppleSigningService"/>. Mirrors
+/// the Sign screen's patterns (RelayCommand, off-thread work, Idle/Working/Done,
+/// banner, RunRecorded). Secrets are never persisted; tool output streams live.
 /// </summary>
 public partial class AppleSignViewModel : ObservableObject
 {
@@ -44,22 +44,25 @@ public partial class AppleSignViewModel : ObservableObject
         _pendingIdentitySha1 = p.IdentitySha1;
     }
 
-    // ── target app ──
+    // ── target (.app bundle or .dmg) ──
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AppName), nameof(HasApp), nameof(HasNoApp))]
+    [NotifyPropertyChangedFor(nameof(TargetName), nameof(HasTarget), nameof(HasNoTarget),
+        nameof(IsApp), nameof(IsDmg))]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
-    private string _appPath = "";
+    private string _targetPath = "";
 
-    public string AppName => string.IsNullOrEmpty(AppPath) ? "" : Path.GetFileName(AppPath);
-    public bool HasApp => !string.IsNullOrEmpty(AppPath);
-    public bool HasNoApp => string.IsNullOrEmpty(AppPath);
+    public string TargetName => string.IsNullOrEmpty(TargetPath) ? "" : Path.GetFileName(TargetPath);
+    public bool HasTarget => AppleSigningService.Classify(TargetPath) != AppleTargetKind.Unsupported;
+    public bool HasNoTarget => !HasTarget;
+    public bool IsApp => AppleSigningService.Classify(TargetPath) == AppleTargetKind.App;
+    public bool IsDmg => AppleSigningService.Classify(TargetPath) == AppleTargetKind.Dmg;
 
     // ── identity ──
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     private SigningIdentity? _selectedIdentity;
 
-    // ── options ──
+    // ── options (.app only) ──
     [ObservableProperty] private string _entitlementsPath = "";
     [ObservableProperty] private bool _hardenedRuntime;
     [ObservableProperty] private bool _deep;
@@ -108,7 +111,7 @@ public partial class AppleSignViewModel : ObservableObject
     public bool ShowErrBanner => IsDone && BannerIsError;
 
     public string RunButtonText =>
-        !Notarize ? "Sign Mac app"
+        !Notarize ? "Sign"
         : Staple ? "Sign, notarize & staple"
         : "Sign & notarize";
 
@@ -121,8 +124,18 @@ public partial class AppleSignViewModel : ObservableObject
     private async Task ChooseAppAsync()
     {
         var p = await FileDialogs.PickAppBundleAsync();
-        if (p is not null) SetApp(p);
+        if (p is not null) SetTarget(p);
     }
+
+    [RelayCommand]
+    private async Task ChooseDmgAsync()
+    {
+        var p = await FileDialogs.PickDmgAsync();
+        if (p is not null) SetTarget(p);
+    }
+
+    [RelayCommand]
+    private void ClearTarget() => SetTarget("");
 
     [RelayCommand]
     private async Task ChooseEntitlementsAsync()
@@ -143,13 +156,13 @@ public partial class AppleSignViewModel : ObservableObject
             ?? Identities.FirstOrDefault();
     }
 
-    public void SetApp(string path)
+    public void SetTarget(string path)
     {
-        AppPath = path;
+        TargetPath = path;
         if (IsDone) State = AppleSignState.Idle;
     }
 
-    private bool CanRun() => IsIdle && HasApp && SelectedIdentity is not null
+    private bool CanRun() => IsIdle && HasTarget && SelectedIdentity is not null
         && (!Notarize || BuildCreds().IsComplete);
 
     [RelayCommand(CanExecute = nameof(CanRun))]
@@ -164,20 +177,21 @@ public partial class AppleSignViewModel : ObservableObject
         var ct = _cts.Token;
         var log = new Progress<string>(AppendLog);
         var id = SelectedIdentity!;
-        string app = AppPath;
+        string target = TargetPath;
         string stage = "signed";
+        bool gatekeeperOk = false;
 
         try
         {
             ProgressText = "Signing…";
             AppendLog("==> Signing");
-            var r = await Task.Run(() => _apple.SignAsync(app, id,
+            var r = await Task.Run(() => _apple.SignAsync(target, id,
                 NullIfEmpty(EntitlementsPath), HardenedRuntime, Deep, log, ct));
             if (!r.Success) { Finish(r, ct); return; }
 
             ProgressText = "Verifying…";
-            AppendLog("==> Verifying");
-            r = await Task.Run(() => _apple.VerifyAsync(app, runSpctl: true, log, ct));
+            AppendLog("==> Verifying integrity");
+            r = await Task.Run(() => _apple.VerifyAsync(target, log, ct));
             if (!r.Success) { Finish(r, ct); return; }
             stage = "signed & verified";
 
@@ -185,7 +199,7 @@ public partial class AppleSignViewModel : ObservableObject
             {
                 ProgressText = "Notarizing…";
                 AppendLog("==> Notarizing");
-                r = await Task.Run(() => _apple.NotarizeAsync(app, BuildCreds(), log, ct));
+                r = await Task.Run(() => _apple.NotarizeAsync(target, BuildCreds(), log, ct));
                 if (!r.Success) { Finish(r, ct); return; }
                 stage = "signed, verified & notarized";
 
@@ -193,9 +207,15 @@ public partial class AppleSignViewModel : ObservableObject
                 {
                     ProgressText = "Stapling…";
                     AppendLog("==> Stapling");
-                    r = await Task.Run(() => _apple.StapleAsync(app, log, ct));
+                    r = await Task.Run(() => _apple.StapleAsync(target, log, ct));
                     if (!r.Success) { Finish(r, ct); return; }
                     stage = "signed, verified, notarized & stapled";
+
+                    // Final, best-effort Gatekeeper check — informational, never a hard gate.
+                    ProgressText = "Assessing…";
+                    AppendLog("==> Gatekeeper assessment");
+                    var assess = await Task.Run(() => _apple.AssessAsync(target, log, ct));
+                    gatekeeperOk = assess.Success;
                 }
             }
         }
@@ -213,8 +233,10 @@ public partial class AppleSignViewModel : ObservableObject
         ProgressText = "";
         State = AppleSignState.Done;
         BannerIsError = false;
-        BannerTitle = $"{AppName} {stage}";
-        BannerDetail = Notarize ? "Ready to distribute." : "Notarization was skipped.";
+        BannerTitle = $"{TargetName} {stage}";
+        BannerDetail = !Notarize ? "Notarization was skipped."
+            : gatekeeperOk ? "Gatekeeper accepts it — ready to distribute."
+            : "Ready to distribute.";
         Record("ok", stage);
     }
 

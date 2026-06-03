@@ -11,6 +11,10 @@ namespace MacSign.App.Services;
 /// <summary>A code-signing identity in the login keychain (SHA-1 + display name).</summary>
 public sealed record SigningIdentity(string Sha1, string Name);
 
+/// <summary>What kind of artifact a path is: a .app bundle (directory), a .dmg
+/// disk image (file), or something we don't sign.</summary>
+public enum AppleTargetKind { App, Dmg, Unsupported }
+
 /// <summary>The outcome of one Apple operation: a human title/detail + the full log.</summary>
 public sealed record AppleOpResult(bool Success, string Title, string Detail, string Log)
 {
@@ -38,11 +42,12 @@ public sealed record NotarizeCreds
 
 /// <summary>
 /// Drives Apple's own command-line tools (codesign / xcrun notarytool /
-/// xcrun stapler / security / ditto) to sign, notarize and staple a .app bundle.
-/// It does NOT reimplement Apple code signing — it orchestrates the canonical
-/// tooling. Every call goes through an <see cref="IProcessRunner"/> with an argv
-/// list (no shell), and signing is gated on an identity allow-list parsed from
-/// the keychain, so user input never reaches a shell or an unchecked --sign.
+/// xcrun stapler / spctl / security / ditto) to sign, notarize and staple a
+/// .app bundle or a .dmg disk image. It does NOT reimplement Apple code signing —
+/// it orchestrates the canonical tooling. Every call goes through an
+/// <see cref="IProcessRunner"/> with an argv list (no shell), and signing is gated
+/// on an identity allow-list parsed from the keychain, so user input never reaches
+/// a shell or an unchecked --sign.
 /// </summary>
 public sealed class AppleSigningService
 {
@@ -56,6 +61,18 @@ public sealed class AppleSigningService
     private readonly IProcessRunner _runner;
 
     public AppleSigningService(IProcessRunner? runner = null) => _runner = runner ?? new ProcessRunner();
+
+    /// <summary>Classify a target path: a .app bundle (a directory), a .dmg disk
+    /// image (a file), or unsupported.</summary>
+    public static AppleTargetKind Classify(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return AppleTargetKind.Unsupported;
+        if (path.EndsWith(".app", StringComparison.OrdinalIgnoreCase) && Directory.Exists(path))
+            return AppleTargetKind.App;
+        if (path.EndsWith(".dmg", StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+            return AppleTargetKind.Dmg;
+        return AppleTargetKind.Unsupported;
+    }
 
     // e.g.   1) ABCD…(40 hex) "Developer ID Application: Name (TEAMID)"
     private static readonly Regex IdentityLine =
@@ -78,13 +95,15 @@ public sealed class AppleSigningService
         return list;
     }
 
-    public async Task<AppleOpResult> SignAsync(string appPath, SigningIdentity identity,
+    public async Task<AppleOpResult> SignAsync(string targetPath, SigningIdentity identity,
         string? entitlementsPath, bool hardenedRuntime, bool deep,
         IProgress<string>? log, CancellationToken ct)
     {
-        if (!IsAppBundle(appPath))
-            return AppleOpResult.Fail("Not a .app bundle", $"“{appPath}” is not a .app bundle.", "");
-        if (entitlementsPath is not null &&
+        var kind = Classify(targetPath);
+        if (kind == AppleTargetKind.Unsupported)
+            return AppleOpResult.Fail("Unsupported target", "Choose a .app bundle or a .dmg file.", "");
+        // Entitlements / hardened-runtime / deep only apply to a .app; ignored for a .dmg.
+        if (kind == AppleTargetKind.App && entitlementsPath is not null &&
             (!File.Exists(entitlementsPath) || !entitlementsPath.EndsWith(".plist", StringComparison.OrdinalIgnoreCase)))
             return AppleOpResult.Fail("Bad entitlements", "Entitlements must be an existing .plist file.", "");
 
@@ -97,56 +116,79 @@ public sealed class AppleSigningService
                 "That signing identity isn’t in the keychain. Refresh and pick again.", "");
 
         var args = new List<string> { "--force" };
-        if (hardenedRuntime) { args.Add("--options"); args.Add("runtime"); }
-        args.Add("--timestamp");
-        if (deep) args.Add("--deep");
-        if (entitlementsPath is not null) { args.Add("--entitlements"); args.Add(entitlementsPath); }
+        if (kind == AppleTargetKind.App)
+        {
+            if (hardenedRuntime) { args.Add("--options"); args.Add("runtime"); }
+            args.Add("--timestamp");
+            if (deep) args.Add("--deep");
+            if (entitlementsPath is not null) { args.Add("--entitlements"); args.Add(entitlementsPath); }
+        }
+        else // Dmg: a disk image is signed as a flat blob — no runtime/deep/entitlements.
+        {
+            args.Add("--timestamp");
+        }
         args.Add("--sign"); args.Add(match.Sha1);
-        args.Add(appPath);
+        args.Add(targetPath);
 
         var r = await _runner.RunAsync(Codesign, args, log, ct);
         return Outcome(r, "Signed", $"codesign as {match.Name}", "Signing");
     }
 
-    public async Task<AppleOpResult> VerifyAsync(string appPath, bool runSpctl,
-        IProgress<string>? log, CancellationToken ct)
+    /// <summary>Integrity verify — confirms the signature/seal (passes before
+    /// notarization). Gatekeeper acceptance is a separate, later step
+    /// (<see cref="AssessAsync"/>).</summary>
+    public async Task<AppleOpResult> VerifyAsync(string targetPath, IProgress<string>? log, CancellationToken ct)
     {
-        var cs = await _runner.RunAsync(Codesign,
-            new[] { "--verify", "--deep", "--strict", "--verbose=2", appPath }, log, ct);
-        if (cs.Canceled) return AppleOpResult.Fail("Canceled", "Verification was canceled.", cs.StdErr);
-        if (!cs.Success) return AppleOpResult.Fail("Verify failed", FirstLine(cs.StdErr), cs.StdErr + cs.StdOut);
-
-        if (runSpctl)
-        {
-            var sp = await _runner.RunAsync(Spctl, new[] { "-a", "-t", "exec", "-vv", appPath }, log, ct);
-            if (sp.Canceled) return AppleOpResult.Fail("Canceled", "Verification was canceled.", sp.StdErr);
-            if (!sp.Success)
-                return AppleOpResult.Fail("Gatekeeper rejected", FirstLine(sp.StdErr), sp.StdErr + sp.StdOut);
-        }
-        return AppleOpResult.Ok("Verified", "Signature is valid.", cs.StdErr + cs.StdOut);
+        var kind = Classify(targetPath);
+        var args = kind == AppleTargetKind.App
+            ? new[] { "--verify", "--deep", "--strict", "--verbose=2", targetPath }
+            : new[] { "--verify", "--strict", "--verbose=2", targetPath };
+        var r = await _runner.RunAsync(Codesign, args, log, ct);
+        return Outcome(r, "Verified", "Signature is valid.", "Verification");
     }
 
-    public async Task<AppleOpResult> NotarizeAsync(string appPath, NotarizeCreds creds,
+    /// <summary>Best-effort Gatekeeper assessment (spctl). Meaningful only after a
+    /// successful staple — a signed-but-unnotarized artifact is expected to be
+    /// rejected, so callers treat this as informational, never a hard gate.</summary>
+    public async Task<AppleOpResult> AssessAsync(string targetPath, IProgress<string>? log, CancellationToken ct)
+    {
+        var kind = Classify(targetPath);
+        var args = kind == AppleTargetKind.App
+            ? new[] { "--assess", "--type", "exec", "-vv", targetPath }
+            : new[] { "--assess", "--type", "open", "--context", "context:primary-signature", "-v", targetPath };
+        var r = await _runner.RunAsync(Spctl, args, log, ct);
+        return Outcome(r, "Gatekeeper accepted", "spctl accepts the artifact.", "Assessment");
+    }
+
+    public async Task<AppleOpResult> NotarizeAsync(string targetPath, NotarizeCreds creds,
         IProgress<string>? log, CancellationToken ct)
     {
         if (!creds.IsComplete)
             return AppleOpResult.Fail("Notary credentials missing",
                 "Enter a keychain profile or an API key.", "");
-        if (!IsAppBundle(appPath))
-            return AppleOpResult.Fail("Not a .app bundle", $"“{appPath}” is not a .app bundle.", "");
+        var kind = Classify(targetPath);
+        if (kind == AppleTargetKind.Unsupported)
+            return AppleOpResult.Fail("Unsupported target", "Choose a .app bundle or a .dmg file.", "");
 
-        // notarytool can't take a .app directly — zip it (preserving the bundle).
-        var zip = Path.Combine(Path.GetTempPath(),
-            $"macsign-notarize-{Path.GetFileNameWithoutExtension(appPath)}.zip");
+        // notarytool takes a .dmg directly; a .app must be zipped first (preserving
+        // the bundle). The zip is a throwaway, cleaned up in the finally.
+        string submitPath = targetPath;
+        string? tempZip = null;
         try
         {
-            log?.Report($"Zipping {Path.GetFileName(appPath)}…");
-            var dz = await _runner.RunAsync(Ditto,
-                new[] { "-c", "-k", "--keepParent", appPath, zip }, log, ct);
-            if (dz.Canceled) return AppleOpResult.Fail("Canceled", "Notarization was canceled.", dz.StdErr);
-            if (!dz.Success) return AppleOpResult.Fail("Zip failed", FirstLine(dz.StdErr), dz.StdErr + dz.StdOut);
+            if (kind == AppleTargetKind.App)
+            {
+                tempZip = Path.Combine(Path.GetTempPath(),
+                    $"macsign-notarize-{Path.GetFileNameWithoutExtension(targetPath)}.zip");
+                log?.Report($"Zipping {Path.GetFileName(targetPath)}…");
+                var dz = await _runner.RunAsync(Ditto,
+                    new[] { "-c", "-k", "--keepParent", targetPath, tempZip }, log, ct);
+                if (dz.Canceled) return AppleOpResult.Fail("Canceled", "Notarization was canceled.", dz.StdErr);
+                if (!dz.Success) return AppleOpResult.Fail("Zip failed", FirstLine(dz.StdErr), dz.StdErr + dz.StdOut);
+                submitPath = tempZip;
+            }
 
-            var args = new List<string> { "notarytool", "submit", zip, "--wait" };
+            var args = new List<string> { "notarytool", "submit", submitPath, "--wait" };
             if (creds.HasKeychainProfile)
             {
                 args.Add("--keychain-profile"); args.Add(creds.KeychainProfile!);
@@ -178,27 +220,22 @@ public sealed class AppleSigningService
         }
         finally
         {
-            try { if (File.Exists(zip)) File.Delete(zip); } catch { /* best-effort */ }
+            try { if (tempZip is not null && File.Exists(tempZip)) File.Delete(tempZip); } catch { /* best-effort */ }
         }
     }
 
-    public async Task<AppleOpResult> StapleAsync(string appPath, IProgress<string>? log, CancellationToken ct)
+    public async Task<AppleOpResult> StapleAsync(string targetPath, IProgress<string>? log, CancellationToken ct)
     {
-        var st = await _runner.RunAsync(Xcrun, new[] { "stapler", "staple", appPath }, log, ct);
+        var st = await _runner.RunAsync(Xcrun, new[] { "stapler", "staple", targetPath }, log, ct);
         if (st.Canceled) return AppleOpResult.Fail("Canceled", "Stapling was canceled.", st.StdErr);
         if (!st.Success) return AppleOpResult.Fail("Staple failed", FirstLine(st.StdErr + st.StdOut), st.StdOut + st.StdErr);
 
-        var v = await _runner.RunAsync(Xcrun, new[] { "stapler", "validate", appPath }, log, ct);
+        var v = await _runner.RunAsync(Xcrun, new[] { "stapler", "validate", targetPath }, log, ct);
         if (v.Canceled) return AppleOpResult.Fail("Canceled", "Stapling was canceled.", v.StdErr);
         return v.Success
             ? AppleOpResult.Ok("Stapled", "Ticket stapled and validated.", st.StdOut + v.StdOut)
             : AppleOpResult.Fail("Validate failed", FirstLine(v.StdErr + v.StdOut), v.StdOut + v.StdErr);
     }
-
-    private static bool IsAppBundle(string path) =>
-        !string.IsNullOrWhiteSpace(path)
-        && path.EndsWith(".app", StringComparison.OrdinalIgnoreCase)
-        && Directory.Exists(path);
 
     private static AppleOpResult Outcome(ProcessResult r, string okTitle, string okDetail, string verb) =>
         r.Canceled ? AppleOpResult.Fail("Canceled", $"{verb} was canceled.", r.StdErr)

@@ -35,10 +35,11 @@ public partial class AppleSignView : UserControl
     {
         DragHighlight.Set(AppCard, "dragover", false);
         if (DataContext is not AppleSignViewModel vm) return;
-        var appPath = e.DataTransfer?.TryGetFiles()?
+        var target = e.DataTransfer?.TryGetFiles()?
             .Select(f => f.Path.LocalPath)
             .FirstOrDefault(p => !string.IsNullOrEmpty(p)
-                && p.EndsWith(".app", StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrEmpty(appPath)) vm.SetApp(appPath!);
+                && (p.EndsWith(".app", StringComparison.OrdinalIgnoreCase)
+                    || p.EndsWith(".dmg", StringComparison.OrdinalIgnoreCase)));
+        if (!string.IsNullOrEmpty(target)) vm.SetTarget(target!);
     }
 }

@@ -69,6 +69,9 @@ public static class FileDialogs
         return folders.Count > 0 ? folders[0].Path.LocalPath : null;
     }
 
+    public static Task<string?> PickDmgAsync() =>
+        PickOneAsync("Choose a .dmg to sign", new[] { "*.dmg" });
+
     public static Task<string?> PickEntitlementsAsync() =>
         PickOneAsync("Choose entitlements", new[] { "*.plist" });
 
