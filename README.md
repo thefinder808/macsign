@@ -17,9 +17,10 @@ The cross-platform tools for signing Windows binaries from a Mac are fiddly CLIs
 | `src/MacSign.Signing.Azure` | Optional Azure Trusted Signing backend, quarantined so `Azure.Identity` stays out of the core. A delegating RSA POSTs each digest to the cloud sign endpoint. |
 | `src/MacSign.Signing.Msi` | Optional MSI backend, quarantined so the `OpenMcdf` (CFBF) dependency stays out of the core. |
 | `src/MacSign.Cli` | A thin console harness (`macsign`) — scriptable signing/verifying. |
-| `src/MacSign.App` | The native macOS GUI (.NET 10 + Avalonia) — consumes the engine in-process. Sign / Verify / Profiles / Activity, light + dark. |
+| `src/MacSign.App` | The native macOS GUI (.NET 10 + Avalonia) — consumes the engine in-process. Sign / Verify / **Mac apps** / Profiles / Activity, light + dark. |
 | `src/MacSign.Fixture` | A trivial class library whose compiled DLL is the unsigned PE the tests/CI sign. |
 | `tests/MacSign.Signing.Tests` | xUnit: PE digest, CMS framing, sign→verify round-trip, secret hygiene. |
+| `tests/MacSign.App.Tests` | xUnit for the **Mac apps** (`codesign`/`notarytool`) wrapper: exact argv per option, identity allow-listing, `.dmg`-direct notarize, process injection/cancellation. |
 
 ## Build & test
 
@@ -64,7 +65,9 @@ dotnet run --project src/MacSign.Cli -- remove some.dll
 
 ## Native macOS app (GUI)
 
-A native macOS GUI (`src/MacSign.App`, .NET 10 + Avalonia) consumes the same engine **in-process** — no shelling out. Four screens: **Sign** (drag-drop files + a credential/options inspector, ⌘S to sign), **Verify** (integrity vs. chain-trust report), **Profiles** (reusable presets — no secrets stored), and **Activity** (run history). Full light + dark, following the macOS appearance.
+A native macOS GUI (`src/MacSign.App`, .NET 10 + Avalonia) consumes the same engine **in-process** — no shelling out. Five screens: **Sign** (drag-drop files + a credential/options inspector, ⌘S to sign), **Verify** (integrity vs. chain-trust report), **Mac apps** (sign, notarize & staple a `.app` bundle or `.dmg` with your Developer ID), **Profiles** (reusable presets — no secrets stored), and **Activity** (run history). Full light + dark, following the macOS appearance.
+
+> **Mac apps** is the inverse of the engine's day job: rather than signing Windows artifacts, it signs **your Mac apps**. It's a thin, injection-safe wrapper over Apple's own `codesign` / `notarytool` / `stapler` (not a reimplementation) — choose a `.app` or `.dmg`, pick a Developer ID identity, and watch sign → verify → notarize → staple stream in a live log.
 
 ```bash
 dotnet run --project src/MacSign.App          # run from source

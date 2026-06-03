@@ -14,6 +14,11 @@ The same flow runs locally with no secrets via [`build-macos.sh`](../build-macos
 (`SIGN_IDENTITY=… NOTARY_PROFILE=… ./build-macos.sh`) — CI just automates it and
 builds both architectures from a clean checkout of the tagged commit.
 
+> The same Developer ID identity + notarytool keychain profile also power the
+> in-app **Mac apps** screen (added in v0.3.0), which signs → notarizes → staples
+> an arbitrary `.app` or `.dmg` from the GUI. That's a separate user-facing
+> feature; this doc covers MacSign signing **its own** release DMG.
+
 ## Required secrets (`release` environment)
 
 Until these exist the workflow still runs but produces **unsigned** DMGs.
