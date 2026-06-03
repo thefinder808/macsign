@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MacSign.App.Views.AboutWindow"
+        Title="About MacSign"
+        Width="380" Height="430" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Bg1}">
+    <StackPanel Margin="28" Spacing="13" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Border Width="72" Height="72" CornerRadius="18" HorizontalAlignment="Center" ClipToBounds="True">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Offset="0" Color="#6172EA" />
+                    <GradientStop Offset="1" Color="#2C33A3" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <Viewbox Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Canvas Width="100" Height="100">
+                    <Path Data="{StaticResource GlyphShield}" Fill="White" />
+                    <Path Data="{StaticResource GlyphCheck}" Stroke="#3F49C9" StrokeThickness="9.5"
+                          StrokeLineCap="Round" StrokeJoin="Round" />
+                </Canvas>
+            </Viewbox>
+        </Border>
+        <TextBlock Text="MacSign" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"
+                   Foreground="{DynamicResource Ink}" />
+        <TextBlock x:Name="VersionText" FontSize="12.5" HorizontalAlignment="Center"
+                   Foreground="{DynamicResource Ink2}" />
+        <TextBlock Text="Native macOS Authenticode signing for Windows artifacts."
+                   FontSize="12.5" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="280"
+                   HorizontalAlignment="Center" Foreground="{DynamicResource Ink2}" />
+        <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center" Margin="0,8,0,0">
+            <Button Classes="ghost" Content="GitHub" Foreground="{DynamicResource Accent}" Click="OnGitHub" />
+            <Button Classes="ghost" Content="Releases" Foreground="{DynamicResource Accent}" Click="OnReleases" />
+            <Button Classes="ghost" Content="Buy me a coffee" Foreground="{DynamicResource Accent}" Click="OnCoffee" />
+        </StackPanel>
+    </StackPanel>
+</Window>

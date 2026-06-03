@@ -33,4 +33,26 @@ public partial class MainWindow : Window
     private void OnWindowMinimize(object? sender, EventArgs e) => WindowState = WindowState.Minimized;
     private void OnWindowZoom(object? sender, EventArgs e) =>
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    // ── Help menu ──
+    private void OnHelpGitHub(object? sender, EventArgs e) => OpenUrl("https://github.com/thefinder808/macsign");
+    private void OnHelpIssue(object? sender, EventArgs e) => OpenUrl("https://github.com/thefinder808/macsign/issues/new");
+    private void OnHelpReleases(object? sender, EventArgs e) => OpenUrl("https://github.com/thefinder808/macsign/releases");
+
+    private AboutWindow? _aboutWindow;
+    private void OnHelpAbout(object? sender, EventArgs e)
+    {
+        if (_aboutWindow is null)
+        {
+            _aboutWindow = new AboutWindow();
+            _aboutWindow.Closed += (_, _) => _aboutWindow = null;
+        }
+        _aboutWindow.Show(this);
+        _aboutWindow.Activate();
+    }
+
+    private void OpenUrl(string url)
+    {
+        try { _ = Launcher.LaunchUriAsync(new Uri(url)); } catch { /* best-effort */ }
+    }
 }

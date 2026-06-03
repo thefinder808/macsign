@@ -65,6 +65,17 @@
                     </NativeMenu>
                 </NativeMenuItem.Menu>
             </NativeMenuItem>
+            <NativeMenuItem Header="Help">
+                <NativeMenuItem.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="MacSign on GitHub" Click="OnHelpGitHub" />
+                        <NativeMenuItem Header="Report an Issue" Click="OnHelpIssue" />
+                        <NativeMenuItem Header="Release Notes" Click="OnHelpReleases" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="About MacSign" Click="OnHelpAbout" />
+                    </NativeMenu>
+                </NativeMenuItem.Menu>
+            </NativeMenuItem>
         </NativeMenu>
     </NativeMenu.Menu>
 
