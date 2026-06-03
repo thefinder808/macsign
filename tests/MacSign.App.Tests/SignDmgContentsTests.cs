@@ -118,4 +118,24 @@ public class SignDmgContentsTests
         Assert.False(r.Success);
         Assert.Contains(f.Calls, c => c.File.EndsWith("hdiutil") && c.Args.Contains("detach")); // released despite failure
     }
+
+    [Fact]
+    public async Task SignDmgContents_fails_when_no_app_inside()
+    {
+        var dmg = MakeDmg();
+        var f = new FakeRunner();
+        f.Respond = (file, args) =>
+        {
+            var a = args.ToList();
+            if (file.EndsWith("security", StringComparison.Ordinal)) return new ProcessResult(0, FindIdentityOutput, "", false);
+            if (a.Contains("attach")) { Directory.CreateDirectory(a[a.IndexOf("-mountpoint") + 1]); return new ProcessResult(0, "", "", false); } // empty mount, no .app
+            return new ProcessResult(0, "", "", false);
+        };
+
+        var r = await new AppleSigningService(f).SignDmgContentsAsync(dmg, new SigningIdentity(Sha, IdName), null, null, default);
+
+        Assert.False(r.Success);
+        Assert.Equal("Nothing to sign", r.Title);
+        Assert.Contains(f.Calls, c => c.File.EndsWith("hdiutil") && c.Args.Contains("detach")); // still detaches via finally
+    }
 }

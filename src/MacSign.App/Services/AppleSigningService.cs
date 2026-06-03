@@ -370,6 +370,7 @@ public sealed class AppleSigningService
 
             // Grow the working image so the bytes a signature adds will fit on a tight volume.
             // Best-effort: if it can't grow, signing may still succeed (or fail ENOSPC — see plan limitations).
+            // Guard: convert produces <rw> in real runs; skip resize when it's absent (e.g. fakes/no-op).
             if (File.Exists(rw))
             {
                 long targetMb = new FileInfo(rw).Length / (1024 * 1024) + 64;
@@ -394,7 +395,8 @@ public sealed class AppleSigningService
             foreach (var app in apps)
             {
                 var name = Path.GetFileName(app);
-                var (verifyOk, hardened, _) = await BundleStateAsync(app, log, ct);
+                // Skip-probe only — don't stream this verify to the live log (pre-flight does that).
+                var (verifyOk, hardened, _) = await BundleStateAsync(app, null, ct);
                 if (verifyOk && hardened) { log?.Report($"{name}: already signed — skipping."); continue; }
                 log?.Report($"Signing {name} inside the image…");
                 var sr = await SignAsync(app, identity, entitlementsPath, hardenedRuntime: true, deep: true, log, ct);
@@ -413,9 +415,11 @@ public sealed class AppleSigningService
             if (!c2.Success || !File.Exists(outDmg)) return AppleOpResult.Fail("Recompress failed",
                 "Could not recompress the signed image.", c2.StdErr + c2.StdOut);
 
-            File.Move(outDmg, dmgPath, overwrite: true); // same volume → atomic swap over the original
+            File.Move(outDmg, dmgPath, overwrite: true); // same-volume move — atomic on the same filesystem; copy+delete across volumes
             return AppleOpResult.Ok("Contents signed",
-                $"Signed {signed} app(s) inside {Path.GetFileName(dmgPath)} and re-sealed the image.",
+                signed == 0
+                    ? $"All apps inside {Path.GetFileName(dmgPath)} were already signed; re-sealed the image."
+                    : $"Signed {signed} app(s) inside {Path.GetFileName(dmgPath)} and re-sealed the image.",
                 c1.StdOut + c2.StdOut);
         }
         finally
