@@ -239,6 +239,28 @@ public sealed class AppleSigningService
         }
     }
 
+    /// <summary>Create a keychain notary profile from an App Store Connect API key,
+    /// via `xcrun notarytool store-credentials`. API-key only — the secret stays in
+    /// the .p8 file; nothing secret reaches argv, the log, or disk.</summary>
+    public async Task<AppleOpResult> StoreNotaryCredentialsAsync(string profileName,
+        string apiKeyPath, string keyId, string issuer, IProgress<string>? log, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(profileName) || string.IsNullOrWhiteSpace(keyId)
+            || string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(apiKeyPath))
+            return AppleOpResult.Fail("Missing details",
+                "Enter a profile name, the .p8 key, the key ID, and the issuer ID.", "");
+        if (!File.Exists(apiKeyPath) || !apiKeyPath.EndsWith(".p8", StringComparison.OrdinalIgnoreCase))
+            return AppleOpResult.Fail("Bad API key", "The API key must be an existing .p8 file.", "");
+
+        var args = new[]
+        {
+            "notarytool", "store-credentials", profileName,
+            "--key", apiKeyPath, "--key-id", keyId, "--issuer", issuer,
+        };
+        var r = await _runner.RunAsync(Xcrun, args, log, ct);
+        return Outcome(r, "Notary profile created", $"Stored “{profileName}” in your keychain.", "Storing credentials");
+    }
+
     public async Task<AppleOpResult> StapleAsync(string targetPath, IProgress<string>? log, CancellationToken ct)
     {
         var st = await _runner.RunAsync(Xcrun, new[] { "stapler", "staple", targetPath }, log, ct);
