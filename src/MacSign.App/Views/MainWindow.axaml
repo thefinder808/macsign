@@ -105,6 +105,8 @@
                 <!-- nav -->
                 <StackPanel DockPanel.Dock="Top" Margin="10,0" Spacing="2">
 
+                    <TextBlock Classes="section" Text="WINDOWS" Margin="6,2,6,4" />
+
                     <Button Classes="nav" Classes.active="{Binding IsSign}"
                             Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Sign}">
                         <Grid ColumnDefinitions="17,*,Auto">
@@ -127,6 +129,8 @@
                         </StackPanel>
                     </Button>
 
+                    <TextBlock Classes="section" Text="MACOS" Margin="6,12,6,4" />
+
                     <Button Classes="nav" Classes.active="{Binding IsApple}"
                             Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Apple}">
                         <StackPanel Orientation="Horizontal" Spacing="9">
@@ -135,6 +139,8 @@
                             <TextBlock Text="Mac apps" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
+
+                    <TextBlock Classes="section" Text="LIBRARY" Margin="6,12,6,4" />
 
                     <Button Classes="nav" Classes.active="{Binding IsProfiles}"
                             Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Profiles}">
