@@ -71,7 +71,8 @@
 
                     <!-- log / empty state -->
                     <Panel>
-                        <ScrollViewer IsVisible="{Binding HasTarget}" Padding="14,12">
+                        <ScrollViewer x:Name="LogScroll" IsVisible="{Binding HasTarget}"
+                                      Padding="14,12,14,16" VerticalScrollBarVisibility="Auto">
                             <SelectableTextBlock Text="{Binding LogText}" Classes="mono" FontSize="11.5"
                                                  Foreground="{DynamicResource Ink2}" TextWrapping="Wrap" />
                         </ScrollViewer>

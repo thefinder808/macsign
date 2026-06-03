@@ -1,25 +1,46 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Threading;
 using MacSign.App.ViewModels;
 
 namespace MacSign.App.Views;
 
 public partial class AppleSignView : UserControl
 {
+    private AppleSignViewModel? _observed;
+
     public AppleSignView()
     {
         InitializeComponent();
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
+        // Follow the live log: re-scroll to the bottom whenever new output streams in.
+        DataContextChanged += OnDataContextChanged;
         // Populate signing identities the first time the screen is shown.
         Loaded += (_, _) =>
         {
             if (DataContext is AppleSignViewModel { Identities.Count: 0 } vm)
                 vm.RefreshIdentitiesCommand.Execute(null);
         };
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_observed is not null) _observed.PropertyChanged -= OnViewModelPropertyChanged;
+        _observed = DataContext as AppleSignViewModel;
+        if (_observed is not null) _observed.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(AppleSignViewModel.LogText)) return;
+        // Post at Background so the scroll runs AFTER the text block re-measures with the
+        // new content — otherwise ScrollToEnd would use the stale (shorter) extent.
+        Dispatcher.UIThread.Post(LogScroll.ScrollToEnd, DispatcherPriority.Background);
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)
