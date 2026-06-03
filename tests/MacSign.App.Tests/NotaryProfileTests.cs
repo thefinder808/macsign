@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using MacSign.App.Services;
+using MacSign.App.ViewModels;
 using Xunit;
 
 namespace MacSign.App.Tests;
@@ -61,5 +62,57 @@ public class StoreNotaryCredentialsTests
             .StoreNotaryCredentialsAsync("P", TempP8(), "K", "I", null, default);
 
         Assert.False(r.Success);
+    }
+}
+
+public class NotaryProfileViewModelTests
+{
+    private static string TempP8()
+    {
+        var p = Path.Combine(Path.GetTempPath(), "macsign-vmkey-" + Guid.NewGuid().ToString("N") + ".p8");
+        File.WriteAllText(p, "x");
+        return p;
+    }
+
+    [Fact]
+    public void CanCreate_requires_all_fields_and_an_existing_key()
+    {
+        var vm = new NotaryProfileViewModel(new AppleSigningService(new FakeRunner()));
+        Assert.False(vm.CreateProfileCommand.CanExecute(null));            // empty
+        vm.ProfileName = "P"; vm.KeyId = "K"; vm.Issuer = "I"; vm.ApiKeyPath = "/nope.p8";
+        Assert.False(vm.CreateProfileCommand.CanExecute(null));            // .p8 missing
+        vm.ApiKeyPath = TempP8();
+        Assert.True(vm.CreateProfileCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task CreateProfile_success_sets_name_and_raises_succeeded()
+    {
+        var vm = new NotaryProfileViewModel(new AppleSigningService(new FakeRunner()))
+        { ProfileName = "MyProfile", ApiKeyPath = TempP8(), KeyId = "K", Issuer = "I" };
+        bool raised = false; vm.Succeeded += () => raised = true;
+
+        await vm.CreateProfileCommand.ExecuteAsync(null);
+
+        Assert.Equal("MyProfile", vm.CreatedProfileName);
+        Assert.True(raised);
+        Assert.False(vm.HasError);
+        Assert.False(vm.Busy); // reset in finally
+    }
+
+    [Fact]
+    public async Task CreateProfile_failure_sets_error_and_no_name()
+    {
+        var f = new FakeRunner { Respond = (_, _) => new ProcessResult(1, "", "Error: bad key", false) };
+        var vm = new NotaryProfileViewModel(new AppleSigningService(f))
+        { ProfileName = "P", ApiKeyPath = TempP8(), KeyId = "K", Issuer = "I" };
+        bool raised = false; vm.Succeeded += () => raised = true;
+
+        await vm.CreateProfileCommand.ExecuteAsync(null);
+
+        Assert.Null(vm.CreatedProfileName);
+        Assert.True(vm.HasError);
+        Assert.False(raised);   // failure must not raise Succeeded
+        Assert.False(vm.Busy);  // reset in finally
     }
 }
