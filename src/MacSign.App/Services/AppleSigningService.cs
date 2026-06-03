@@ -21,7 +21,13 @@ public sealed record AppleSignReport(AppleTargetKind Kind, bool Valid, string? S
 
 /// <summary>Result of a notarizability pre-flight: a pass flag + a human list of
 /// problems (empty when Ok) + the captured log.</summary>
-public sealed record PreflightResult(bool Ok, IReadOnlyList<string> Problems, string Log);
+public sealed record PreflightResult(bool Ok, IReadOnlyList<string> Problems, string Log)
+{
+    /// <summary>True only when the target is a .dmg whose contents are repairable by
+    /// signing the apps inside (mounted OK, ≥1 .app found, ≥1 signing-kind problem).
+    /// Drives the "Sign contents &amp; continue" recovery on the Mac apps screen.</summary>
+    public bool CanSignContents { get; init; }
+}
 
 /// <summary>The outcome of one Apple operation: a human title/detail + the full log.</summary>
 public sealed record AppleOpResult(bool Success, string Title, string Detail, string Log)
@@ -280,6 +286,7 @@ public sealed class AppleSigningService
         var kind = Classify(path);
         var problems = new List<string>();
         var logbuf = new System.Text.StringBuilder();
+        bool dmgHadApps = false;
 
         if (kind == AppleTargetKind.App)
         {
@@ -298,6 +305,7 @@ public sealed class AppleSigningService
                 var apps = Directory.Exists(mount)
                     ? Directory.EnumerateDirectories(mount, "*.app").ToList()
                     : new List<string>();
+                dmgHadApps = apps.Count > 0;
                 if (apps.Count == 0) problems.Add("No .app bundle found inside the .dmg to check.");
                 foreach (var a in apps) await CheckBundleAsync(a, problems, logbuf, log, ct);
             }
@@ -312,22 +320,126 @@ public sealed class AppleSigningService
             problems.Add("Choose a .app bundle or a .dmg file.");
         }
 
-        return new PreflightResult(problems.Count == 0, problems, logbuf.ToString());
+        return new PreflightResult(problems.Count == 0, problems, logbuf.ToString())
+        {
+            CanSignContents = kind == AppleTargetKind.Dmg && dmgHadApps && problems.Count > 0,
+        };
+    }
+
+    /// <summary>The signing state of a bundle used by BOTH PreflightAsync (to build
+    /// the problem list) and SignDmgContentsAsync (to decide which apps to re-sign),
+    /// so detection and repair can't drift: deep-verify result, the Hardened-Runtime
+    /// flag, and the verify stderr for messaging.</summary>
+    private async Task<(bool VerifyOk, bool Hardened, string VerifyErr)> BundleStateAsync(
+        string appPath, IProgress<string>? log, CancellationToken ct)
+    {
+        var v = await _runner.RunAsync(Codesign,
+            new[] { "--verify", "--deep", "--strict", "--verbose=2", appPath }, log, ct);
+        var d = await _runner.RunAsync(Codesign, new[] { "-d", "--verbose", appPath }, null, ct);
+        var info = d.StdOut + d.StdErr;
+        bool hardened = info.Contains("flags=", StringComparison.Ordinal)
+            && info.Contains("(runtime)", StringComparison.Ordinal);
+        return (v.Success, hardened, v.StdErr);
     }
 
     private async Task CheckBundleAsync(string appPath, List<string> problems,
         System.Text.StringBuilder logbuf, IProgress<string>? log, CancellationToken ct)
     {
         var name = Path.GetFileName(appPath);
-        var v = await _runner.RunAsync(Codesign,
-            new[] { "--verify", "--deep", "--strict", "--verbose=2", appPath }, log, ct);
-        logbuf.AppendLine($"$ codesign --verify --deep {name}").AppendLine(v.StdErr);
-        if (!v.Success) problems.Add($"{name}: nested code is unsigned or invalid ({FirstLine(v.StdErr)}).");
+        var (verifyOk, hardened, verifyErr) = await BundleStateAsync(appPath, log, ct);
+        logbuf.AppendLine($"$ codesign --verify --deep {name}").AppendLine(verifyErr);
+        if (!verifyOk) problems.Add($"{name}: nested code is unsigned or invalid ({FirstLine(verifyErr)}).");
+        if (!hardened) problems.Add($"{name}: Hardened Runtime not enabled (required for notarization).");
+    }
 
-        var d = await _runner.RunAsync(Codesign, new[] { "-d", "--verbose", appPath }, null, ct);
-        var info = d.StdOut + d.StdErr;
-        if (!(info.Contains("flags=", StringComparison.Ordinal) && info.Contains("(runtime)", StringComparison.Ordinal)))
-            problems.Add($"{name}: Hardened Runtime not enabled (required for notarization).");
+    /// <summary>Sign the unsigned/broken .app bundle(s) INSIDE a .dmg, then re-seal the
+    /// image in place: convert to read-write, mount, sign only the apps that fail the
+    /// pre-flight checks (with the given entitlements + Hardened Runtime + deep), detach,
+    /// recompress, and atomically swap over the original. Reconverting invalidates the
+    /// DMG's OWN signature, so the caller must (re-)sign the .dmg after this returns.
+    /// Only top-level *.app bundles are touched (matching PreflightAsync).</summary>
+    public async Task<AppleOpResult> SignDmgContentsAsync(string dmgPath, SigningIdentity identity,
+        string? entitlementsPath, IProgress<string>? log, CancellationToken ct)
+    {
+        if (Classify(dmgPath) != AppleTargetKind.Dmg)
+            return AppleOpResult.Fail("Unsupported target", "Choose a .dmg file.", "");
+
+        var dir = Path.GetDirectoryName(Path.GetFullPath(dmgPath))!;
+        var stamp = Guid.NewGuid().ToString("N")[..8];
+        var rw = Path.Combine(dir, $".macsign-rw-{stamp}.dmg");      // read-write working copy
+        var outDmg = Path.Combine(dir, $".macsign-out-{stamp}.dmg"); // recompressed result (same dir → atomic move)
+        var mount = Path.Combine(Path.GetTempPath(), "macsign-sign-" + stamp);
+        bool attached = false;
+        try
+        {
+            log?.Report("Converting the disk image to read-write…");
+            var c1 = await _runner.RunAsync(Hdiutil,
+                new[] { "convert", dmgPath, "-format", "UDRW", "-o", rw }, log, ct);
+            if (c1.Canceled) return AppleOpResult.Fail("Canceled", "Signing contents was canceled.", c1.StdErr);
+            if (!c1.Success) return AppleOpResult.Fail("Convert failed",
+                "Could not convert the .dmg to read-write (is it encrypted?).", c1.StdErr + c1.StdOut);
+
+            // Grow the working image so the bytes a signature adds will fit on a tight volume.
+            // Best-effort: if it can't grow, signing may still succeed (or fail ENOSPC — see plan limitations).
+            // Guard: convert produces <rw> in real runs; skip resize when it's absent (e.g. fakes/no-op).
+            if (File.Exists(rw))
+            {
+                long targetMb = new FileInfo(rw).Length / (1024 * 1024) + 64;
+                await _runner.RunAsync(Hdiutil, new[] { "resize", "-size", $"{targetMb}m", rw }, log, ct);
+            }
+
+            log?.Report("Mounting the disk image…");
+            var att = await _runner.RunAsync(Hdiutil,
+                new[] { "attach", "-nobrowse", "-owners", "on", "-readwrite", "-mountpoint", mount, rw }, log, ct);
+            if (att.Canceled) return AppleOpResult.Fail("Canceled", "Signing contents was canceled.", att.StdErr);
+            if (!att.Success) return AppleOpResult.Fail("Mount failed",
+                "Could not mount the read-write image.", att.StdErr + att.StdOut);
+            attached = true;
+
+            var apps = Directory.Exists(mount)
+                ? Directory.EnumerateDirectories(mount, "*.app").ToList()
+                : new List<string>();
+            if (apps.Count == 0)
+                return AppleOpResult.Fail("Nothing to sign", "No .app bundle found inside the .dmg.", att.StdOut);
+
+            int signed = 0;
+            foreach (var app in apps)
+            {
+                var name = Path.GetFileName(app);
+                // Skip-probe only — don't stream this verify to the live log (pre-flight does that).
+                var (verifyOk, hardened, _) = await BundleStateAsync(app, null, ct);
+                if (verifyOk && hardened) { log?.Report($"{name}: already signed — skipping."); continue; }
+                log?.Report($"Signing {name} inside the image…");
+                var sr = await SignAsync(app, identity, entitlementsPath, hardenedRuntime: true, deep: true, log, ct);
+                if (!sr.Success) return AppleOpResult.Fail("Contents signing failed", $"{name}: {sr.Detail}", sr.Log);
+                signed++;
+            }
+
+            // Detach BEFORE recompressing — hdiutil convert fails on a mounted image.
+            await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
+            attached = false;
+
+            log?.Report("Recompressing the disk image…");
+            var c2 = await _runner.RunAsync(Hdiutil,
+                new[] { "convert", rw, "-format", "UDZO", "-o", outDmg }, log, ct);
+            if (c2.Canceled) return AppleOpResult.Fail("Canceled", "Signing contents was canceled.", c2.StdErr);
+            if (!c2.Success || !File.Exists(outDmg)) return AppleOpResult.Fail("Recompress failed",
+                "Could not recompress the signed image.", c2.StdErr + c2.StdOut);
+
+            File.Move(outDmg, dmgPath, overwrite: true); // same-volume move — atomic on the same filesystem; copy+delete across volumes
+            return AppleOpResult.Ok("Contents signed",
+                signed == 0
+                    ? $"All apps inside {Path.GetFileName(dmgPath)} were already signed; re-sealed the image."
+                    : $"Signed {signed} app(s) inside {Path.GetFileName(dmgPath)} and re-sealed the image.",
+                c1.StdOut + c2.StdOut);
+        }
+        finally
+        {
+            if (attached) await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
+            try { if (File.Exists(rw)) File.Delete(rw); } catch { /* best-effort */ }
+            try { if (File.Exists(outDmg)) File.Delete(outDmg); } catch { /* best-effort */ }
+            try { if (Directory.Exists(mount)) Directory.Delete(mount); } catch { /* best-effort */ }
+        }
     }
 
     private static string? Match(string s, string pattern)

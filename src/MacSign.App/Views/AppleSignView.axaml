@@ -134,6 +134,10 @@
                         <!-- done -->
                         <StackPanel Spacing="8" IsVisible="{Binding IsDone}">
                             <Button Classes="primary" HorizontalAlignment="Stretch"
+                                    IsVisible="{Binding ShowSignContents}" Command="{Binding SignContentsAndContinueCommand}">
+                                <TextBlock Text="Sign contents &amp; continue" HorizontalAlignment="Center" />
+                            </Button>
+                            <Button Classes="secondary" HorizontalAlignment="Stretch"
                                     IsVisible="{Binding ShowNotarizeAnyway}" Command="{Binding NotarizeAnywayCommand}">
                                 <TextBlock Text="Notarize anyway" HorizontalAlignment="Center" />
                             </Button>
