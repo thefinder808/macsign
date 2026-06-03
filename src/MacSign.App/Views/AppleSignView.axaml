@@ -248,7 +248,13 @@
 
                                 <!-- keychain profile -->
                                 <StackPanel Spacing="5" IsVisible="{Binding !UseApiKey}">
-                                    <TextBlock Classes="fieldlabel" Text="Notary profile" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Classes="fieldlabel" Text="Notary profile"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Classes="ghost" Height="20" Padding="6,0" FontSize="11.5"
+                                                Content="Set up…" Foreground="{DynamicResource Accent}"
+                                                Click="OnSetupNotaryProfile" />
+                                    </Grid>
                                     <TextBox Classes="mono" Text="{Binding NotaryProfile}"
                                              Watermark="my-notary-profile"
                                              ToolTip.Tip="The xcrun notarytool keychain profile name (stored credentials)." />

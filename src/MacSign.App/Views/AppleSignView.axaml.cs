@@ -63,4 +63,12 @@ public partial class AppleSignView : UserControl
                     || p.EndsWith(".dmg", StringComparison.OrdinalIgnoreCase)));
         if (!string.IsNullOrEmpty(target)) vm.SetTarget(target!);
     }
+
+    private async void OnSetupNotaryProfile(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not AppleSignViewModel vm) return;
+        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+        var name = await new NotaryProfileWindow().ShowDialog<string?>(owner);
+        if (!string.IsNullOrWhiteSpace(name)) vm.NotaryProfile = name!;
+    }
 }
