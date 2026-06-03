@@ -44,6 +44,15 @@ public class AppleSigningServiceTests
         return app;
     }
 
+    private static string MakeDmg()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "macsign-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var dmg = Path.Combine(dir, "Disk" + Guid.NewGuid().ToString("N")[..6] + ".dmg");
+        File.WriteAllText(dmg, "not-a-real-dmg");
+        return dmg;
+    }
+
     private static FakeRunner IdentityAware(Func<string, IReadOnlyList<string>, ProcessResult>? others = null)
     {
         var f = new FakeRunner();
@@ -147,6 +156,53 @@ public class AppleSigningServiceTests
 
         Assert.False(r.Success);
         Assert.DoesNotContain(f.Calls, c => c.File.EndsWith("codesign", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Classify_recognizes_app_dmg_and_unsupported()
+    {
+        var app = MakeApp();
+        var dmg = MakeDmg();
+        Assert.Equal(AppleTargetKind.App, AppleSigningService.Classify(app));
+        Assert.Equal(AppleTargetKind.Dmg, AppleSigningService.Classify(dmg));
+        Assert.Equal(AppleTargetKind.Unsupported, AppleSigningService.Classify("/tmp/nope.txt"));
+        Assert.Equal(AppleTargetKind.Unsupported, AppleSigningService.Classify(""));
+    }
+
+    [Fact]
+    public async Task Sign_dmg_omits_app_only_flags()
+    {
+        var dmg = MakeDmg();
+        var f = IdentityAware();
+        var svc = new AppleSigningService(f);
+
+        // Even with hardened/deep/entitlements requested, a .dmg gets none of them.
+        var r = await svc.SignAsync(dmg, new SigningIdentity(Sha, "ignored"),
+            entitlementsPath: "/whatever.plist", hardenedRuntime: true, deep: true, log: null, ct: default);
+
+        Assert.True(r.Success);
+        var codesign = f.Calls.Single(c => c.File.EndsWith("codesign", StringComparison.Ordinal));
+        Assert.Equal(new[] { "--force", "--timestamp", "--sign", Sha, dmg }, codesign.Args);
+    }
+
+    [Fact]
+    public async Task Notarize_dmg_submits_directly_without_ditto()
+    {
+        var dmg = MakeDmg();
+        var f = new FakeRunner
+        {
+            Respond = (_, _) => new ProcessResult(0, "status: Accepted\n", "", false),
+        };
+        var svc = new AppleSigningService(f);
+
+        var r = await svc.NotarizeAsync(dmg, new NotarizeCreds { KeychainProfile = "my-notary-profile" },
+            log: null, ct: default);
+
+        Assert.True(r.Success);
+        Assert.DoesNotContain(f.Calls, c => c.File.EndsWith("ditto", StringComparison.Ordinal));
+        var notary = f.Calls.Single(c => c.Args.Contains("notarytool"));
+        // The .dmg itself is submitted — not a zip.
+        Assert.Equal(new[] { "notarytool", "submit", dmg, "--wait", "--keychain-profile", "my-notary-profile" }, notary.Args);
     }
 
     [Fact]
