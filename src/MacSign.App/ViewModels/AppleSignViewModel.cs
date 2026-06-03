@@ -24,6 +24,7 @@ public partial class AppleSignViewModel : ObservableObject
     private readonly SettingsStore _store;
     private readonly string? _pendingIdentitySha1;
     private CancellationTokenSource? _cts;
+    private bool _skipPreflight;
 
     /// <summary>Raised when a run finishes, so the shell records it in Activity.</summary>
     public event Action<RunData>? RunRecorded;
@@ -106,6 +107,9 @@ public partial class AppleSignViewModel : ObservableObject
     private bool _bannerIsError;
     [ObservableProperty] private string _progressText = "";
     [ObservableProperty] private string _logText = "";
+    /// <summary>Shown on the done banner when pre-flight blocked notarization,
+    /// offering an override.</summary>
+    [ObservableProperty] private bool _showNotarizeAnyway;
 
     public bool ShowOkBanner => IsDone && !BannerIsError;
     public bool ShowErrBanner => IsDone && BannerIsError;
@@ -169,8 +173,11 @@ public partial class AppleSignViewModel : ObservableObject
     private async Task RunAsync()
     {
         SavePrefs();
+        bool skipPreflight = _skipPreflight;   // consumed once; only NotarizeAnyway sets it
+        _skipPreflight = false;
         State = AppleSignState.Working;
         BannerTitle = ""; BannerDetail = ""; BannerIsError = false;
+        ShowNotarizeAnyway = false;
         LogText = "";
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
@@ -197,6 +204,27 @@ public partial class AppleSignViewModel : ObservableObject
 
             if (Notarize)
             {
+                if (!skipPreflight)
+                {
+                    ProgressText = "Pre-flight…";
+                    AppendLog("==> Pre-flight (checking contents are notarizable)");
+                    var pf = await Task.Run(() => _apple.PreflightAsync(target, log, ct));
+                    if (pf.Problems.Count > 0 && !pf.Ok)
+                    {
+                        foreach (var p in pf.Problems) AppendLog("  • " + p);
+                        ProgressText = "";
+                        State = AppleSignState.Done;
+                        BannerIsError = true;
+                        ShowNotarizeAnyway = true;
+                        BannerTitle = "Won’t notarize — contents aren’t notarizable";
+                        BannerDetail = pf.Problems.Count == 1
+                            ? $"{pf.Problems[0]} Sign the app first, or Notarize anyway."
+                            : $"{pf.Problems.Count} problems (see the log). Sign the app first, or Notarize anyway.";
+                        Record("warn", "preflight blocked");
+                        return;
+                    }
+                }
+
                 ProgressText = "Notarizing…";
                 AppendLog("==> Notarizing");
                 r = await Task.Run(() => _apple.NotarizeAsync(target, BuildCreds(), log, ct));
@@ -243,6 +271,14 @@ public partial class AppleSignViewModel : ObservableObject
     [RelayCommand]
     private void Cancel() => _cts?.Cancel();
 
+    /// <summary>Override a pre-flight block: re-run the flow, skipping the contents check.</summary>
+    [RelayCommand]
+    private async Task NotarizeAnyway()
+    {
+        _skipPreflight = true;
+        await RunAsync();
+    }
+
     [RelayCommand]
     private void UseProfileMode() => UseApiKey = false;
 
@@ -253,6 +289,7 @@ public partial class AppleSignViewModel : ObservableObject
     private void RunAnother()
     {
         BannerTitle = ""; BannerDetail = ""; BannerIsError = false;
+        ShowNotarizeAnyway = false;
         LogText = "";
         State = AppleSignState.Idle;
     }

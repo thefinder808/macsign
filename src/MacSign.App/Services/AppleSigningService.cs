@@ -15,6 +15,14 @@ public sealed record SigningIdentity(string Sha1, string Name);
 /// disk image (file), or something we don't sign.</summary>
 public enum AppleTargetKind { App, Dmg, Unsupported }
 
+/// <summary>Read-only verification report for a signed .app/.dmg.</summary>
+public sealed record AppleSignReport(AppleTargetKind Kind, bool Valid, string? Signer,
+    string? TeamId, bool HardenedRuntime, bool Stapled, bool GatekeeperAccepted, string Log);
+
+/// <summary>Result of a notarizability pre-flight: a pass flag + a human list of
+/// problems (empty when Ok) + the captured log.</summary>
+public sealed record PreflightResult(bool Ok, IReadOnlyList<string> Problems, string Log);
+
 /// <summary>The outcome of one Apple operation: a human title/detail + the full log.</summary>
 public sealed record AppleOpResult(bool Success, string Title, string Detail, string Log)
 {
@@ -57,6 +65,7 @@ public sealed class AppleSigningService
     private const string Xcrun = "/usr/bin/xcrun";
     private const string Ditto = "/usr/bin/ditto";
     private const string Spctl = "/usr/sbin/spctl";
+    private const string Hdiutil = "/usr/bin/hdiutil";
 
     private readonly IProcessRunner _runner;
 
@@ -235,6 +244,96 @@ public sealed class AppleSigningService
         return v.Success
             ? AppleOpResult.Ok("Stapled", "Ticket stapled and validated.", st.StdOut + v.StdOut)
             : AppleOpResult.Fail("Validate failed", FirstLine(v.StdErr + v.StdOut), v.StdOut + v.StdErr);
+    }
+
+    /// <summary>Read-only report on a signed .app/.dmg — signer, Team ID, Hardened
+    /// Runtime, notarization ticket, and Gatekeeper acceptance. For a .dmg this
+    /// reports the disk image's OWN state (not its contents).</summary>
+    public async Task<AppleSignReport> InspectAsync(string path, CancellationToken ct)
+    {
+        var kind = Classify(path);
+        var d = await _runner.RunAsync(Codesign, new[] { "-d", "-vvv", path }, null, ct);
+        var verify = await _runner.RunAsync(Codesign,
+            kind == AppleTargetKind.App
+                ? new[] { "--verify", "--deep", "--strict", "--verbose=2", path }
+                : new[] { "--verify", "--strict", "--verbose=2", path }, null, ct);
+        var staple = await _runner.RunAsync(Xcrun, new[] { "stapler", "validate", path }, null, ct);
+        var spArgs = kind == AppleTargetKind.App
+            ? new[] { "--assess", "--type", "exec", "-vv", path }
+            : new[] { "--assess", "--type", "open", "--context", "context:primary-signature", "-v", path };
+        var spctl = await _runner.RunAsync(Spctl, spArgs, null, ct);
+
+        var info = d.StdOut + "\n" + d.StdErr;   // codesign -d writes to stderr
+        bool hardened = info.Contains("flags=", StringComparison.Ordinal)
+            && info.Contains("(runtime)", StringComparison.Ordinal);
+        return new AppleSignReport(kind, verify.Success,
+            Match(info, @"^Authority=(.+)$"), Match(info, @"^TeamIdentifier=(.+)$"),
+            hardened, staple.Success, spctl.Success,
+            info + "\n" + verify.StdErr + verify.StdOut + "\n" + staple.StdOut + staple.StdErr + "\n" + spctl.StdOut + spctl.StdErr);
+    }
+
+    /// <summary>Heuristic notarizability pre-flight (notarytool is the authority).
+    /// For a .app: deep-verify + Hardened-Runtime check. For a .dmg: mount read-only,
+    /// check each .app bundle inside, always detach.</summary>
+    public async Task<PreflightResult> PreflightAsync(string path, IProgress<string>? log, CancellationToken ct)
+    {
+        var kind = Classify(path);
+        var problems = new List<string>();
+        var logbuf = new System.Text.StringBuilder();
+
+        if (kind == AppleTargetKind.App)
+        {
+            await CheckBundleAsync(path, problems, logbuf, log, ct);
+        }
+        else if (kind == AppleTargetKind.Dmg)
+        {
+            var mount = Path.Combine(Path.GetTempPath(), "macsign-preflight-" + Guid.NewGuid().ToString("N"));
+            log?.Report($"Mounting {Path.GetFileName(path)} to inspect its contents…");
+            var att = await _runner.RunAsync(Hdiutil,
+                new[] { "attach", "-nobrowse", "-readonly", "-mountpoint", mount, path }, log, ct);
+            if (att.Canceled) return new PreflightResult(false, new[] { "Pre-flight was canceled." }, att.StdErr);
+            if (!att.Success) return new PreflightResult(false, new[] { "Could not mount the .dmg to inspect it." }, att.StdErr + att.StdOut);
+            try
+            {
+                var apps = Directory.Exists(mount)
+                    ? Directory.EnumerateDirectories(mount, "*.app").ToList()
+                    : new List<string>();
+                if (apps.Count == 0) problems.Add("No .app bundle found inside the .dmg to check.");
+                foreach (var a in apps) await CheckBundleAsync(a, problems, logbuf, log, ct);
+            }
+            finally
+            {
+                await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
+                try { if (Directory.Exists(mount)) Directory.Delete(mount); } catch { /* best-effort */ }
+            }
+        }
+        else
+        {
+            problems.Add("Choose a .app bundle or a .dmg file.");
+        }
+
+        return new PreflightResult(problems.Count == 0, problems, logbuf.ToString());
+    }
+
+    private async Task CheckBundleAsync(string appPath, List<string> problems,
+        System.Text.StringBuilder logbuf, IProgress<string>? log, CancellationToken ct)
+    {
+        var name = Path.GetFileName(appPath);
+        var v = await _runner.RunAsync(Codesign,
+            new[] { "--verify", "--deep", "--strict", "--verbose=2", appPath }, log, ct);
+        logbuf.AppendLine($"$ codesign --verify --deep {name}").AppendLine(v.StdErr);
+        if (!v.Success) problems.Add($"{name}: nested code is unsigned or invalid ({FirstLine(v.StdErr)}).");
+
+        var d = await _runner.RunAsync(Codesign, new[] { "-d", "--verbose", appPath }, null, ct);
+        var info = d.StdOut + d.StdErr;
+        if (!(info.Contains("flags=", StringComparison.Ordinal) && info.Contains("(runtime)", StringComparison.Ordinal)))
+            problems.Add($"{name}: Hardened Runtime not enabled (required for notarization).");
+    }
+
+    private static string? Match(string s, string pattern)
+    {
+        var m = Regex.Match(s, pattern, RegexOptions.Multiline);
+        return m.Success ? m.Groups[1].Value.Trim() : null;
     }
 
     private static AppleOpResult Outcome(ProcessResult r, string okTitle, string okDetail, string verb) =>
