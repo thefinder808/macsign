@@ -21,20 +21,6 @@ public class AppleSigningServiceTests
     private static string FindIdentityOutput =>
         $"  1) {Sha} \"{IdName}\"\n  2) 1111111111111111111111111111111111111111 \"Apple Development: someone (X)\"\n     2 valid identities found\n";
 
-    private sealed class FakeRunner : IProcessRunner
-    {
-        public readonly List<(string File, List<string> Args)> Calls = new();
-        public Func<string, IReadOnlyList<string>, ProcessResult> Respond =
-            (_, _) => new ProcessResult(0, "", "", false);
-
-        public Task<ProcessResult> RunAsync(string fileName, IReadOnlyList<string> args,
-            IProgress<string>? onOutput, CancellationToken ct)
-        {
-            Calls.Add((fileName, args.ToList()));
-            return Task.FromResult(Respond(fileName, args));
-        }
-    }
-
     private static string MakeApp()
     {
         var app = Path.Combine(Path.GetTempPath(),
@@ -61,6 +47,106 @@ public class AppleSigningServiceTests
                 ? new ProcessResult(0, FindIdentityOutput, "", false)
                 : (others?.Invoke(file, args) ?? new ProcessResult(0, "", "", false));
         return f;
+    }
+
+    // ──────────────── InspectAsync (read-only Mac verification) ────────────────
+
+    [Fact]
+    public async Task Inspect_parses_signer_team_hardened_and_stapled()
+    {
+        var app = MakeApp();
+        const string dvvv =
+            "Authority=Developer ID Application: Nathaniel Graham (Q6LRJQSA42)\n" +
+            "Authority=Developer ID Certification Authority\n" +
+            "TeamIdentifier=Q6LRJQSA42\n" +
+            "CodeDirectory v=20500 size=612 flags=0x10000(runtime) hashes=8+7\n";
+        var f = new FakeRunner
+        {
+            Respond = (file, args) =>
+                file.EndsWith("codesign", StringComparison.Ordinal) ? new ProcessResult(0, "", dvvv, false)
+                : file.EndsWith("xcrun", StringComparison.Ordinal) && args.Contains("stapler") ? new ProcessResult(0, "The validate action worked!", "", false)
+                : new ProcessResult(0, "accepted\nsource=Notarized Developer ID", "", false), // spctl
+        };
+
+        var r = await new AppleSigningService(f).InspectAsync(app, default);
+
+        Assert.True(r.Valid);
+        Assert.Equal("Developer ID Application: Nathaniel Graham (Q6LRJQSA42)", r.Signer);
+        Assert.Equal("Q6LRJQSA42", r.TeamId);
+        Assert.True(r.HardenedRuntime);
+        Assert.True(r.Stapled);
+        Assert.True(r.GatekeeperAccepted);
+    }
+
+    [Fact]
+    public async Task Inspect_reports_unsigned_artifact()
+    {
+        var app = MakeApp();
+        var f = new FakeRunner { Respond = (_, _) => new ProcessResult(1, "", "code object is not signed at all", false) };
+
+        var r = await new AppleSigningService(f).InspectAsync(app, default);
+
+        Assert.False(r.Valid);
+        Assert.Null(r.Signer);
+        Assert.False(r.HardenedRuntime);
+        Assert.False(r.Stapled);
+    }
+
+    // ──────────────── PreflightAsync (notarizability proxy) ────────────────
+
+    [Fact]
+    public async Task Preflight_app_flags_unsigned_nested_code()
+    {
+        var app = MakeApp();
+        var f = new FakeRunner { Respond = (_, _) => new ProcessResult(1, "", "code object is not signed at all", false) };
+
+        var r = await new AppleSigningService(f).PreflightAsync(app, null, default);
+
+        Assert.False(r.Ok);
+        Assert.NotEmpty(r.Problems);
+    }
+
+    [Fact]
+    public async Task Preflight_app_passes_when_signed_and_hardened()
+    {
+        var app = MakeApp();
+        var f = new FakeRunner
+        {
+            Respond = (file, args) => args.Contains("--verify")
+                ? new ProcessResult(0, "", "valid on disk", false)
+                : new ProcessResult(0, "flags=0x10000(runtime)", "", false), // codesign -d --verbose
+        };
+
+        var r = await new AppleSigningService(f).PreflightAsync(app, null, default);
+
+        Assert.True(r.Ok);
+        Assert.Empty(r.Problems);
+    }
+
+    [Fact]
+    public async Task Preflight_dmg_mounts_checks_and_always_detaches()
+    {
+        var dmg = MakeDmg();
+        var f = new FakeRunner();
+        f.Respond = (file, args) =>
+        {
+            if (args.Contains("attach"))
+            {
+                // simulate the mount: create the mountpoint with one (unsigned) .app
+                var argList = args.ToList();
+                var mp = argList[argList.IndexOf("-mountpoint") + 1];
+                Directory.CreateDirectory(Path.Combine(mp, "Demo.app"));
+                return new ProcessResult(0, "", "", false);
+            }
+            if (args.Contains("--verify")) return new ProcessResult(1, "", "not signed at all", false);
+            return new ProcessResult(0, "", "", false); // -d, detach
+        };
+
+        var r = await new AppleSigningService(f).PreflightAsync(dmg, null, default);
+
+        Assert.False(r.Ok);
+        Assert.Contains(f.Calls, c => c.File.EndsWith("hdiutil", StringComparison.Ordinal) && c.Args.Contains("attach"));
+        Assert.Contains(f.Calls, c => c.File.EndsWith("hdiutil", StringComparison.Ordinal) && c.Args.Contains("detach"));
     }
 
     [Fact]
