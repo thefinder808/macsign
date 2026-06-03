@@ -94,7 +94,8 @@ public partial class SignViewModel : ObservableObject
     // ── run state ──
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsIdle), nameof(IsSigning), nameof(IsDone))]
-    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(ClearCommand),
+        nameof(ClearSignedCommand), nameof(ToggleSelectAllCommand))]
     private SignState _signState = SignState.Idle;
 
     public bool IsIdle => SignState == SignState.Idle;
@@ -116,6 +117,11 @@ public partial class SignViewModel : ObservableObject
     public bool HasNoFiles => Files.Count == 0;
     public string SubtitleText => $"{FilesCount} files · {SelectedCount} selected · {SignedCount} already signed";
     public string SignButtonText => ToSignCount == 1 ? "Sign 1 file" : $"Sign {ToSignCount} files";
+
+    /// <summary>True when every selectable row is checked (drives the header toggle).</summary>
+    public bool AllSelected => Files.Any(f => f.IsSelectable) && Files.All(f => !f.IsSelectable || f.IsSelected);
+    /// <summary>There are already-signed rows that "Clear signed" can tidy away.</summary>
+    public bool HasSignedToClear => !IsSigning && Files.Any(f => f.IsSigned);
 
     // ── sidebar "Active credential" ──
     public string ActiveCredentialName => CredMode switch
@@ -176,6 +182,54 @@ public partial class SignViewModel : ObservableObject
         await AddPathsAsync(files);
     }
 
+    /// <summary>Remove one row from the list (✕ on hover / Delete key). No-op mid-run.</summary>
+    [RelayCommand]
+    private void RemoveFile(FileItemViewModel? item)
+    {
+        if (IsSigning || item is null) return;
+        Files.Remove(item);                       // → OnFilesChanged → RaiseCounts()
+        if (Files.Count == 0) ResetRunState();
+    }
+
+    /// <summary>Empty the whole list (header "Clear"). Acts as a reset when a run is Done.</summary>
+    [RelayCommand(CanExecute = nameof(CanClear))]
+    private void Clear()
+    {
+        Files.Clear();
+        ResetRunState();
+    }
+
+    private bool CanClear() => !IsSigning && Files.Count > 0;
+
+    /// <summary>Tidy away the dimmed already-signed rows, leaving only remaining work.</summary>
+    [RelayCommand(CanExecute = nameof(HasSignedToClear))]
+    private void ClearSigned()
+    {
+        foreach (var f in Files.Where(f => f.IsSigned).ToList())
+            Files.Remove(f);
+        if (Files.Count == 0) ResetRunState();
+    }
+
+    /// <summary>Check or uncheck every selectable row at once (header toggle).</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleAll))]
+    private void ToggleSelectAll()
+    {
+        bool target = !AllSelected;
+        foreach (var f in Files.Where(f => f.IsSelectable))
+            f.IsSelected = target;                // each raises IsSelected → RaiseCounts()
+    }
+
+    private bool CanToggleAll() => !IsSigning && Files.Any(f => f.IsSelectable);
+
+    /// <summary>Clear the result banner and drop back to Idle (when not mid-run).</summary>
+    private void ResetRunState()
+    {
+        BannerTitle = "";
+        BannerDetail = "";
+        BannerIsError = false;
+        if (SignState != SignState.Signing) SignState = SignState.Idle;
+    }
+
     [RelayCommand]
     private async Task ChoosePfxAsync()
     {
@@ -218,7 +272,12 @@ public partial class SignViewModel : ObservableObject
         OnPropertyChanged(nameof(HasNoFiles));
         OnPropertyChanged(nameof(SubtitleText));
         OnPropertyChanged(nameof(SignButtonText));
+        OnPropertyChanged(nameof(AllSelected));
+        OnPropertyChanged(nameof(HasSignedToClear));
         SignCommand.NotifyCanExecuteChanged();
+        ClearCommand.NotifyCanExecuteChanged();
+        ClearSignedCommand.NotifyCanExecuteChanged();
+        ToggleSelectAllCommand.NotifyCanExecuteChanged();
         StateChanged?.Invoke();
     }
 

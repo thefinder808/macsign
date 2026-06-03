@@ -14,6 +14,7 @@
     <StreamGeometry x:Key="IcoClock">M4 12a8 8 0 1 0 16 0 a8 8 0 1 0 -16 0 M12 8v4.2l2.8 1.8</StreamGeometry>
     <StreamGeometry x:Key="IcoDoc">M7 3h7l4 4v14H7z M14 3v4h4</StreamGeometry>
     <StreamGeometry x:Key="IcoPlus">M12 6v12 M6 12h12</StreamGeometry>
+    <StreamGeometry x:Key="IcoX">M6 6l12 12 M18 6l-12 12</StreamGeometry>
     <StreamGeometry x:Key="IcoChevR">M9 5l7 7-7 7</StreamGeometry>
     <StreamGeometry x:Key="IcoBolt">M13 3L5 13h6l-1 8 8-10h-6l1-8z</StreamGeometry>
     <StreamGeometry x:Key="IcoReturn">M9 10l-4 4 4 4 M5 14h11a3 3 0 003-3V6</StreamGeometry>

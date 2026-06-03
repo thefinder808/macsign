@@ -33,7 +33,8 @@ public partial class FileItemViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSelectable), nameof(ShowCheckbox),
         nameof(ShowSpinner), nameof(ShowDoneCheck),
-        nameof(ShowDonePill), nameof(ShowUnsignedText), nameof(ShowSigningText))]
+        nameof(ShowDonePill), nameof(ShowUnsignedText), nameof(ShowSigningText),
+        nameof(ShowRemove))]
     private FileRunState _runState;
 
     /// <summary>Only unsigned, not-yet-run files can be checked.</summary>
@@ -50,6 +51,10 @@ public partial class FileItemViewModel : ObservableObject
     public bool ShowDonePill => RunState == FileRunState.Done;                // "Signed now"
     public bool ShowSigningText => RunState == FileRunState.Signing;          // "Signing…"
     public bool ShowUnsignedText => !IsSigned && RunState == FileRunState.None;
+
+    /// <summary>The ✕ remove affordance is allowed on any row except one mid-sign
+    /// (hover reveal is handled by a style class on the row, not this gate).</summary>
+    public bool ShowRemove => RunState != FileRunState.Signing;
 
     private static string FormatSize(long bytes)
     {

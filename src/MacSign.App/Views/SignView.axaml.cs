@@ -1,6 +1,7 @@
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using MacSign.App.ViewModels;
 
 namespace MacSign.App.Views;
@@ -13,6 +14,22 @@ public partial class SignView : UserControl
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
+        AddHandler(KeyDownEvent, OnRowKeyDown, RoutingStrategies.Bubble);
+    }
+
+    // Delete / Backspace on a focused file row removes it. Resolving the row's
+    // item from e.Source (rather than per-row handlers) keeps this safe under
+    // virtualization, and the FileItemViewModel guard means a focused inspector
+    // text field keeps its own Delete/Backspace.
+    private void OnRowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Delete or Key.Back)) return;
+        if (DataContext is not SignViewModel vm) return;
+        if (e.Source is Control { DataContext: FileItemViewModel item })
+        {
+            vm.RemoveFileCommand.Execute(item);
+            e.Handled = true;
+        }
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)
