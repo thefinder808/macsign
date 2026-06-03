@@ -24,3 +24,11 @@ public enum SignState
     Signing,
     Done,
 }
+
+/// <summary>Overall state of the Mac-app signing screen.</summary>
+public enum AppleSignState
+{
+    Idle,
+    Working,
+    Done,
+}

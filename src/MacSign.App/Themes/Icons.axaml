@@ -19,6 +19,7 @@
     <StreamGeometry x:Key="IcoReturn">M9 10l-4 4 4 4 M5 14h11a3 3 0 003-3V6</StreamGeometry>
     <StreamGeometry x:Key="IcoLock">M7 11h10a2 2 0 0 1 2 2v5a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-5a2 2 0 0 1 2 -2z M8 11V8a4 4 0 018 0v3</StreamGeometry>
     <StreamGeometry x:Key="IcoActivity">M3 12h4l2 6 4-12 2 6h6</StreamGeometry>
+    <StreamGeometry x:Key="IcoApp">M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-14a1 1 0 0 1 -1 -1v-14a1 1 0 0 1 1 -1z M4 8.5h16 M7.5 6.2h.2 M10 6.2h.2</StreamGeometry>
     <StreamGeometry x:Key="IcoFingerprint">M12 5a7 7 0 00-7 7v2 M19 12a7 7 0 00-3-5.7 M8.5 12a3.5 3.5 0 017 0v3 M12 12v4 M15.5 16.5a8 8 0 01-.5 2.5 M5.5 16a10 10 0 00.5 4</StreamGeometry>
     <StreamGeometry x:Key="IcoAlert">M12 4l9 16H3l9-16z M12 10v4 M12 17.5v.2</StreamGeometry>
 

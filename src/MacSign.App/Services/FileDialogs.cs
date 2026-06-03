@@ -55,6 +55,23 @@ public static class FileDialogs
         return folders.Count > 0 ? folders[0].Path.LocalPath : null;
     }
 
+    /// <summary>A .app is a bundle (directory), so this uses the folder picker —
+    /// macOS lets the user select the .app package itself.</summary>
+    public static async Task<string?> PickAppBundleAsync()
+    {
+        var top = MainTopLevel();
+        if (top is null) return null;
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose a .app to sign",
+            AllowMultiple = false,
+        });
+        return folders.Count > 0 ? folders[0].Path.LocalPath : null;
+    }
+
+    public static Task<string?> PickEntitlementsAsync() =>
+        PickOneAsync("Choose entitlements", new[] { "*.plist" });
+
     private static TopLevel? MainTopLevel() =>
         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 }

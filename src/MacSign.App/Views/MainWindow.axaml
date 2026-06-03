@@ -37,9 +37,11 @@
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Sign}" />
                         <NativeMenuItem Header="Verify" Gesture="Meta+2"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Verify}" />
-                        <NativeMenuItem Header="Profiles" Gesture="Meta+3"
+                        <NativeMenuItem Header="Mac apps" Gesture="Meta+3"
+                                        Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Apple}" />
+                        <NativeMenuItem Header="Profiles" Gesture="Meta+4"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Profiles}" />
-                        <NativeMenuItem Header="Activity" Gesture="Meta+4"
+                        <NativeMenuItem Header="Activity" Gesture="Meta+5"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Activity}" />
                     </NativeMenu>
                 </NativeMenuItem.Menu>
@@ -58,6 +60,7 @@
     <Window.DataTemplates>
         <DataTemplate DataType="vm:SignViewModel"><views:SignView /></DataTemplate>
         <DataTemplate DataType="vm:VerifyViewModel"><views:VerifyView /></DataTemplate>
+        <DataTemplate DataType="vm:AppleSignViewModel"><views:AppleSignView /></DataTemplate>
         <DataTemplate DataType="vm:ProfilesViewModel"><views:ProfilesView /></DataTemplate>
         <DataTemplate DataType="vm:ActivityViewModel"><views:ActivityView /></DataTemplate>
     </Window.DataTemplates>
@@ -121,6 +124,15 @@
                             <Path Data="{StaticResource IcoShield}" StrokeThickness="1.6"
                                   Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
                             <TextBlock Text="Verify" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav" Classes.active="{Binding IsApple}"
+                            Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Apple}">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Path Data="{StaticResource IcoApp}" StrokeThickness="1.6"
+                                  Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="Mac apps" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 

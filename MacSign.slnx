@@ -9,6 +9,7 @@
     <Project Path="src/MacSign.Signing/MacSign.Signing.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MacSign.App.Tests/MacSign.App.Tests.csproj" />
     <Project Path="tests/MacSign.Signing.Tests/MacSign.Signing.Tests.csproj" />
   </Folder>
 </Solution>

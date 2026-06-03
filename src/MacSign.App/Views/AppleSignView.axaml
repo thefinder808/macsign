@@ -1,0 +1,272 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MacSign.App.ViewModels"
+             xmlns:svc="using:MacSign.App.Services"
+             x:Class="MacSign.App.Views.AppleSignView"
+             x:DataType="vm:AppleSignViewModel"
+             DragDrop.AllowDrop="True">
+
+    <Grid ColumnDefinitions="*,330">
+
+        <!-- ════════ App + log (left) ════════ -->
+        <DockPanel Grid.Column="0" Margin="18" LastChildFill="True">
+
+            <!-- success banner -->
+            <Border DockPanel.Dock="Top" IsVisible="{Binding ShowOkBanner}" Margin="0,0,0,14"
+                    CornerRadius="12" Padding="13,12"
+                    Background="{DynamicResource OkSoft}" BorderBrush="{DynamicResource Ok}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="11" VerticalAlignment="Center">
+                    <Path Data="{StaticResource IcoShield}" Stroke="{DynamicResource Ok}"
+                          StrokeThickness="1.6" Stretch="Uniform" Width="20" Height="20" VerticalAlignment="Center" />
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding BannerTitle}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Ink}" />
+                        <TextBlock Text="{Binding BannerDetail}" FontSize="12" Foreground="{DynamicResource Ink2}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- error banner -->
+            <Border DockPanel.Dock="Top" IsVisible="{Binding ShowErrBanner}" Margin="0,0,0,14"
+                    CornerRadius="12" Padding="13,12"
+                    Background="{DynamicResource FailSoft}" BorderBrush="{DynamicResource Fail}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="11" VerticalAlignment="Center">
+                    <Path Data="{StaticResource IcoAlert}" Stroke="{DynamicResource Fail}"
+                          StrokeThickness="1.6" Stretch="Uniform" Width="20" Height="20" VerticalAlignment="Center" />
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding BannerTitle}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Ink}" />
+                        <TextBlock Text="{Binding BannerDetail}" FontSize="12" Foreground="{DynamicResource Ink2}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- app card -->
+            <Border x:Name="AppCard" Classes="card" ClipToBounds="True">
+                <DockPanel LastChildFill="True">
+
+                    <!-- chosen-app header -->
+                    <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1"
+                            Padding="14,11" IsVisible="{Binding HasApp}">
+                        <Grid ColumnDefinitions="34,*,Auto">
+                            <Border Grid.Column="0" Width="30" Height="30" CornerRadius="8"
+                                    Background="{DynamicResource AccentSoft}" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IcoApp}" Stroke="{DynamicResource Accent}"
+                                      StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="11,0,0,0" Spacing="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding AppName}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Ink}" />
+                                <TextBlock Text="{Binding AppPath}" Classes="mono dim" FontSize="11"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Classes="ghost" Height="26" Padding="10,0" FontSize="12.5"
+                                    Content="Choose…" Foreground="{DynamicResource Accent}"
+                                    VerticalAlignment="Center" Command="{Binding ChooseAppCommand}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- log / empty state -->
+                    <Panel>
+                        <ScrollViewer IsVisible="{Binding HasApp}" Padding="14,12">
+                            <SelectableTextBlock Text="{Binding LogText}" Classes="mono" FontSize="11.5"
+                                                 Foreground="{DynamicResource Ink2}" TextWrapping="Wrap" />
+                        </ScrollViewer>
+
+                        <StackPanel IsVisible="{Binding HasNoApp}" Spacing="14" Margin="40"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border Width="56" Height="56" CornerRadius="16" HorizontalAlignment="Center"
+                                    Background="{DynamicResource AccentSoft}">
+                                <Path Data="{StaticResource IcoApp}" Stroke="{DynamicResource Accent}"
+                                      StrokeThickness="1.6" Stretch="Uniform" Width="30" Height="30"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="Choose a .app to sign" FontSize="15" FontWeight="Bold"
+                                       Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" />
+                            <TextBlock FontSize="12.5" Foreground="{DynamicResource Ink2}" MaxWidth="340"
+                                       TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"
+                                       Text="Drop a .app bundle here, or choose one — then sign, notarize &amp; staple it with your Developer ID." />
+                            <Button Classes="secondary" Content="Choose .app…" HorizontalAlignment="Center"
+                                    Command="{Binding ChooseAppCommand}" />
+                        </StackPanel>
+                    </Panel>
+
+                </DockPanel>
+            </Border>
+        </DockPanel>
+
+        <!-- ════════ Inspector (right, 330) ════════ -->
+        <Border Grid.Column="1" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Hair}" BorderThickness="1,0,0,0">
+            <DockPanel LastChildFill="True">
+
+                <!-- footer: primary action -->
+                <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Hair}"
+                        BorderThickness="0,1,0,0" Padding="18">
+                    <Panel>
+                        <!-- idle -->
+                        <Button Classes="primary" HorizontalAlignment="Stretch" IsVisible="{Binding IsIdle}"
+                                Command="{Binding RunCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <Path Data="{StaticResource IcoApp}" Stroke="{DynamicResource AccentInk}"
+                                      StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding RunButtonText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <!-- working -->
+                        <StackPanel Spacing="8" IsVisible="{Binding IsWorking}">
+                            <Button Classes="primary" HorizontalAlignment="Stretch" IsEnabled="False">
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                    <Path Classes="spin" Data="{StaticResource IcoSpinner}" Stroke="{DynamicResource AccentInk}"
+                                          StrokeThickness="2.5" Stretch="Uniform" Width="15" Height="15" />
+                                    <TextBlock Text="{Binding ProgressText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="secondary" HorizontalAlignment="Stretch" Command="{Binding CancelCommand}">
+                                <TextBlock Text="Cancel" HorizontalAlignment="Center" />
+                            </Button>
+                        </StackPanel>
+                        <!-- done -->
+                        <Button Classes="secondary" HorizontalAlignment="Stretch" Height="38"
+                                IsVisible="{Binding IsDone}" Command="{Binding RunAnotherCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <Path Data="{StaticResource IcoReturn}" Stroke="{DynamicResource Ink}"
+                                      StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14" VerticalAlignment="Center" />
+                                <TextBlock Text="Sign another" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Panel>
+                </Border>
+
+                <!-- inspector body -->
+                <ScrollViewer>
+                    <StackPanel Margin="18" Spacing="18">
+
+                        <!-- Identity -->
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Classes="section" Text="IDENTITY" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Classes="ghost" Height="22" Padding="8,0" FontSize="11.5"
+                                        Content="Refresh" Foreground="{DynamicResource Accent}"
+                                        Command="{Binding RefreshIdentitiesCommand}" />
+                            </Grid>
+                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Identities}"
+                                      SelectedItem="{Binding SelectedIdentity}"
+                                      PlaceholderText="No identities — Refresh">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate DataType="svc:SigningIdentity">
+                                        <TextBlock Text="{Binding Name}" FontSize="12.5" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Classes="dim" FontSize="12" TextWrapping="Wrap"
+                                       Text="Notarization requires a “Developer ID Application” identity." />
+                        </StackPanel>
+
+                        <Border Height="1" Background="{DynamicResource Hair}" />
+
+                        <!-- Options -->
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="section" Text="OPTIONS" />
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <ToggleButton Classes="switch" IsChecked="{Binding HardenedRuntime, Mode=TwoWay}"
+                                              VerticalAlignment="Center" />
+                                <StackPanel Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Hardened Runtime" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink}" />
+                                    <TextBlock Text="Required for notarization" Classes="dim" FontSize="11" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <ToggleButton Classes="switch" IsChecked="{Binding Deep, Mode=TwoWay}"
+                                              VerticalAlignment="Center" />
+                                <StackPanel Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Deep" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink}" />
+                                    <TextBlock Text="Sign nested code in one pass" Classes="dim" FontSize="11" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Spacing="5">
+                                <TextBlock Classes="fieldlabel" Text="Entitlements (optional)" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBox Grid.Column="0" Classes="mono" Text="{Binding EntitlementsPath}"
+                                             Watermark="…/app.entitlements.plist" />
+                                    <Button Grid.Column="1" Classes="ghost" Height="32" Padding="10,0"
+                                            Content="Choose…" Foreground="{DynamicResource Accent}"
+                                            Command="{Binding ChooseEntitlementsCommand}" />
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Border Height="1" Background="{DynamicResource Hair}" />
+
+                        <!-- Notarize -->
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <ToggleButton Classes="switch" IsChecked="{Binding Notarize, Mode=TwoWay}"
+                                              VerticalAlignment="Center" />
+                                <StackPanel Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Notarize" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink}" />
+                                    <TextBlock Text="Submit to Apple &amp; staple the ticket" Classes="dim" FontSize="11" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Spacing="10" IsVisible="{Binding Notarize}">
+                                <Border Background="{DynamicResource Hair}" CornerRadius="9" Padding="3">
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="3">
+                                        <Button Grid.Column="0" Classes="segment" Classes.active="{Binding !UseApiKey}"
+                                                Command="{Binding UseProfileModeCommand}">
+                                            <TextBlock Text="Keychain profile" />
+                                        </Button>
+                                        <Button Grid.Column="1" Classes="segment" Classes.active="{Binding UseApiKey}"
+                                                Command="{Binding UseApiKeyModeCommand}">
+                                            <TextBlock Text="API key" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- keychain profile -->
+                                <StackPanel Spacing="5" IsVisible="{Binding !UseApiKey}">
+                                    <TextBlock Classes="fieldlabel" Text="Notary profile" />
+                                    <TextBox Classes="mono" Text="{Binding NotaryProfile}"
+                                             Watermark="my-notary-profile"
+                                             ToolTip.Tip="The xcrun notarytool keychain profile name (stored credentials)." />
+                                </StackPanel>
+
+                                <!-- API key -->
+                                <StackPanel Spacing="8" IsVisible="{Binding UseApiKey}">
+                                    <StackPanel Spacing="5">
+                                        <TextBlock Classes="fieldlabel" Text="API key (.p8)" />
+                                        <TextBox Classes="mono" Text="{Binding ApiKeyPath}" Watermark="…/AuthKey_XXXX.p8" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="5">
+                                        <TextBlock Classes="fieldlabel" Text="Key ID" />
+                                        <TextBox Classes="mono" Text="{Binding ApiKeyId}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="5">
+                                        <TextBlock Classes="fieldlabel" Text="Issuer ID" />
+                                        <TextBox Classes="mono" Text="{Binding ApiIssuer}" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <ToggleButton Classes="switch" IsChecked="{Binding Staple, Mode=TwoWay}"
+                                                  VerticalAlignment="Center" />
+                                    <TextBlock Text="Staple after notarizing" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</UserControl>
