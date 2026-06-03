@@ -6,6 +6,13 @@
              x:DataType="vm:VerifyViewModel"
              DragDrop.AllowDrop="True">
 
+    <UserControl.Styles>
+        <Style Selector="Button.removeConfirm">
+            <Setter Property="Foreground" Value="{DynamicResource Warn}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Warn}" />
+        </Style>
+    </UserControl.Styles>
+
     <ScrollViewer>
         <Grid Margin="24">
 
@@ -189,6 +196,17 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+                        </StackPanel>
+
+                        <!-- ════ Remove signature (signed Authenticode only) ════ -->
+                        <StackPanel IsVisible="{Binding CanRemove}" Spacing="6" Margin="0,14,0,0">
+                            <Button Classes="secondary" HorizontalAlignment="Left"
+                                    Classes.removeConfirm="{Binding ConfirmRemove}"
+                                    Command="{Binding RemoveSignatureCommand}">
+                                <TextBlock Text="{Binding RemoveButtonText}" />
+                            </Button>
+                            <TextBlock Text="{Binding RemoveError}" IsVisible="{Binding HasRemoveError}"
+                                       Foreground="{DynamicResource Fail}" FontSize="12" TextWrapping="Wrap" />
                         </StackPanel>
 
                     </StackPanel>
