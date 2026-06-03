@@ -65,9 +65,9 @@ dotnet run --project src/MacSign.Cli -- remove some.dll
 
 ## Native macOS app (GUI)
 
-A native macOS GUI (`src/MacSign.App`, .NET 10 + Avalonia) consumes the same engine **in-process** — no shelling out. Five screens: **Sign** (drag-drop files + a credential/options inspector, ⌘S to sign), **Verify** (integrity vs. chain-trust report), **Mac apps** (sign, notarize & staple a `.app` bundle or `.dmg` with your Developer ID), **Profiles** (reusable presets — no secrets stored), and **Activity** (run history). Full light + dark, following the macOS appearance.
+A native macOS GUI (`src/MacSign.App`, .NET 10 + Avalonia) consumes the same engine **in-process** — no shelling out. Five screens: **Sign** (drag-drop files + a credential/options inspector, ⌘S to sign), **Verify** (a Windows artifact's integrity vs. chain-trust report, *or* a Mac `.app`/`.dmg`'s `codesign` signature — signer, Team ID, Hardened Runtime, notarization), **Mac apps** (sign, notarize & staple a `.app` bundle or `.dmg` with your Developer ID), **Profiles** (reusable presets — no secrets stored), and **Activity** (run history). Full light + dark, following the macOS appearance.
 
-> **Mac apps** is the inverse of the engine's day job: rather than signing Windows artifacts, it signs **your Mac apps**. It's a thin, injection-safe wrapper over Apple's own `codesign` / `notarytool` / `stapler` (not a reimplementation) — choose a `.app` or `.dmg`, pick a Developer ID identity, and watch sign → verify → notarize → staple stream in a live log.
+> **Mac apps** is the inverse of the engine's day job: rather than signing Windows artifacts, it signs **your Mac apps**. It's a thin, injection-safe wrapper over Apple's own `codesign` / `notarytool` / `stapler` (not a reimplementation) — choose a `.app` or `.dmg`, pick a Developer ID identity, and watch sign → verify → notarize → staple stream in a live log. Before submitting to the notary it runs a **pre-flight** (mounting a `.dmg` to inspect its contents) and stops — with a "Notarize anyway" override — if anything inside isn't signed/hardened, so you don't burn a multi-minute round-trip on a doomed upload.
 
 ```bash
 dotnet run --project src/MacSign.App          # run from source
