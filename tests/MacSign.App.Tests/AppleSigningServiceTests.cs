@@ -16,7 +16,7 @@ namespace MacSign.App.Tests;
 public class AppleSigningServiceTests
 {
     private const string Sha = "ABCDEF0123456789ABCDEF0123456789ABCDEF01";
-    private const string IdName = "Developer ID Application: Nathaniel Graham (Q6LRJQSA42)";
+    private const string IdName = "Developer ID Application: Test Signer (AAAAAAAAAA)";
 
     private static string FindIdentityOutput =>
         $"  1) {Sha} \"{IdName}\"\n  2) 1111111111111111111111111111111111111111 \"Apple Development: someone (X)\"\n     2 valid identities found\n";
@@ -56,9 +56,9 @@ public class AppleSigningServiceTests
     {
         var app = MakeApp();
         const string dvvv =
-            "Authority=Developer ID Application: Nathaniel Graham (Q6LRJQSA42)\n" +
+            "Authority=Developer ID Application: Test Signer (AAAAAAAAAA)\n" +
             "Authority=Developer ID Certification Authority\n" +
-            "TeamIdentifier=Q6LRJQSA42\n" +
+            "TeamIdentifier=AAAAAAAAAA\n" +
             "CodeDirectory v=20500 size=612 flags=0x10000(runtime) hashes=8+7\n";
         var f = new FakeRunner
         {
@@ -71,8 +71,8 @@ public class AppleSigningServiceTests
         var r = await new AppleSigningService(f).InspectAsync(app, default);
 
         Assert.True(r.Valid);
-        Assert.Equal("Developer ID Application: Nathaniel Graham (Q6LRJQSA42)", r.Signer);
-        Assert.Equal("Q6LRJQSA42", r.TeamId);
+        Assert.Equal("Developer ID Application: Test Signer (AAAAAAAAAA)", r.Signer);
+        Assert.Equal("AAAAAAAAAA", r.TeamId);
         Assert.True(r.HardenedRuntime);
         Assert.True(r.Stapled);
         Assert.True(r.GatekeeperAccepted);
@@ -281,14 +281,14 @@ public class AppleSigningServiceTests
         };
         var svc = new AppleSigningService(f);
 
-        var r = await svc.NotarizeAsync(dmg, new NotarizeCreds { KeychainProfile = "my-notary-profile" },
+        var r = await svc.NotarizeAsync(dmg, new NotarizeCreds { KeychainProfile = "test-notary-profile" },
             log: null, ct: default);
 
         Assert.True(r.Success);
         Assert.DoesNotContain(f.Calls, c => c.File.EndsWith("ditto", StringComparison.Ordinal));
         var notary = f.Calls.Single(c => c.Args.Contains("notarytool"));
         // The .dmg itself is submitted — not a zip.
-        Assert.Equal(new[] { "notarytool", "submit", dmg, "--wait", "--keychain-profile", "my-notary-profile" }, notary.Args);
+        Assert.Equal(new[] { "notarytool", "submit", dmg, "--wait", "--keychain-profile", "test-notary-profile" }, notary.Args);
     }
 
     [Fact]
@@ -311,13 +311,13 @@ public class AppleSigningServiceTests
         var svc = new AppleSigningService(f);
 
         var r = await svc.NotarizeAsync(app,
-            new NotarizeCreds { KeychainProfile = "my-notary-profile" }, log: null, ct: default);
+            new NotarizeCreds { KeychainProfile = "test-notary-profile" }, log: null, ct: default);
 
         Assert.True(r.Success);
         var ditto = f.Calls.Single(c => c.File.EndsWith("ditto", StringComparison.Ordinal));
         Assert.Equal(new[] { "-c", "-k", "--keepParent", app, zip }, ditto.Args);
         var notary = f.Calls.Single(c => c.Args.Contains("notarytool"));
-        Assert.Equal(new[] { "notarytool", "submit", zip, "--wait", "--keychain-profile", "my-notary-profile" }, notary.Args);
+        Assert.Equal(new[] { "notarytool", "submit", zip, "--wait", "--keychain-profile", "test-notary-profile" }, notary.Args);
         Assert.False(File.Exists(zip)); // throwaway zip deleted
     }
 

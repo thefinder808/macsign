@@ -12,7 +12,7 @@ namespace MacSign.App.Tests;
 public class AppleSignViewModelTests
 {
     private const string Sha = "ABCDEF0123456789ABCDEF0123456789ABCDEF01";
-    private const string IdName = "Developer ID Application: Nathaniel Graham (Q6LRJQSA42)";
+    private const string IdName = "Developer ID Application: Test Signer (AAAAAAAAAA)";
     private static string FindIdentityOutput => $"  1) {Sha} \"{IdName}\"\n     1 valid identities found\n";
 
     private static string MakeDmg()

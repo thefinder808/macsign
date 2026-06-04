@@ -14,9 +14,9 @@
 #   NOTARY_ISSUER    issuer id                                  /
 # (NOTARY_PROFILE takes precedence over the API-key trio when both are set.)
 #
-# Note: this Mac's notarytool keychain profile is `my-notary-profile` — pass
-#   SIGN_IDENTITY="Developer ID Application: Nathaniel Graham (Q6LRJQSA42)" \
-#   NOTARY_PROFILE=my-notary-profile ./build-macos.sh
+# Example (signed + notarized via a local notarytool keychain profile):
+#   SIGN_IDENTITY="Developer ID Application: NAME (TEAMID)" \
+#   NOTARY_PROFILE=your-notary-profile ./build-macos.sh
 #
 set -euo pipefail
 

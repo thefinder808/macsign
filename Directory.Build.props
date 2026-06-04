@@ -7,6 +7,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- Project metadata. Bump the Version in step with the release tag and CHANGELOG.md;
+         it is what the CLI version command and the assembly metadata report. (The release
+         DMG's bundle version is set separately, from the git tag, by build-macos.sh.) -->
+    <Version>0.6.0</Version>
+    <Product>MacSign</Product>
+    <Authors>Nathaniel Graham</Authors>
+    <RepositoryUrl>https://github.com/thefinder808/macsign</RepositoryUrl>
   </PropertyGroup>
 
 </Project>

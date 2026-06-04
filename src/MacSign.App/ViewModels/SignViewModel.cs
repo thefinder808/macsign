@@ -40,7 +40,7 @@ public partial class SignViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsPfx), nameof(IsPkcs11), nameof(IsAzure),
         nameof(CredBlurb), nameof(ActiveCredentialName), nameof(ActiveCredentialSub), nameof(CredentialReady))]
     [NotifyCanExecuteChangedFor(nameof(SignCommand))]
-    private CredMode _credMode = CredMode.Azure;
+    private CredMode _credMode = CredMode.Pfx;
 
     public bool IsPfx => CredMode == CredMode.Pfx;
     public bool IsPkcs11 => CredMode == CredMode.Pkcs11;
@@ -75,11 +75,11 @@ public partial class SignViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveCredentialSub), nameof(CredentialReady))]
     [NotifyCanExecuteChangedFor(nameof(SignCommand))]
-    private string _account = "my-signing-account";
+    private string _account = "";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CredentialReady))]
     [NotifyCanExecuteChangedFor(nameof(SignCommand))]
-    private string _profile = "my-cert-profile";
+    private string _profile = "";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CredentialReady))]
     [NotifyCanExecuteChangedFor(nameof(SignCommand))]

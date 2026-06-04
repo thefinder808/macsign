@@ -22,8 +22,8 @@ public class VerifyRoutingTests
     {
         var app = MakeApp();
         const string dvvv =
-            "Authority=Developer ID Application: Nathaniel Graham (Q6LRJQSA42)\n" +
-            "TeamIdentifier=Q6LRJQSA42\nCodeDirectory flags=0x10000(runtime)\n";
+            "Authority=Developer ID Application: Test Signer (AAAAAAAAAA)\n" +
+            "TeamIdentifier=AAAAAAAAAA\nCodeDirectory flags=0x10000(runtime)\n";
         var f = new FakeRunner
         {
             Respond = (file, args) => file.EndsWith("codesign", StringComparison.Ordinal)
@@ -36,7 +36,7 @@ public class VerifyRoutingTests
 
         Assert.True(vm.IsMacReport);
         Assert.Contains("Developer ID Application", vm.Signer);
-        Assert.Equal("Q6LRJQSA42", vm.MacTeamId);
+        Assert.Equal("AAAAAAAAAA", vm.MacTeamId);
         Assert.True(vm.MacHardened);
         Assert.True(vm.HasReport);
     }

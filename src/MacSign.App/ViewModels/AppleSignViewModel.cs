@@ -38,7 +38,7 @@ public partial class AppleSignViewModel : ObservableObject
         _data = data;
         _store = store;
         var p = data.AppleSign;
-        _notaryProfile = string.IsNullOrWhiteSpace(p.NotaryProfile) ? "my-notary-profile" : p.NotaryProfile;
+        _notaryProfile = string.IsNullOrWhiteSpace(p.NotaryProfile) ? "" : p.NotaryProfile;
         _hardenedRuntime = p.HardenedRuntime;
         _deep = p.Deep;
         _notarize = p.Notarize;
@@ -367,7 +367,7 @@ public partial class AppleSignViewModel : ObservableObject
     public void ReloadFromData()
     {
         var p = _data.AppleSign;
-        NotaryProfile = string.IsNullOrWhiteSpace(p.NotaryProfile) ? "my-notary-profile" : p.NotaryProfile;
+        NotaryProfile = string.IsNullOrWhiteSpace(p.NotaryProfile) ? "" : p.NotaryProfile;
         HardenedRuntime = p.HardenedRuntime;
         Deep = p.Deep;
         Notarize = p.Notarize;

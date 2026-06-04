@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using MacSign.Cli;
@@ -9,9 +10,12 @@ return await App.Run(args);
 namespace MacSign.Cli
 {
     /// <summary>
-    /// A small command-line harness for the signing engine. Two verbs:
-    ///   macsign sign          — Authenticode-sign a PE in place
+    /// A small command-line harness for the signing engine. Verbs:
+    ///   macsign sign          — Authenticode-sign a PE/PowerShell/MSI in place
+    ///   macsign verify        — report a signature's integrity, signers, and chain trust
+    ///   macsign remove        — strip an existing signature in place
     ///   macsign gen-test-cert — make a throwaway self-signed code-signing cert
+    /// Plus <c>--help</c> and <c>--version</c>.
     /// </summary>
     internal static class App
     {
@@ -37,6 +41,7 @@ namespace MacSign.Cli
                     "remove" => Remove(new Flags(args[1..])),
                     "gen-test-cert" => GenTestCert(new Flags(args[1..])),
                     "-h" or "--help" or "help" => Usage(),
+                    "-v" or "--version" or "version" => Version(),
                     var other => Fail($"Unknown command '{other}'."),
                 };
             }
@@ -211,6 +216,18 @@ namespace MacSign.Cli
                   macsign gen-test-cert --pfx <out.pfx> --cer <out.cer>
                                [--password <pw> | --password-env <VAR>] [--subject <CN>]
                 """);
+            return 0;
+        }
+
+        private static int Version()
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            var v = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                    ?? asm.GetName().Version?.ToString()
+                    ?? "unknown";
+            var plus = v.IndexOf('+'); // strip the SourceLink "+<gitsha>" build-metadata suffix, if any
+            if (plus >= 0) v = v[..plus];
+            Console.WriteLine($"macsign {v}");
             return 0;
         }
 
