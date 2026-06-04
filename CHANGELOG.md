@@ -6,6 +6,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-04
+
+### Added
+- **In-app auto-updates.** MacSign checks the GitHub Releases API for a newer version
+  on launch (throttled to once a day, on by default), via **Help → "Check for
+  Updates…"**, and from a new **Preferences → Updates** section. A found update offers
+  one-click **download → verify → install → relaunch**.
+- The trust anchor is the downloaded DMG's **own Apple notarization + Developer ID Team
+  ID** — it installs only when the artifact is codesigned by that identity and notarized
+  (stapled + Gatekeeper-accepted), so no separate appcast or signing key is needed.
+- Graceful degradation: if verification fails or the install directory isn't writable,
+  it never installs — it offers the release page / "drag to Applications" instead.
+
 ## [1.0.0] — 2026-06-04
 
 First stable release. MacSign is feature-complete and open-source: a fully-managed
@@ -97,7 +110,8 @@ open-source licensing and project files and removes personal defaults from the U
 - Native macOS GUI (Avalonia): Sign / Verify / Profiles / Activity.
 - Tag-driven release CI that builds, signs, and notarizes the `arm64` + `x64` DMGs.
 
-[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/thefinder808/macsign/releases/tag/v1.1.0
 [1.0.0]: https://github.com/thefinder808/macsign/releases/tag/v1.0.0
 [0.6.0]: https://github.com/thefinder808/macsign/releases/tag/v0.6.0
 [0.5.0]: https://github.com/thefinder808/macsign/releases/tag/v0.5.0
