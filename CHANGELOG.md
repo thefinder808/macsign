@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.3] — 2026-06-04
+
+### Fixed
+- **Update dialog: the primary "Install & Relaunch" button was clipped** off the right
+  edge of the fixed-width window. The action row is now two rows that fit the dialog,
+  and the dialog is keyboard-operable (Enter = Install, Esc = Later). The dialog is
+  drawn by the running version, so this applies to updates triggered from 1.1.3 onward.
+
 ## [1.1.2] — 2026-06-04
 
 ### Changed
