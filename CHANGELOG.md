@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.2] — 2026-06-04
+
+### Changed
+- Release DMGs are now **code-signed with the Developer ID Application identity**, in
+  addition to being notarized and stapled — completing the standard macOS distribution
+  layout (app signed · DMG signed · DMG notarized · ticket stapled). No application
+  changes; this is a packaging/release update.
+
 ## [1.1.1] — 2026-06-04
 
 ### Fixed
