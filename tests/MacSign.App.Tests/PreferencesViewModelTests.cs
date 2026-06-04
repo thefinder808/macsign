@@ -137,10 +137,9 @@ public class PreferencesViewModelTests
     [Fact]
     public void AutoCheckUpdates_persists()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "macsign-pref-" + Guid.NewGuid().ToString("N"));
-        var store = new SettingsStore(dir);
-        var data = new AppData();
-        var vm = new PreferencesViewModel(data, store);
+        // FakeHttp-backed UpdateService so the VM can never make a live network call.
+        var vm = Make(out _, out var store, out _,
+            new UpdateService(new HttpClient(new FakeHttp())));
 
         // flip off and verify it round-trips through SettingsStore
         vm.AutoCheckUpdates = false;

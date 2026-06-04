@@ -108,24 +108,32 @@ public partial class PreferencesViewModel : ObservableObject
 
     [ObservableProperty] private string _updateStatus = "";
 
+    private bool _checking;   // re-entrancy guard: an on-launch auto-check must not race a user click
+
     [RelayCommand]
     private async Task CheckNow()
     {
-        UpdateStatus = "Checking…";
-        var r = await _updates.CheckAsync(default);
-        if (r.UpdateAvailable && r.Info is not null)
+        if (_checking) return;
+        _checking = true;
+        try
         {
-            UpdateStatus = $"Version {r.Info.Version} is available.";
-            UpdateAvailable?.Invoke(r.Info);
+            UpdateStatus = "Checking…";
+            var r = await _updates.CheckAsync(default);
+            if (r.UpdateAvailable && r.Info is not null)
+            {
+                UpdateStatus = $"Version {r.Info.Version} is available.";
+                UpdateAvailable?.Invoke(r.Info);
+            }
+            else if (r.Error is not null)
+            {
+                UpdateStatus = "Couldn't check for updates.";
+            }
+            else
+            {
+                UpdateStatus = "You're up to date.";
+            }
         }
-        else if (r.Error is not null)
-        {
-            UpdateStatus = "Couldn't check for updates.";
-        }
-        else
-        {
-            UpdateStatus = "You're up to date.";
-        }
+        finally { _checking = false; }
     }
 
     // ── Reset all (two-step confirm; Task.Delay not Dispatcher — headless tests) ──
