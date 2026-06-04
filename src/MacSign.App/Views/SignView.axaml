@@ -293,12 +293,12 @@
                             <StackPanel Spacing="8" IsVisible="{Binding IsAzure}">
                                 <StackPanel Spacing="5">
                                     <TextBlock Classes="fieldlabel" Text="Account" />
-                                    <TextBox Classes="mono" Text="{Binding Account}"
+                                    <TextBox Classes="mono" Text="{Binding Account}" Watermark="my-signing-account"
                                              ToolTip.Tip="Your Azure Trusted Signing account name (not a subscription or email)." />
                                 </StackPanel>
                                 <StackPanel Spacing="5">
                                     <TextBlock Classes="fieldlabel" Text="Certificate profile" />
-                                    <TextBox Classes="mono" Text="{Binding Profile}"
+                                    <TextBox Classes="mono" Text="{Binding Profile}" Watermark="my-cert-profile"
                                              ToolTip.Tip="The certificate profile inside that Trusted Signing account." />
                                 </StackPanel>
                                 <Border Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,9">

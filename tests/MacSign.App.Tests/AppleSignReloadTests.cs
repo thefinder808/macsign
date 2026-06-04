@@ -29,7 +29,7 @@ public class AppleSignReloadTests
         data.AppleSign = new AppleSignPrefs();
         vm.ReloadFromData();
 
-        Assert.Equal("my-notary-profile", vm.NotaryProfile);  // empty → default UI value
+        Assert.Equal("", vm.NotaryProfile);                  // empty prefs → empty field (no personal default)
         Assert.True(vm.HardenedRuntime);                     // AppleSignPrefs default
         Assert.True(vm.Deep);
         Assert.False(vm.Notarize);
