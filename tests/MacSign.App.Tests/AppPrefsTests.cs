@@ -49,4 +49,21 @@ public class AppPrefsTests
         Assert.Equal("System", loaded.Preferences.Theme);
         Assert.Equal(50, loaded.Preferences.ActivityKeepLast);
     }
+
+    [Fact]
+    public void File_with_explicit_null_subobjects_normalizes_to_defaults()
+    {
+        // A hand-edited file can carry an explicit null (vs. an absent key), which
+        // would otherwise NRE a consumer reading through the sub-object.
+        var dir = TempDir();
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "settings.json"),
+            "{\"Profiles\":null,\"Activity\":null,\"AppleSign\":null,\"Preferences\":null}");
+        var loaded = new SettingsStore(dir).Load();
+        Assert.NotNull(loaded.Profiles);
+        Assert.NotNull(loaded.Activity);
+        Assert.NotNull(loaded.AppleSign);
+        Assert.NotNull(loaded.Preferences);
+        Assert.Equal("System", loaded.Preferences.Theme);
+    }
 }
