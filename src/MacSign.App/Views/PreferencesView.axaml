@@ -3,8 +3,11 @@
              xmlns:vm="using:MacSign.App.ViewModels"
              x:Class="MacSign.App.Views.PreferencesView"
              x:DataType="vm:PreferencesViewModel">
-    <ScrollViewer Padding="20">
-        <StackPanel Spacing="16" MaxWidth="640" HorizontalAlignment="Left">
+    <!-- Spacing lives on the inner StackPanel's Margin (not ScrollViewer.Padding) so
+         the trailing edge stays inside the scrollable extent — otherwise the last card
+         (Updates) is clipped at the bottom. Matches every other scrollable screen. -->
+    <ScrollViewer>
+        <StackPanel Spacing="16" MaxWidth="640" HorizontalAlignment="Left" Margin="20,20,20,28">
 
             <!-- Appearance -->
             <Border Classes="card" Padding="18">

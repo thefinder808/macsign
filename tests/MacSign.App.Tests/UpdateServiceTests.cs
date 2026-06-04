@@ -83,36 +83,106 @@ public class UpdateServiceTests
 
     // ---- VerifyAsync tests ----
 
-    private static FakeRunner GoodDmgRunner(string? teamId = UpdateService.ExpectedTeamId,
-        bool verifyOk = true, bool stapleOk = true, bool spctlOk = true)
-    {
-        var teamLine = teamId is null ? "" : $"TeamIdentifier={teamId}\n";
-        var dInfo = $"Authority=Developer ID Application: Test\n{teamLine}flags=0x10000(runtime)\n";
-        return new FakeRunner { Respond = (file, args) =>
-        {
-            if (file.EndsWith("codesign") && args.Contains("-d"))      return new ProcessResult(0, "", dInfo, false);
-            if (file.EndsWith("codesign") && args.Contains("--verify")) return new ProcessResult(verifyOk ? 0 : 1, "", "", false);
-            if (file.EndsWith("xcrun") && args.Contains("stapler"))     return new ProcessResult(stapleOk ? 0 : 1, "", "", false);
-            if (file.EndsWith("spctl"))                                 return new ProcessResult(spctlOk ? 0 : 1, "", "", false);
-            return new ProcessResult(0, "", "", false);
-        }};
-    }
-
     private static UpdateService SvcWith(FakeRunner r) =>
         new(new HttpClient(new FakeHttp()), new AppleSigningService(r), r);
 
+    // A real temp .dmg file so Classify() recognises it as a disk image.
+    private static string MakeDmg()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "macsign-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var dmg = Path.Combine(dir, "MacSign-9.9.9-osx-arm64.dmg");
+        File.WriteAllText(dmg, "not-a-real-dmg");
+        return dmg;
+    }
+
+    /// <summary>Simulates a real MacSign release: the .dmg CONTAINER is notarized +
+    /// stapled but is NOT codesigned, while the .app INSIDE is Developer-ID signed +
+    /// notarized. Routes by the target path's suffix (.dmg vs .app) so the trust gate
+    /// is exercised against the inner app, not the container. This is the exact shape
+    /// the old container-only VerifyAsync wrongly rejected.</summary>
+    private static FakeRunner ReleaseShapeRunner(string? innerTeam = UpdateService.ExpectedTeamId,
+        bool innerVerifyOk = true, bool innerSpctlOk = true, bool dmgStapleOk = true)
+    {
+        var teamLine = innerTeam is null ? "" : $"TeamIdentifier={innerTeam}\n";
+        var appInfo = $"Authority=Developer ID Application: Test\n{teamLine}flags=0x10000(runtime)\n";
+        return new FakeRunner { Respond = (file, args) =>
+        {
+            var a = args.ToList();
+            var target = a.Count > 0 ? a[^1] : "";
+            bool onApp = target.EndsWith(".app", StringComparison.Ordinal);
+            bool onDmg = target.EndsWith(".dmg", StringComparison.Ordinal);
+
+            if (file.EndsWith("hdiutil") && a.Contains("attach"))
+            {
+                Directory.CreateDirectory(Path.Combine(a[a.IndexOf("-mountpoint") + 1], "MacSign.app"));
+                return new ProcessResult(0, "", "", false);
+            }
+            // codesign -d: the inner app reports our identity; the container has none.
+            if (file.EndsWith("codesign") && a.Contains("-d"))
+                return onApp ? new ProcessResult(0, "", appInfo, false)
+                             : new ProcessResult(1, "", "code object is not signed at all", false);
+            if (file.EndsWith("codesign") && a.Contains("--verify"))
+                return onApp ? new ProcessResult(innerVerifyOk ? 0 : 1, "", "", false)
+                             : new ProcessResult(1, "", "code object is not signed at all", false);
+            // The ticket lives on the .dmg, not the inner .app.
+            if (file.EndsWith("xcrun") && a.Contains("stapler"))
+                return onDmg ? new ProcessResult(dmgStapleOk ? 0 : 1, "", "", false)
+                             : new ProcessResult(1, "", "does not have a ticket stapled", false);
+            if (file.EndsWith("spctl"))
+                return onApp ? new ProcessResult(innerSpctlOk ? 0 : 1, "", "", false)
+                             : new ProcessResult(1, "", "no usable signature", false);
+            return new ProcessResult(0, "", "", false); // detach, etc.
+        }};
+    }
+
     [Fact]
-    public async Task VerifyAsync_passes_whenOurTeamId_signed_notarized()
-        => Assert.True(await SvcWith(GoodDmgRunner()).VerifyAsync("/tmp/x.dmg", default));
+    public async Task VerifyAsync_acceptsRealReleaseShape_unsignedDmg_signedNotarizedInnerApp()
+        => Assert.True(await SvcWith(ReleaseShapeRunner()).VerifyAsync(MakeDmg(), default));
 
     [Theory]
-    [InlineData("WRONGTEAM0", true,  true,  true)]   // not our Developer ID
-    [InlineData(null, true,  true,  true)]   // codesign output has no TeamIdentifier line
-    [InlineData(UpdateService.ExpectedTeamId, false, true,  true)]   // codesign integrity fails
-    [InlineData(UpdateService.ExpectedTeamId, true,  false, true)]   // not stapled (not notarized)
-    [InlineData(UpdateService.ExpectedTeamId, true,  true,  false)]  // Gatekeeper rejects
-    public async Task VerifyAsync_refuses_whenAnyCheckFails(string? team, bool v, bool staple, bool sp)
-        => Assert.False(await SvcWith(GoodDmgRunner(team, v, staple, sp)).VerifyAsync("/tmp/x.dmg", default));
+    [InlineData("WRONGTEAM0", true,  true,  true)]   // inner app signed by a different Team ID
+    [InlineData(null,         true,  true,  true)]   // inner app has no TeamIdentifier line
+    [InlineData(UpdateService.ExpectedTeamId, false, true,  true)]   // inner app integrity fails
+    [InlineData(UpdateService.ExpectedTeamId, true,  false, true)]   // inner app not notarized (Gatekeeper rejects)
+    [InlineData(UpdateService.ExpectedTeamId, true,  true,  false)]  // the .dmg itself isn't stapled
+    public async Task VerifyAsync_refuses_whenInnerAppOrDmgFails(string? team, bool v, bool sp, bool dmgStaple)
+        => Assert.False(await SvcWith(ReleaseShapeRunner(team, v, sp, dmgStaple)).VerifyAsync(MakeDmg(), default));
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenMountFails()
+    {
+        var f = new FakeRunner { Respond = (file, args) =>
+            file.EndsWith("hdiutil") && args.Contains("attach")
+                ? new ProcessResult(1, "", "hdiutil: attach failed", false)
+                : new ProcessResult(0, "", "", false) };
+        Assert.False(await SvcWith(f).VerifyAsync(MakeDmg(), default));
+    }
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenNoAppInsideDmg()
+    {
+        var f = new FakeRunner { Respond = (file, args) =>
+        {
+            var a = args.ToList();
+            if (file.EndsWith("hdiutil") && a.Contains("attach"))
+            { Directory.CreateDirectory(a[a.IndexOf("-mountpoint") + 1]); return new ProcessResult(0, "", "", false); }
+            return new ProcessResult(0, "", "", false);
+        }};
+        Assert.False(await SvcWith(f).VerifyAsync(MakeDmg(), default));
+    }
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenNotADmg()
+        => Assert.False(await SvcWith(ReleaseShapeRunner()).VerifyAsync("/tmp/does-not-exist.dmg", default));
+
+    [Fact]
+    public async Task VerifyAsync_alwaysDetaches_afterInspectingInnerApp()
+    {
+        var f = ReleaseShapeRunner();
+        await SvcWith(f).VerifyAsync(MakeDmg(), default);
+        Assert.Contains(f.Calls, c => c.File.EndsWith("hdiutil") && c.Args.Contains("detach"));
+    }
 
     [Fact]
     public async Task DownloadAsync_writesTempDmg_andReportsProgress()
