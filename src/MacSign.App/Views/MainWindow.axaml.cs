@@ -1,7 +1,6 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using MacSign.App.ViewModels;
 
 namespace MacSign.App.Views;
@@ -26,7 +25,7 @@ public partial class MainWindow : Window
     private UpdateWindow? _updateWindow;
     private void OnShowUpdate(UpdateViewModel updateVm)
     {
-        // If a window is already open for this same version, just bring it to front.
+        // An update dialog is already open — bring it to front.
         if (_updateWindow is not null)
         {
             _updateWindow.Activate();

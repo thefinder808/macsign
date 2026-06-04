@@ -95,8 +95,9 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             var r = await _updates.CheckAsync(CancellationToken.None);
+            if (r.Error is not null) return;   // failed check → don't stamp; retry next launch
 
-            // Stamp the check time + persist regardless of outcome (prevents hammer on error).
+            // Stamp the check time + persist only on a successful check.
             _data.Preferences.LastUpdateCheckUtc = DateTime.UtcNow.ToString("o");
             _store.Save(_data);
 
@@ -120,20 +121,24 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private async Task CheckForUpdates()
     {
-        var r = await _updates.CheckAsync(CancellationToken.None);
+        try
+        {
+            var r = await _updates.CheckAsync(CancellationToken.None);
 
-        if (r.UpdateAvailable && r.Info is not null
-            && r.Info.Version != _data.Preferences.SkippedVersion)
-        {
-            ShowUpdate?.Invoke(MakeUpdateViewModel(r.Info));
+            if (r.UpdateAvailable && r.Info is not null
+                && r.Info.Version != _data.Preferences.SkippedVersion)
+            {
+                ShowUpdate?.Invoke(MakeUpdateViewModel(r.Info));
+            }
+            else
+            {
+                // Navigate to Preferences, then run CheckNow so the user sees the
+                // inline status ("You're up to date." or "Couldn't check…").
+                CurrentView = AppView.Preferences;
+                await Preferences.CheckNowCommand.ExecuteAsync(null);
+            }
         }
-        else
-        {
-            // Navigate to Preferences, then run CheckNow so the user sees the
-            // inline status ("You're up to date." or "Couldn't check…").
-            CurrentView = AppView.Preferences;
-            await Preferences.CheckNowCommand.ExecuteAsync(null);
-        }
+        catch { /* silent — the Preferences screen surfaces any inline error */ }
     }
 
     private UpdateViewModel MakeUpdateViewModel(UpdateInfo info)
