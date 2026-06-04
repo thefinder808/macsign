@@ -360,6 +360,21 @@ public partial class AppleSignViewModel : ObservableObject
         WhenIso = DateTime.Now.ToString("o"),
     });
 
+    /// <summary>Re-read the (non-secret) Apple-signing prefs from the shared data —
+    /// used by Preferences → Reset all settings to refresh this screen live. Sets the
+    /// public observable properties so bindings update; the live keychain identity
+    /// selection is left as-is.</summary>
+    public void ReloadFromData()
+    {
+        var p = _data.AppleSign;
+        NotaryProfile = string.IsNullOrWhiteSpace(p.NotaryProfile) ? "my-notary-profile" : p.NotaryProfile;
+        HardenedRuntime = p.HardenedRuntime;
+        Deep = p.Deep;
+        Notarize = p.Notarize;
+        Staple = p.Staple;
+        UseApiKey = p.UseApiKey;
+    }
+
     private void SavePrefs()
     {
         _data.AppleSign = new AppleSignPrefs

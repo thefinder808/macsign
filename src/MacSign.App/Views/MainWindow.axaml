@@ -12,6 +12,8 @@
 
     <Window.KeyBindings>
         <KeyBinding Gesture="Meta+S" Command="{Binding Sign.SignCommand}" />
+        <KeyBinding Gesture="Meta+OemComma" Command="{Binding ShowCommand}"
+                    CommandParameter="{x:Static vm:AppView.Preferences}" />
     </Window.KeyBindings>
 
     <!-- macOS menu bar. (Avalonia auto-provides the bold app menu + Quit.) -->
@@ -54,6 +56,9 @@
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Profiles}" />
                         <NativeMenuItem Header="Activity" Gesture="Meta+5"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Activity}" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="Preferences" Gesture="Meta+OemComma"
+                                        Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Preferences}" />
                     </NativeMenu>
                 </NativeMenuItem.Menu>
             </NativeMenuItem>
@@ -93,6 +98,7 @@
         <DataTemplate DataType="vm:AppleSignViewModel"><views:AppleSignView /></DataTemplate>
         <DataTemplate DataType="vm:ProfilesViewModel"><views:ProfilesView /></DataTemplate>
         <DataTemplate DataType="vm:ActivityViewModel"><views:ActivityView /></DataTemplate>
+        <DataTemplate DataType="vm:PreferencesViewModel"><views:PreferencesView /></DataTemplate>
     </Window.DataTemplates>
 
     <Grid ColumnDefinitions="218,*">
@@ -187,6 +193,17 @@
                             <Path Data="{StaticResource IcoActivity}" StrokeThickness="1.6"
                                   Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
                             <TextBlock Text="Activity" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <TextBlock Classes="section" Text="APP" Margin="6,12,6,4" />
+
+                    <Button Classes="nav" Classes.active="{Binding IsPreferences}"
+                            Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Preferences}">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Path Data="{StaticResource IcoGear}" StrokeThickness="1.6"
+                                  Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
+                            <TextBlock Text="Preferences" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 

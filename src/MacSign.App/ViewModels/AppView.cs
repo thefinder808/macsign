@@ -8,4 +8,5 @@ public enum AppView
     Apple,
     Profiles,
     Activity,
+    Preferences,
 }

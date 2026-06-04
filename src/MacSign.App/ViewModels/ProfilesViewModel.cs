@@ -46,6 +46,14 @@ public partial class ProfilesViewModel : ObservableObject
         Persist();
     }
 
+    /// <summary>Remove every profile (used by Preferences → Reset all settings).</summary>
+    public void Clear()
+    {
+        _data.Profiles.Clear();
+        Profiles.Clear();
+        Persist();
+    }
+
     public void SignWith(ProfileItemViewModel item)
     {
         item.Data.LastUsedIso = DateTime.Now.ToString("o");

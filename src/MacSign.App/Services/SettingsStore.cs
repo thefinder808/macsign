@@ -18,17 +18,30 @@ public sealed class SettingsStore
     private readonly string _dir;
     public SettingsStore(string? dir = null) => _dir = dir ?? DefaultDir;
 
-    private string FilePath => Path.Combine(_dir, "settings.json");
+    /// <summary>Absolute path to the JSON settings file (used by the Reveal-in-Finder action).</summary>
+    public string FilePath => Path.Combine(_dir, "settings.json");
 
     public AppData Load()
     {
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<AppData>(File.ReadAllText(FilePath)) ?? new AppData();
+                return Normalize(JsonSerializer.Deserialize<AppData>(File.ReadAllText(FilePath)) ?? new AppData());
         }
         catch { /* corrupt/unreadable → start fresh */ }
         return new AppData();
+    }
+
+    /// <summary>A hand-edited file can carry an explicit <c>null</c> for a sub-object
+    /// (System.Text.Json keeps the initializer only when the key is *absent*), which
+    /// would NRE a consumer reading through it. Coalesce every sub-object to a default.</summary>
+    private static AppData Normalize(AppData d)
+    {
+        d.Profiles ??= new();
+        d.Activity ??= new();
+        d.AppleSign ??= new();
+        d.Preferences ??= new();
+        return d;
     }
 
     public void Save(AppData data)

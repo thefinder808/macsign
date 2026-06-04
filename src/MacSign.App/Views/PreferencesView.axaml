@@ -1,0 +1,98 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MacSign.App.ViewModels"
+             x:Class="MacSign.App.Views.PreferencesView"
+             x:DataType="vm:PreferencesViewModel">
+    <ScrollViewer Padding="20">
+        <StackPanel Spacing="16" MaxWidth="640" HorizontalAlignment="Left">
+
+            <!-- Appearance -->
+            <Border Classes="card" Padding="18">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="section" Text="APPEARANCE" />
+                    <TextBlock Classes="subtitle" Text="Theme follows macOS unless you override it here." />
+                    <Border Background="{DynamicResource Field}" CornerRadius="9" Padding="3" HorizontalAlignment="Left">
+                        <Grid ColumnDefinitions="92,92,92">
+                            <Button Grid.Column="0" Classes="segment" Classes.active="{Binding IsSystemTheme}"
+                                    Command="{Binding SetThemeCommand}" CommandParameter="System">
+                                <TextBlock Text="System" />
+                            </Button>
+                            <Button Grid.Column="1" Classes="segment" Classes.active="{Binding IsLightTheme}"
+                                    Command="{Binding SetThemeCommand}" CommandParameter="Light">
+                                <TextBlock Text="Light" />
+                            </Button>
+                            <Button Grid.Column="2" Classes="segment" Classes.active="{Binding IsDarkTheme}"
+                                    Command="{Binding SetThemeCommand}" CommandParameter="Dark">
+                                <TextBlock Text="Dark" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Signing defaults -->
+            <Border Classes="card" Padding="18">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="section" Text="SIGNING DEFAULTS" />
+                    <TextBlock Classes="subtitle" Text="Pre-fill the Sign screen the next time MacSign starts." />
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldlabel" Text="Default timestamp URL" />
+                        <TextBox Classes="mono" Text="{Binding DefaultTimestampUrl}"
+                                 Watermark="http://timestamp.digicert.com" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <ToggleButton Classes="switch" IsChecked="{Binding TimestampByDefault}" />
+                        <TextBlock Text="Timestamp signatures by default (RFC 3161)" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Ink}" FontSize="12.5" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Activity & data -->
+            <Border Classes="card" Padding="18">
+                <StackPanel Spacing="14">
+                    <TextBlock Classes="section" Text="ACTIVITY &amp; DATA" />
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldlabel" Text="Keep last" />
+                        <Border Background="{DynamicResource Field}" CornerRadius="9" Padding="3" HorizontalAlignment="Left">
+                            <Grid ColumnDefinitions="74,74,74,96">
+                                <Button Grid.Column="0" Classes="segment" Classes.active="{Binding IsCap50}"
+                                        Command="{Binding SetCapCommand}" CommandParameter="50"><TextBlock Text="50" /></Button>
+                                <Button Grid.Column="1" Classes="segment" Classes.active="{Binding IsCap100}"
+                                        Command="{Binding SetCapCommand}" CommandParameter="100"><TextBlock Text="100" /></Button>
+                                <Button Grid.Column="2" Classes="segment" Classes.active="{Binding IsCap500}"
+                                        Command="{Binding SetCapCommand}" CommandParameter="500"><TextBlock Text="500" /></Button>
+                                <Button Grid.Column="3" Classes="segment" Classes.active="{Binding IsCapUnlimited}"
+                                        Command="{Binding SetCapCommand}" CommandParameter="Unlimited"><TextBlock Text="Unlimited" /></Button>
+                            </Grid>
+                        </Border>
+                        <TextBlock Classes="subtitle"
+                                   Text="Older runs are trimmed automatically. Activity holds metadata only — never secrets." />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Classes="secondary" Command="{Binding ClearHistoryCommand}">
+                            <TextBlock Text="Clear Activity history" VerticalAlignment="Center" />
+                        </Button>
+                        <Button Classes="secondary" Command="{Binding RevealSettingsCommand}">
+                            <TextBlock Text="Reveal settings.json in Finder" VerticalAlignment="Center" />
+                        </Button>
+                    </StackPanel>
+
+                    <Border BorderBrush="{DynamicResource Hair}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="fieldlabel" Text="Reset" />
+                            <TextBlock Classes="subtitle"
+                                       Text="Erase all profiles, Activity history and preferences. This can't be undone." />
+                            <Button Classes="secondary" HorizontalAlignment="Left" Command="{Binding ResetAllCommand}">
+                                <TextBlock Text="{Binding ResetButtonText}" VerticalAlignment="Center" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
