@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -73,4 +75,46 @@ public sealed class UpdateService
         Architecture.X64   => "osx-x64",
         _                  => "osx-x64",
     };
+
+    /// <summary>Query the latest stable release (the endpoint excludes drafts +
+    /// prereleases), compare to the running version, and pick the host-arch asset.
+    /// Never throws — network/parse failures come back as an Error.</summary>
+    public async Task<UpdateCheckResult> CheckAsync(CancellationToken ct)
+    {
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get,
+                $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest");
+            req.Headers.UserAgent.Add(new ProductInfoHeaderValue("MacSign", AppInfo.Version));
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+            var resp = await _http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode)
+                return new UpdateCheckResult(false, null, $"GitHub returned {(int)resp.StatusCode}.");
+
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            var root = doc.RootElement;
+            var tag = root.GetProperty("tag_name").GetString() ?? "";
+            if (!IsNewer(tag, AppInfo.Version))
+                return new UpdateCheckResult(false, null, null);
+
+            var names = root.GetProperty("assets").EnumerateArray()
+                .Select(a => a.GetProperty("name").GetString() ?? "").ToList();
+            var assetName = AssetNameFor(names);
+            if (assetName is null)
+                return new UpdateCheckResult(false, null, "No matching .dmg asset for this Mac's architecture.");
+
+            var asset = root.GetProperty("assets").EnumerateArray()
+                .First(a => a.GetProperty("name").GetString() == assetName);
+            var info = new UpdateInfo(
+                Version: tag.TrimStart('v', 'V'),
+                ReleaseNotes: root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "",
+                ReleaseUrl: root.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "",
+                AssetName: assetName,
+                AssetUrl: asset.GetProperty("browser_download_url").GetString() ?? "");
+            return new UpdateCheckResult(true, info, null);
+        }
+        catch (OperationCanceledException) { return new UpdateCheckResult(false, null, "Canceled."); }
+        catch (Exception ex) { return new UpdateCheckResult(false, null, ex.Message); }
+    }
 }

@@ -22,3 +22,19 @@ internal sealed class FakeRunner : IProcessRunner
         return Task.FromResult(Respond(fileName, args));
     }
 }
+
+internal sealed class FakeHttp : System.Net.Http.HttpMessageHandler
+{
+    public System.Func<System.Uri, System.Net.Http.HttpResponseMessage> Respond = _ =>
+        new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK);
+
+    protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(
+        System.Net.Http.HttpRequestMessage request, CancellationToken ct)
+        => Task.FromResult(Respond(request.RequestUri!));
+
+    public static System.Net.Http.HttpClient ClientReturning(string json) => new(new FakeHttp
+    {
+        Respond = _ => new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        { Content = new System.Net.Http.StringContent(json) }
+    });
+}
