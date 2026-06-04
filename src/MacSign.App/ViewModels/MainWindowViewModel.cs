@@ -117,7 +117,7 @@ public partial class MainWindowViewModel : ObservableObject
     public string ToolbarTitle => CurrentView switch
     {
         AppView.Verify => "Verify",
-        AppView.Apple => "Mac apps",
+        AppView.Apple => "Sign",
         AppView.Profiles => "Profiles",
         AppView.Activity => "Activity",
         AppView.Preferences => "Preferences",

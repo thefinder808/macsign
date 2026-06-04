@@ -46,11 +46,11 @@
             <NativeMenuItem Header="View">
                 <NativeMenuItem.Menu>
                     <NativeMenu>
-                        <NativeMenuItem Header="Sign" Gesture="Meta+1"
+                        <NativeMenuItem Header="Sign (Windows)" Gesture="Meta+1"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Sign}" />
                         <NativeMenuItem Header="Verify" Gesture="Meta+2"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Verify}" />
-                        <NativeMenuItem Header="Mac apps" Gesture="Meta+3"
+                        <NativeMenuItem Header="Sign (Mac)" Gesture="Meta+3"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Apple}" />
                         <NativeMenuItem Header="Profiles" Gesture="Meta+4"
                                         Command="{Binding ShowCommand}" CommandParameter="{x:Static vm:AppView.Profiles}" />
@@ -172,7 +172,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="9">
                             <Path Data="{StaticResource IcoApp}" StrokeThickness="1.6"
                                   Stretch="Uniform" Width="17" Height="17" VerticalAlignment="Center" />
-                            <TextBlock Text="Mac apps" VerticalAlignment="Center" />
+                            <TextBlock Text="Sign" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 
