@@ -18,7 +18,8 @@ public sealed class SettingsStore
     private readonly string _dir;
     public SettingsStore(string? dir = null) => _dir = dir ?? DefaultDir;
 
-    private string FilePath => Path.Combine(_dir, "settings.json");
+    /// <summary>Absolute path to the JSON settings file (used by the Reveal-in-Finder action).</summary>
+    public string FilePath => Path.Combine(_dir, "settings.json");
 
     public AppData Load()
     {

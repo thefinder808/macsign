@@ -9,6 +9,17 @@ public sealed class AppData
     public List<ProfileData> Profiles { get; set; } = new();
     public List<RunData> Activity { get; set; } = new();
     public AppleSignPrefs AppleSign { get; set; } = new();
+    public AppPrefs Preferences { get; set; } = new();
+}
+
+/// <summary>App-wide preferences (no secrets). Defaults reproduce today's
+/// hardcoded behaviour so existing installs see no change until a setting is touched.</summary>
+public sealed class AppPrefs
+{
+    public string Theme { get; set; } = "System";                       // System | Light | Dark
+    public string DefaultTimestampUrl { get; set; } = "http://timestamp.digicert.com";
+    public bool   TimestampByDefault  { get; set; } = true;
+    public int    ActivityKeepLast    { get; set; } = 50;               // 0 = unlimited
 }
 
 /// <summary>Remembered (non-secret) preferences for the Mac-app signing screen.
