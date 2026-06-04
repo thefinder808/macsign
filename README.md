@@ -10,11 +10,11 @@ Native macOS Authenticode signing for Windows artifacts — **no Windows machine
   <img src="docs/screenshots/hero.png" width="860" alt="MacSign — the Sign screen: a file list with signed/unsigned status next to a credential and options inspector">
 </p>
 
-> **Status: all backends shipped.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies), **PowerShell scripts** (`.ps1`), and **MSI installers** (`.msi`), using a **local PFX certificate**, a **PKCS#11 token / HSM**, or **Azure Trusted Signing** (a.k.a. Azure Artifact Signing) — for the token and cloud paths the key never leaves the device/cloud — with optional **RFC3161 timestamping**, and **verifies** signatures (integrity + chain report). The Azure path is proven offline by a contract test (delegated path == the signtool-proven in-proc path) and has been signed + verified end-to-end against a live Trusted Signing account; re-verify it anytime with `scripts/verify-azure.sh` (uses your `az login`, no stored credentials). MacSign was originally conceived as a thin GUI over the `osslsigncode`/`jsign` CLIs; it was reimplemented as a fully-managed native engine instead.
+> **Status: all backends shipped.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies), **PowerShell scripts** (`.ps1`), and **MSI installers** (`.msi`), using a **local PFX certificate**, a **PKCS#11 token / HSM**, or **Azure Trusted Signing** (a.k.a. Azure Artifact Signing) — for the token and cloud paths the key never leaves the device/cloud — with optional **RFC3161 timestamping**, and **verifies** signatures (integrity + chain report). The Azure path is proven offline by a contract test (delegated path == the signtool-proven in-proc path) and has been signed + verified end-to-end against a live Trusted Signing account; re-verify it anytime with `scripts/verify-azure.sh` (uses your `az login`, no stored credentials).
 
 ## Download
 
-Grab the latest signed + notarized **DMG** for your Mac from the **[Releases](https://github.com/thefinder808/macsign/releases/latest)** page — `MacSign-<ver>-osx-arm64.dmg` for Apple Silicon, `-osx-x64.dmg` for Intel — open it, and drag **MacSign** to Applications. It's Developer ID–signed and Apple-notarized, so it opens with no Gatekeeper warning. After that MacSign keeps itself current: it checks for new releases on launch (toggle in Preferences) and via **Help → "Check for Updates…"**, and installs them in one click. Or build from source below.
+Grab the latest signed + notarized **DMG** for your Mac from the **[Releases](https://github.com/thefinder808/macsign/releases/latest)** page — `MacSign-<ver>-osx-arm64.dmg` for Apple Silicon, `-osx-x64.dmg` for Intel — open it, and drag **MacSign** to Applications. It's Developer ID–signed and Apple-notarized, so it opens with no Gatekeeper warning. (Requires macOS 11 Big Sur or later; the app is self-contained, so no .NET runtime is needed to run it.) After that MacSign keeps itself current: it checks for new releases on launch (toggle in Preferences) and via **Help → "Check for Updates…"**, and installs them in one click. Or build from source below.
 
 ## Why
 
@@ -29,12 +29,14 @@ The cross-platform tools for signing Windows binaries from a Mac are fiddly CLIs
 | `src/MacSign.Signing.Azure` | Optional Azure Trusted Signing backend, quarantined so `Azure.Identity` stays out of the core. A delegating RSA POSTs each digest to the cloud sign endpoint. |
 | `src/MacSign.Signing.Msi` | Optional MSI backend, quarantined so the `OpenMcdf` (CFBF) dependency stays out of the core. |
 | `src/MacSign.Cli` | A thin console harness (`macsign`) — scriptable signing/verifying. |
-| `src/MacSign.App` | The native macOS GUI (.NET 10 + Avalonia) — consumes the engine in-process. Sign / Verify / **Mac apps** / Profiles / Activity / Preferences, light + dark. |
+| `src/MacSign.App` | The native macOS GUI (.NET 10 + Avalonia) — consumes the engine in-process. Sign / Verify / Sign (Mac) / Profiles / Activity / Preferences, light + dark. |
 | `src/MacSign.Fixture` | A trivial class library whose compiled DLL is the unsigned PE the tests/CI sign. |
 | `tests/MacSign.Signing.Tests` | xUnit: PE digest, CMS framing, sign→verify round-trip, secret hygiene. |
-| `tests/MacSign.App.Tests` | xUnit for the **Mac apps** (`codesign`/`notarytool`) wrapper: exact argv per option, identity allow-listing, `.dmg`-direct notarize, process injection/cancellation. |
+| `tests/MacSign.App.Tests` | xUnit for the **macOS signing** (`codesign`/`notarytool`) wrapper: exact argv per option, identity allow-listing, `.dmg`-direct notarize, process injection/cancellation. |
 
 ## Build & test
+
+Requires the **.NET 10 SDK**.
 
 ```bash
 dotnet build -c Release
@@ -77,17 +79,17 @@ dotnet run --project src/MacSign.Cli -- remove some.dll
 
 ## Native macOS app (GUI)
 
-A native macOS GUI (`src/MacSign.App`, .NET 10 + Avalonia) consumes the same engine **in-process** — no shelling out. Six screens: **Sign** (drag-drop files + a credential/options inspector, ⌘S to sign), **Verify** (a Windows artifact's integrity vs. chain-trust report, *or* a Mac `.app`/`.dmg`'s `codesign` signature — signer, Team ID, Hardened Runtime, notarization — and **Remove signature** for a signed Authenticode file, with a two-step confirm), **Mac apps** (sign, notarize & staple a `.app` bundle or `.dmg` with your Developer ID), **Profiles** (reusable presets — no secrets stored), **Activity** (run history), and **Preferences** (⌘, — theme override, signing defaults, data housekeeping, and an **Updates** section: "Check for updates automatically" toggle + "Check Now"). The sidebar groups these by domain (**Windows** · **macOS** · **Library** · **App**), and a native menu bar (File · Edit · View · Window · Help, plus an About box) rounds out the shell. Full light + dark, following the macOS appearance. MacSign checks for a newer release on launch — throttled to once per day, on by default — and **Help → "Check for Updates…"** triggers it on demand; when an update is found you can **download, verify, and install in one click**: the release DMG's Developer ID signature (Team ID `Q6LRJQSA42`) and Apple notarization are the trust anchor, so no separate appcast or signing key is needed. It degrades gracefully if the install directory isn't writable or signature verification fails.
+A native macOS GUI (`src/MacSign.App`, .NET 10 + Avalonia) consumes the same engine **in-process** — no shelling out. Six screens: **Sign** (drag-drop files + a credential/options inspector, ⌘S to sign), **Verify** (a Windows artifact's integrity vs. chain-trust report, *or* a Mac `.app`/`.dmg`'s `codesign` signature — signer, Team ID, Hardened Runtime, notarization — and **Remove signature** for a signed Authenticode file, with a two-step confirm), **Sign (Mac)** (sign, notarize & staple a `.app` bundle or `.dmg` with your Developer ID), **Profiles** (reusable presets — no secrets stored), **Activity** (run history), and **Preferences** (⌘, — theme override, signing defaults, data housekeeping, and an **Updates** section: "Check for updates automatically" toggle + "Check Now"). The sidebar groups these by domain (**Windows** · **macOS** · **Library** · **App**), and a native menu bar (File · Edit · View · Window · Help, plus an About box) rounds out the shell. Full light + dark, following the macOS appearance. MacSign checks for a newer release on launch — throttled to once per day, on by default — and **Help → "Check for Updates…"** triggers it on demand; when an update is found you can **download, verify, and install in one click**: the notarized, Developer ID–signed app inside the downloaded DMG (Team ID `Q6LRJQSA42`) is the trust anchor, so no separate appcast or signing key is needed. It degrades gracefully if the install directory isn't writable or signature verification fails.
 
 <table>
   <tr>
     <td width="33%" valign="top"><a href="docs/screenshots/verify.png"><img src="docs/screenshots/verify.png" alt="Verify screen showing a valid signature"></a><br><sub><b>Verify</b> — integrity vs. chain trust, every signer, a validated timestamp</sub></td>
-    <td width="33%" valign="top"><a href="docs/screenshots/mac-signing.png"><img src="docs/screenshots/mac-signing.png" alt="Mac signing screen"></a><br><sub><b>Sign Mac apps</b> — sign · notarize · staple a <code>.app</code>/<code>.dmg</code></sub></td>
+    <td width="33%" valign="top"><a href="docs/screenshots/mac-signing.png"><img src="docs/screenshots/mac-signing.png" alt="Mac signing screen"></a><br><sub><b>Sign (Mac)</b> — sign · notarize · staple a <code>.app</code>/<code>.dmg</code></sub></td>
     <td width="33%" valign="top"><a href="docs/screenshots/preferences.png"><img src="docs/screenshots/preferences.png" alt="Preferences screen"></a><br><sub><b>Preferences</b> — theme, signing defaults, data housekeeping</sub></td>
   </tr>
 </table>
 
-> **Mac apps** is the inverse of the engine's day job: rather than signing Windows artifacts, it signs **your Mac apps**. It's a thin, injection-safe wrapper over Apple's own `codesign` / `notarytool` / `stapler` (not a reimplementation) — choose a `.app` or `.dmg`, pick a Developer ID identity, and watch sign → verify → notarize → staple stream in a live log. You can also **create the keychain notary profile in-app** — Notarize → Keychain profile → **Set up…** runs `notarytool store-credentials` from an App Store Connect API key, so you never need Terminal for it (API-key only; the key stays in its `.p8`). Before submitting to the notary it runs a **pre-flight** (mounting a `.dmg` to inspect its contents) and stops — with a "Notarize anyway" override — if anything inside isn't signed/hardened, so you don't burn a multi-minute round-trip on a doomed upload.
+> **Sign (Mac)** is the inverse of the engine's day job: rather than signing Windows artifacts, it signs **your Mac apps**. It's a thin, injection-safe wrapper over Apple's own `codesign` / `notarytool` / `stapler` (not a reimplementation) — choose a `.app` or `.dmg`, pick a Developer ID identity, and watch sign → verify → notarize → staple stream in a live log. You can also **create the keychain notary profile in-app** — Notarize → Keychain profile → **Set up…** runs `notarytool store-credentials` from an App Store Connect API key, so you never need Terminal for it (API-key only; the key stays in its `.p8`). Before submitting to the notary it runs a **pre-flight** (mounting a `.dmg` to inspect its contents) and stops — with a "Notarize anyway" override — if anything inside isn't signed/hardened, so you don't burn a multi-minute round-trip on a doomed upload.
 >
 > If the pre-flight finds unsigned `.app` bundles inside your `.dmg`, a **"Sign contents & continue"** button appears alongside "Notarize anyway". Clicking it signs the problematic apps inside the image — with Hardened Runtime and deep signing, using the Developer ID identity already chosen, and applying your Entitlements `.plist` if you've set one (recommended for JIT-enabled apps such as .NET apps that need `allow-jit`) — re-seals the DMG in place, and then proceeds automatically to sign, notarize, and staple. Only the apps that failed the pre-flight checks are re-signed; already-valid signatures are left untouched.
 
@@ -119,3 +121,7 @@ osslsigncode verify -CAfile test.pem -ignore-timestamp some.dll   # full pass
 ## Support
 
 If MacSign saves you a Windows VM, you can support development here: https://www.buymeacoffee.com/thefinder808
+
+## License & project
+
+Licensed under the [Apache-2.0 License](LICENSE). Release notes live in the [CHANGELOG](CHANGELOG.md). Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security issue, follow the [security policy](.github/SECURITY.md).
