@@ -31,11 +31,20 @@ public sealed class UpdateService
     /// of trust. Team IDs are stable across cert renewals, so this survives cert rotation.</summary>
     public const string ExpectedTeamId = "Q6LRJQSA42";
 
+    /// <summary>Product identity the downloaded bundle must match — bound in addition to the
+    /// Team ID so a different (even validly-signed) app by the same Developer ID can't install.
+    /// The bundle id + executable come from the signed CodeDirectory; the .app dir name and
+    /// asset name are structural. All four are checked.</summary>
+    public const string ExpectedBundleId = "com.thefinder808.MacSign";
+    public const string ExpectedExecutable = "MacSign";
+    public const string ExpectedAppName = "MacSign.app";
+
     private const string Owner = "thefinder808", Repo = "macsign";
 
-    private const string Hdiutil = "/usr/bin/hdiutil";
-    private const string Ditto   = "/usr/bin/ditto";
-    private const string Xcrun   = "/usr/bin/xcrun";
+    private const string Hdiutil    = "/usr/bin/hdiutil";
+    private const string Ditto      = "/usr/bin/ditto";
+    private const string Xcrun      = "/usr/bin/xcrun";
+    private const string PlistBuddy = "/usr/libexec/PlistBuddy";
 
     private readonly HttpClient _http;
     private readonly AppleSigningService _apple;
@@ -68,11 +77,13 @@ public sealed class UpdateService
         return Version.TryParse(core, out var v) ? v : null;
     }
 
-    /// <summary>Pick the asset name matching the host architecture, or null.</summary>
-    public static string? AssetNameFor(IEnumerable<string> assetNames)
+    /// <summary>Pick the asset whose name EXACTLY matches our release naming for this version
+    /// and host architecture (<c>MacSign-&lt;version&gt;-osx-&lt;arch&gt;.dmg</c>), or null. An exact
+    /// match — not just an arch suffix — so a stray/misnamed asset can't be selected.</summary>
+    public static string? AssetNameFor(IEnumerable<string> assetNames, string version)
     {
-        var suffix = ArchSuffix() + ".dmg";
-        return assetNames.FirstOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+        var expected = $"MacSign-{version}-{ArchSuffix()}.dmg";
+        return assetNames.FirstOrDefault(n => string.Equals(n, expected, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string ArchSuffix() => RuntimeInformation.OSArchitecture switch
@@ -104,16 +115,17 @@ public sealed class UpdateService
             if (!IsNewer(tag, AppInfo.Version))
                 return new UpdateCheckResult(false, null, null);
 
+            var version = tag.TrimStart('v', 'V');
             var names = root.GetProperty("assets").EnumerateArray()
                 .Select(a => a.GetProperty("name").GetString() ?? "").ToList();
-            var assetName = AssetNameFor(names);
+            var assetName = AssetNameFor(names, version);
             if (assetName is null)
                 return new UpdateCheckResult(false, null, "No matching .dmg asset for this Mac's architecture.");
 
             var asset = root.GetProperty("assets").EnumerateArray()
                 .First(a => a.GetProperty("name").GetString() == assetName);
             var info = new UpdateInfo(
-                Version: tag.TrimStart('v', 'V'),
+                Version: version,
                 ReleaseNotes: root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "",
                 ReleaseUrl: root.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "",
                 AssetName: assetName,
@@ -136,7 +148,7 @@ public sealed class UpdateService
     /// Developer ID code, so it proves both signing and notarization of the app; the app
     /// itself is not stapled (the ticket lives on the .dmg), so we require the .dmg's
     /// staple separately rather than the app's. Always detaches.</summary>
-    public async Task<bool> VerifyAsync(string dmgPath, CancellationToken ct)
+    public async Task<bool> VerifyAsync(string dmgPath, string expectedVersion, CancellationToken ct)
     {
         if (AppleSigningService.Classify(dmgPath) != AppleTargetKind.Dmg) return false;
 
@@ -149,25 +161,47 @@ public sealed class UpdateService
             if (!att.Success) return false;
             attached = true;
 
-            var app = Directory.Exists(mount)
-                ? Directory.EnumerateDirectories(mount, "*.app").FirstOrDefault()
-                : null;
-            if (app is null) return false;
+            // Require EXACTLY ONE top-level .app named MacSign.app — no "first of many"
+            // ambiguity, and the same invariant the install step enforces (so verify and
+            // install can't pick different bundles).
+            var apps = Directory.Exists(mount)
+                ? Directory.EnumerateDirectories(mount, "*.app").ToList()
+                : new List<string>();
+            if (apps.Count != 1) return false;
+            var app = apps[0];
+            if (!string.Equals(Path.GetFileName(app), ExpectedAppName, StringComparison.Ordinal)) return false;
 
             var r = await _apple.InspectAsync(app, ct);
             bool appTrusted = r.Valid
                 && string.Equals(r.TeamId, ExpectedTeamId, StringComparison.Ordinal)
-                && r.GatekeeperAccepted;   // notarized Developer ID
+                && r.GatekeeperAccepted                                                   // notarized Developer ID
+                && string.Equals(r.Identifier, ExpectedBundleId, StringComparison.Ordinal) // signed bundle id
+                && string.Equals(Path.GetFileName(r.Executable ?? ""), ExpectedExecutable, StringComparison.Ordinal);
+
+            // Bind to the advertised version: CFBundleShortVersionString must equal it. The
+            // Info.plist is sealed by the (verified) signature, so this is tamper-evident.
+            bool versionOk = string.Equals(
+                await ReadShortVersionAsync(app, ct), expectedVersion, StringComparison.Ordinal);
 
             // Defense in depth: the downloaded .dmg must itself be a stapled release.
             var staple = await _runner.RunAsync(Xcrun, new[] { "stapler", "validate", dmgPath }, null, ct);
-            return appTrusted && staple.Success;
+            return appTrusted && versionOk && staple.Success;
         }
         finally
         {
             if (attached) await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
             try { if (Directory.Exists(mount)) Directory.Delete(mount); } catch { /* best-effort */ }
         }
+    }
+
+    /// <summary>Read the bundle's <c>CFBundleShortVersionString</c> from its (signature-sealed)
+    /// Info.plist via PlistBuddy. Returns null if it can't be read.</summary>
+    private async Task<string?> ReadShortVersionAsync(string appPath, CancellationToken ct)
+    {
+        var plist = Path.Combine(appPath, "Contents", "Info.plist");
+        var r = await _runner.RunAsync(PlistBuddy,
+            new[] { "-c", "Print :CFBundleShortVersionString", plist }, null, ct);
+        return r.Success ? r.StdOut.Trim() : null;
     }
 
     /// <summary>Download the asset to a temp .dmg, reporting 0..1 progress when the
@@ -244,8 +278,13 @@ public sealed class UpdateService
             if (!att.Success) return AppleOpResult.Fail("Mount failed", FirstLine(att.StdErr + att.StdOut), att.StdErr);
             attached = true;
 
-            var src = Directory.EnumerateDirectories(mount, "*.app").FirstOrDefault();
-            if (src is null) return AppleOpResult.Fail("Bad image", "No MacSign.app inside the disk image.", "");
+            // Same invariant as VerifyAsync: exactly one top-level MacSign.app — so the bundle
+            // we install is the one that was verified, never a different "first of many".
+            var apps = Directory.EnumerateDirectories(mount, "*.app").ToList();
+            var src = apps.Count == 1
+                && string.Equals(Path.GetFileName(apps[0]), ExpectedAppName, StringComparison.Ordinal)
+                ? apps[0] : null;
+            if (src is null) return AppleOpResult.Fail("Bad image", "The disk image must contain exactly one MacSign.app.", "");
 
             Directory.CreateDirectory(staged);
             var stagedApp = Path.Combine(staged, Path.GetFileName(src));

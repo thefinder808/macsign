@@ -46,6 +46,25 @@ jobs:
         id: ver
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      # A tag-driven official release must be signed + notarized. If any signing/notary
+      # secret is missing (renamed, unset, or not scoped to the `release` environment),
+      # fail HERE rather than silently publishing an unsigned DMG. Unsigned builds remain
+      # an explicit LOCAL path (run build-macos.sh without these vars); they are never the
+      # behavior of this job. Secrets arrive via env: (quoted vars), not interpolated run:.
+      - name: Require release signing secrets
+        env:
+          CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+        run: |
+          : "${SIGN_IDENTITY:?missing secret APPLE_SIGN_IDENTITY}"
+          : "${NOTARY_KEY_ID:?missing secret APPLE_API_KEY_ID}"
+          : "${NOTARY_ISSUER:?missing secret APPLE_API_ISSUER}"
+          : "${CERT_P12_BASE64:?missing secret APPLE_CERT_P12_BASE64}"
+          : "${CERT_PASSWORD:?missing secret APPLE_CERT_PASSWORD}"
+          : "${API_KEY_P8_BASE64:?missing secret APPLE_API_KEY_P8_BASE64}"
+          echo "All release signing secrets are present."
+
       - name: Import Developer ID certificate
         if: env.SIGN_IDENTITY != ''
         env:
@@ -77,6 +96,38 @@ jobs:
         run: |
           RID=osx-arm64 ./build-macos.sh
           RID=osx-x64   ./build-macos.sh
+
+      # Gate the upload on proof each DMG is what we intend to ship: the inner app is
+      # Developer-ID signed by our Team ID + Gatekeeper-accepted (notarized), and the .dmg
+      # carries a stapled ticket. Mirrors the runtime updater trust gate so CI rejects
+      # exactly what the in-app updater would. Any failure ⇒ the job fails and nothing
+      # uploads. All paths come from our own build output (dist/*.dmg) — no external input.
+      - name: Verify signed + notarized DMGs before upload
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(dist/*.dmg)
+          [ ${#dmgs[@]} -gt 0 ] || { echo "::error::no DMGs were produced"; exit 1; }
+          for dmg in "${dmgs[@]}"; do
+            echo "== verifying $dmg =="
+            xcrun stapler validate "$dmg"
+            mnt="$(mktemp -d)"
+            hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg"
+            ok=1
+            app="$(/usr/bin/find "$mnt" -maxdepth 1 -name '*.app' -print -quit || true)"
+            if [ -z "$app" ]; then
+              echo "::error::no .app inside $dmg"; ok=0
+            else
+              codesign --verify --deep --strict --verbose=2 "$app" || ok=0
+              team="$(codesign -dvvv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p' || true)"
+              [ "$team" = "Q6LRJQSA42" ] || { echo "::error::wrong Team ID '$team' in $dmg"; ok=0; }
+              spctl --assess --type exec -vv "$app" || ok=0
+            fi
+            hdiutil detach "$mnt" >/dev/null 2>&1 || true
+            rmdir "$mnt" 2>/dev/null || true
+            [ "$ok" = 1 ] || { echo "::error::$dmg failed verification"; exit 1; }
+          done
+          echo "All release DMGs are Developer-ID signed (Q6LRJQSA42) + notarized."
 
       - name: Publish GitHub Release
         env:

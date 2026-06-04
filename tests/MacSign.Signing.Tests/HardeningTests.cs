@@ -54,6 +54,41 @@ public class HardeningTests
     }
 
     [Fact]
+    public void Parse_rejects_a_pe_whose_optional_header_size_excludes_the_cert_directory()
+    {
+        var bytes = FixturePe.UnsignedBytes();
+        int pe = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x3C, 4));
+        // Shrink the COFF SizeOfOptionalHeader so the declared optional header ends long
+        // before the Security data-directory entry MacSign would write — a malformed image
+        // that must be rejected rather than mutated outside its declared optional header.
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(pe + 20, 2), 2);
+
+        Assert.Throws<InvalidDataException>(() => PeLayout.Parse(bytes));
+    }
+
+    [Fact]
+    public async Task Signing_a_pe_with_a_too_small_optional_header_fails_and_leaves_the_file_unchanged()
+    {
+        using var tmp = new TempDir();
+        var pfx = TestCerts.CreatePfx(tmp.Path);
+
+        var bytes = FixturePe.UnsignedBytes();
+        int pe = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x3C, 4));
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(pe + 20, 2), 2); // SizeOfOptionalHeader
+
+        var file = Path.Combine(tmp.Path, "tooSmallOptHeader.dll");
+        await File.WriteAllBytesAsync(file, bytes);
+        var before = await File.ReadAllBytesAsync(file);
+
+        var options = new SigningOptions { CertMode = CertMode.Pfx, PfxPath = pfx, Secret = TestCerts.Password };
+        var signer = AuthenticodeSigner.TryCreate(options, out _)!;
+        var result = await signer.SignAsync(tmp.Path, file, options);
+
+        Assert.False(result.Success);                                  // rejected cleanly
+        Assert.Equal(before, await File.ReadAllBytesAsync(file));      // hostile input untouched
+    }
+
+    [Fact]
     public async Task Signing_a_pe_with_a_malformed_trailing_cert_table_strips_it_and_verifies()
     {
         using var tmp = new TempDir();
