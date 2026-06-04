@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-06-04
+
+First stable release. MacSign is feature-complete and open-source: a fully-managed
+.NET 10 Authenticode engine (PE / PowerShell / MSI; PFX / PKCS#11 / Azure Trusted
+Signing; RFC3161 timestamping; verify + remove) with a native macOS GUI, plus signing,
+notarizing, and stapling of Mac `.app`/`.dmg` artifacts. This release adds the
+open-source licensing and project files and removes personal defaults from the UI.
+
 ### Added
 - `LICENSE` (Apache-2.0) + `NOTICE`, and community-health files: `SECURITY.md`,
   `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue/PR templates, and `FUNDING.yml`.
@@ -89,7 +97,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Native macOS GUI (Avalonia): Sign / Verify / Profiles / Activity.
 - Tag-driven release CI that builds, signs, and notarizes the `arm64` + `x64` DMGs.
 
-[Unreleased]: https://github.com/thefinder808/macsign/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/thefinder808/macsign/releases/tag/v1.0.0
 [0.6.0]: https://github.com/thefinder808/macsign/releases/tag/v0.6.0
 [0.5.0]: https://github.com/thefinder808/macsign/releases/tag/v0.5.0
 [0.4.0]: https://github.com/thefinder808/macsign/releases/tag/v0.4.0
