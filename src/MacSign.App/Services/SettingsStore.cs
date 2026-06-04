@@ -28,7 +28,12 @@ public sealed class SettingsStore
             if (File.Exists(FilePath))
                 return Normalize(JsonSerializer.Deserialize<AppData>(File.ReadAllText(FilePath)) ?? new AppData());
         }
-        catch { /* corrupt/unreadable → start fresh */ }
+        catch
+        {
+            // Corrupt/unreadable → start fresh, but preserve the file for recovery instead of
+            // silently discarding the user's profiles/activity/preferences.
+            try { File.Move(FilePath, FilePath + ".bak", overwrite: true); } catch { /* best-effort */ }
+        }
         return new AppData();
     }
 
@@ -49,7 +54,26 @@ public sealed class SettingsStore
         try
         {
             Directory.CreateDirectory(_dir);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(data, Options));
+            var json = JsonSerializer.Serialize(data, Options);
+
+            // Write to a sibling temp then atomically rename, so a crash/full-disk mid-write
+            // can't truncate settings.json (a torn file fails to parse and Load would reset it).
+            var temp = FilePath + ".tmp";
+            try
+            {
+                using (var fs = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+                    fs.Write(bytes, 0, bytes.Length);
+                    fs.Flush(flushToDisk: true); // durability: bytes land before the rename commits
+                }
+                File.Move(temp, FilePath, overwrite: true); // same volume → atomic rename
+            }
+            finally
+            {
+                if (File.Exists(temp))
+                    try { File.Delete(temp); } catch { /* best-effort */ }
+            }
         }
         catch { /* best-effort */ }
     }

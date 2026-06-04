@@ -12,9 +12,11 @@ internal static class SignatureInspector
         {
             var cms = new SignedCms();
             cms.Decode(pkcs7Der);
-            return cms.SignerInfos.Count > 0
-                ? cms.SignerInfos[0].Certificate?.Subject
-                : null;
+            if (cms.SignerInfos.Count == 0)
+                return null;
+            // The cert wraps a native handle; dispose it instead of leaking to finalization.
+            using var cert = cms.SignerInfos[0].Certificate;
+            return cert?.Subject;
         }
         catch
         {
