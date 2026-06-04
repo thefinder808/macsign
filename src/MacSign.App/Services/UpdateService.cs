@@ -35,6 +35,7 @@ public sealed class UpdateService
 
     private const string Hdiutil = "/usr/bin/hdiutil";
     private const string Ditto   = "/usr/bin/ditto";
+    private const string Xcrun   = "/usr/bin/xcrun";
 
     private readonly HttpClient _http;
     private readonly AppleSigningService _apple;
@@ -123,19 +124,50 @@ public sealed class UpdateService
         catch (Exception ex) { return new UpdateCheckResult(false, null, ex.Message); }
     }
 
-    /// <summary>The trust gate. A DMG installs only if it is codesigned by our
-    /// Developer ID Team ID AND notarized (stapled + Gatekeeper-accepted). Any failure
-    /// ⇒ false ⇒ the caller never mounts/installs it. Reuses AppleSigningService.
-    /// Checks the .dmg's own signature/notarization (the release image is
-    /// Developer-ID-signed + notarized by CI); the install step extracts the app
-    /// from that trusted image.</summary>
+    /// <summary>The trust gate. A download installs only if the <b>.app inside</b> the
+    /// DMG is Developer-ID signed by our Team ID AND notarized, and the .dmg itself
+    /// carries a stapled notarization ticket. Any failure ⇒ false ⇒ the caller never
+    /// installs it.
+    ///
+    /// We verify the inner app, not the container: our release DMGs are notarized +
+    /// stapled but the <i>image</i> is not codesigned (build-macos.sh codesigns the app
+    /// and notarizes the .dmg), so inspecting the container's own signature rejects every
+    /// legitimate release. <c>spctl --assess --type exec</c> accepts only notarized
+    /// Developer ID code, so it proves both signing and notarization of the app; the app
+    /// itself is not stapled (the ticket lives on the .dmg), so we require the .dmg's
+    /// staple separately rather than the app's. Always detaches.</summary>
     public async Task<bool> VerifyAsync(string dmgPath, CancellationToken ct)
     {
-        var r = await _apple.InspectAsync(dmgPath, ct);
-        return r.Valid
-            && string.Equals(r.TeamId, ExpectedTeamId, StringComparison.Ordinal)
-            && r.Stapled
-            && r.GatekeeperAccepted;
+        if (AppleSigningService.Classify(dmgPath) != AppleTargetKind.Dmg) return false;
+
+        var mount = Path.Combine(Path.GetTempPath(), "macsign-verify-" + Guid.NewGuid().ToString("N"));
+        bool attached = false;
+        try
+        {
+            var att = await _runner.RunAsync(Hdiutil,
+                new[] { "attach", "-nobrowse", "-readonly", "-mountpoint", mount, dmgPath }, null, ct);
+            if (!att.Success) return false;
+            attached = true;
+
+            var app = Directory.Exists(mount)
+                ? Directory.EnumerateDirectories(mount, "*.app").FirstOrDefault()
+                : null;
+            if (app is null) return false;
+
+            var r = await _apple.InspectAsync(app, ct);
+            bool appTrusted = r.Valid
+                && string.Equals(r.TeamId, ExpectedTeamId, StringComparison.Ordinal)
+                && r.GatekeeperAccepted;   // notarized Developer ID
+
+            // Defense in depth: the downloaded .dmg must itself be a stapled release.
+            var staple = await _runner.RunAsync(Xcrun, new[] { "stapler", "validate", dmgPath }, null, ct);
+            return appTrusted && staple.Success;
+        }
+        finally
+        {
+            if (attached) await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
+            try { if (Directory.Exists(mount)) Directory.Delete(mount); } catch { /* best-effort */ }
+        }
     }
 
     /// <summary>Download the asset to a temp .dmg, reporting 0..1 progress when the
