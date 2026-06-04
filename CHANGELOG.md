@@ -6,6 +6,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.4] — 2026-06-04
+
+### Fixed
+- **Settings are now saved atomically.** `settings.json` is written to a temp file and
+  atomically renamed into place, so a crash or full disk mid-write can no longer truncate
+  it. If an existing settings file is unreadable, it's preserved as `settings.json.bak`
+  rather than silently discarded — your profiles, activity, and preferences stay recoverable.
+- **The updater no longer leaves abandoned download disk images behind.** A download whose
+  verify/install didn't complete is cleaned out of the temp folder before the next attempt,
+  so failed update retries can't pile up.
+
+### Changed
+- Internal resource-hygiene: certificate handles obtained while verifying a signature, and
+  the PKCS#11 signer's leaf certificate, are now disposed promptly instead of waiting on
+  finalization. No user-visible behavior change.
+
 ## [1.1.3] — 2026-06-04
 
 ### Fixed
@@ -140,7 +156,8 @@ open-source licensing and project files and removes personal defaults from the U
 - Native macOS GUI (Avalonia): Sign / Verify / Profiles / Activity.
 - Tag-driven release CI that builds, signs, and notarizes the `arm64` + `x64` DMGs.
 
-[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.1.4...HEAD
+[1.1.4]: https://github.com/thefinder808/macsign/releases/tag/v1.1.4
 [1.1.0]: https://github.com/thefinder808/macsign/releases/tag/v1.1.0
 [1.0.0]: https://github.com/thefinder808/macsign/releases/tag/v1.0.0
 [0.6.0]: https://github.com/thefinder808/macsign/releases/tag/v0.6.0
