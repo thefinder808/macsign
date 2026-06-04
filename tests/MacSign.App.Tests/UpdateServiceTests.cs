@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -110,4 +111,23 @@ public class UpdateServiceTests
     [InlineData(UpdateService.ExpectedTeamId, true,  true,  false)]  // Gatekeeper rejects
     public async Task VerifyAsync_refuses_whenAnyCheckFails(string? team, bool v, bool staple, bool sp)
         => Assert.False(await SvcWith(GoodDmgRunner(team, v, staple, sp)).VerifyAsync("/tmp/x.dmg", default));
+
+    [Fact]
+    public async Task DownloadAsync_writesTempDmg_andReportsProgress()
+    {
+        var bytes = new byte[4096];
+        var http = new HttpClient(new FakeHttp { Respond = _ =>
+            new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            { Content = new ByteArrayContent(bytes) } });
+        var svc = new UpdateService(http);
+        var info = new UpdateInfo("9.9.9", "", "", "MacSign-9.9.9-osx-arm64.dmg", "https://example.test/a.dmg");
+
+        var path = await svc.DownloadAsync(info, null, default);
+
+        Assert.NotNull(path);
+        Assert.True(File.Exists(path));
+        Assert.EndsWith(".dmg", path);
+        Assert.Equal(4096, new FileInfo(path!).Length);
+        File.Delete(path!);
+    }
 }

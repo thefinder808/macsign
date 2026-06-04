@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -131,5 +132,32 @@ public sealed class UpdateService
             && string.Equals(r.TeamId, ExpectedTeamId, StringComparison.Ordinal)
             && r.Stapled
             && r.GatekeeperAccepted;
+    }
+
+    /// <summary>Download the asset to a temp .dmg, reporting 0..1 progress when the
+    /// server sends a Content-Length. Returns the path, or null on failure.</summary>
+    public async Task<string?> DownloadAsync(UpdateInfo info, IProgress<double>? progress, CancellationToken ct)
+    {
+        try
+        {
+            var dest = Path.Combine(Path.GetTempPath(),
+                $"macsign-update-{Guid.NewGuid():N}-{info.AssetName}");
+            using var resp = await _http.GetAsync(info.AssetUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+
+            var total = resp.Content.Headers.ContentLength;
+            await using var src = await resp.Content.ReadAsStreamAsync(ct);
+            await using var dst = File.Create(dest);
+            var buffer = new byte[81920];
+            long read = 0; int n;
+            while ((n = await src.ReadAsync(buffer, ct)) > 0)
+            {
+                await dst.WriteAsync(buffer.AsMemory(0, n), ct);
+                read += n;
+                if (total is > 0) progress?.Report((double)read / total.Value);
+            }
+            return dest;
+        }
+        catch { return null; }
     }
 }
