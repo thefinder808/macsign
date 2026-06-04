@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-06-04
+
+### Fixed
+- **Auto-updater rejected every legitimate release.** The trust gate verified the
+  downloaded `.dmg` container's own code signature, but release DMGs are notarized and
+  stapled while the image itself is not codesigned (the `.app` inside is). The updater
+  now verifies the notarized, Developer-ID-signed **app inside** the DMG (plus the
+  DMG's stapled ticket), so one-click update works. It still fails safe — anything that
+  doesn't verify is never installed.
+- **Preferences "Updates" card was clipped at the bottom.** The Preferences screen used
+  `ScrollViewer` padding, whose trailing edge falls outside the scrollable area, so the
+  last card couldn't be fully scrolled into view. Fixed by moving the spacing inside the
+  scroll content.
+
 ## [1.1.0] — 2026-06-04
 
 ### Added
