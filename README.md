@@ -6,6 +6,10 @@
 
 Native macOS Authenticode signing for Windows artifacts — **no Windows machine, no `osslsigncode`, no `jsign`, no OpenSSL/JVM.** A fully managed .NET 10 engine.
 
+<p align="center">
+  <img src="docs/screenshots/hero.png" width="860" alt="MacSign — the Sign screen: a file list with signed/unsigned status next to a credential and options inspector">
+</p>
+
 > **Status: all backends shipped.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies), **PowerShell scripts** (`.ps1`), and **MSI installers** (`.msi`), using a **local PFX certificate**, a **PKCS#11 token / HSM**, or **Azure Trusted Signing** (a.k.a. Azure Artifact Signing) — for the token and cloud paths the key never leaves the device/cloud — with optional **RFC3161 timestamping**, and **verifies** signatures (integrity + chain report). The Azure path is proven offline by a contract test (delegated path == the signtool-proven in-proc path) and has been signed + verified end-to-end against a live Trusted Signing account; re-verify it anytime with `scripts/verify-azure.sh` (uses your `az login`, no stored credentials). MacSign was originally conceived as a thin GUI over the `osslsigncode`/`jsign` CLIs; it was reimplemented as a fully-managed native engine instead.
 
 ## Why
@@ -70,6 +74,14 @@ dotnet run --project src/MacSign.Cli -- remove some.dll
 ## Native macOS app (GUI)
 
 A native macOS GUI (`src/MacSign.App`, .NET 10 + Avalonia) consumes the same engine **in-process** — no shelling out. Six screens: **Sign** (drag-drop files + a credential/options inspector, ⌘S to sign), **Verify** (a Windows artifact's integrity vs. chain-trust report, *or* a Mac `.app`/`.dmg`'s `codesign` signature — signer, Team ID, Hardened Runtime, notarization — and **Remove signature** for a signed Authenticode file, with a two-step confirm), **Mac apps** (sign, notarize & staple a `.app` bundle or `.dmg` with your Developer ID), **Profiles** (reusable presets — no secrets stored), **Activity** (run history), and **Preferences** (⌘, — theme override, signing defaults, and data housekeeping). The sidebar groups these by domain (**Windows** · **macOS** · **Library** · **App**), and a native menu bar (File · Edit · View · Window · Help, plus an About box) rounds out the shell. Full light + dark, following the macOS appearance.
+
+<table>
+  <tr>
+    <td width="33%" valign="top"><a href="docs/screenshots/verify.png"><img src="docs/screenshots/verify.png" alt="Verify screen showing a valid signature"></a><br><sub><b>Verify</b> — integrity vs. chain trust, every signer, a validated timestamp</sub></td>
+    <td width="33%" valign="top"><a href="docs/screenshots/mac-signing.png"><img src="docs/screenshots/mac-signing.png" alt="Mac signing screen"></a><br><sub><b>Sign Mac apps</b> — sign · notarize · staple a <code>.app</code>/<code>.dmg</code></sub></td>
+    <td width="33%" valign="top"><a href="docs/screenshots/preferences.png"><img src="docs/screenshots/preferences.png" alt="Preferences screen"></a><br><sub><b>Preferences</b> — theme, signing defaults, data housekeeping</sub></td>
+  </tr>
+</table>
 
 > **Mac apps** is the inverse of the engine's day job: rather than signing Windows artifacts, it signs **your Mac apps**. It's a thin, injection-safe wrapper over Apple's own `codesign` / `notarytool` / `stapler` (not a reimplementation) — choose a `.app` or `.dmg`, pick a Developer ID identity, and watch sign → verify → notarize → staple stream in a live log. You can also **create the keychain notary profile in-app** — Notarize → Keychain profile → **Set up…** runs `notarytool store-credentials` from an App Store Connect API key, so you never need Terminal for it (API-key only; the key stays in its `.p8`). Before submitting to the notary it runs a **pre-flight** (mounting a `.dmg` to inspect its contents) and stops — with a "Notarize anyway" override — if anything inside isn't signed/hardened, so you don't burn a multi-minute round-trip on a doomed upload.
 >
