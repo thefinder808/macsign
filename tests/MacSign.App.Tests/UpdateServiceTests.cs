@@ -178,4 +178,18 @@ public class UpdateServiceTests
         Assert.False(res.Success);
         Assert.Contains("Applications", res.Detail);   // the "drag to Applications" fallback message
     }
+
+    [Fact]
+    public void BuildSwapScript_positionalArgs_crashSafe_noInterpolatedPaths()
+    {
+        var s = UpdateService.BuildSwapScript(4242);
+        Assert.Contains("kill -0 4242", s);
+        Assert.Contains("ditto \"$2\" \"$1.new\"", s);
+        Assert.Contains("mv \"$1\" \"$1.old\"", s);        // rename old aside (crash-safe)
+        Assert.Contains("mv \"$1.new\" \"$1\"", s);        // then move new in
+        Assert.Contains("open \"$1\"", s);
+        Assert.Contains("rm -f \"$0\"", s);                // self-delete
+        Assert.DoesNotContain("/Applications", s);          // paths are NOT interpolated
+        Assert.DoesNotContain("/tmp", s);
+    }
 }

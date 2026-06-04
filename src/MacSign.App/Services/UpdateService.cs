@@ -203,7 +203,8 @@ public sealed class UpdateService
         var stamp = Guid.NewGuid().ToString("N")[..8];
         var mount = Path.Combine(Path.GetTempPath(), $"macsign-upd-mnt-{stamp}");
         var staged = Path.Combine(Path.GetTempPath(), $"macsign-upd-app-{stamp}");
-        bool attached = false;
+        var script = Path.Combine(Path.GetTempPath(), $"macsign-upd-{stamp}.sh");
+        bool attached = false, launched = false;
         try
         {
             var att = await _runner.RunAsync(Hdiutil,
@@ -219,36 +220,53 @@ public sealed class UpdateService
             var dit = await _runner.RunAsync(Ditto, new[] { src, stagedApp }, null, ct);
             if (!dit.Success) return AppleOpResult.Fail("Copy failed", FirstLine(dit.StdErr), dit.StdErr);
 
-            await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
-            attached = false;
+            var det = await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
+            attached = !det.Success;   // if detach failed, the finally retries
 
-            // Detached helper: wait for our PID to exit, swap, clean up, relaunch.
-            var pid = Environment.ProcessId;
-            var script = Path.Combine(Path.GetTempPath(), $"macsign-upd-{stamp}.sh");
-            var newSide = installedAppPath + ".new";
-            var sb = new StringBuilder();
-            sb.AppendLine("#!/bin/sh");
-            sb.AppendLine($"while kill -0 {pid} 2>/dev/null; do sleep 0.2; done");
-            sb.AppendLine($"/bin/rm -rf \"{newSide}\"");
-            sb.AppendLine($"/usr/bin/ditto \"{stagedApp}\" \"{newSide}\" || exit 1");
-            sb.AppendLine($"/bin/rm -rf \"{installedAppPath}\"");
-            sb.AppendLine($"/bin/mv \"{newSide}\" \"{installedAppPath}\"");
-            sb.AppendLine($"/bin/rm -rf \"{staged}\" \"{dmgPath}\"");
-            sb.AppendLine($"/usr/bin/open \"{installedAppPath}\"");
-            sb.AppendLine("/bin/rm -f \"$0\"");
-            await File.WriteAllTextAsync(script, sb.ToString(), ct);
+            await File.WriteAllTextAsync(script, BuildSwapScript(Environment.ProcessId), ct);
 
-            // Fire-and-forget detached — deliberately NOT through ProcessRunner (which
-            // kills its tree on exit); this must outlive us. It reparents to launchd.
-            var psi = new System.Diagnostics.ProcessStartInfo("/bin/sh", $"\"{script}\"")
-            { UseShellExecute = false };
+            // Fire-and-forget detached — deliberately NOT through ProcessRunner (which kills
+            // its tree on exit); this must outlive us. ArgumentList shell-escapes each path,
+            // so no path can inject shell. It reparents to launchd when we quit.
+            var psi = new System.Diagnostics.ProcessStartInfo("/bin/sh") { UseShellExecute = false };
+            psi.ArgumentList.Add(script);           // $0 (self-deletes)
+            psi.ArgumentList.Add(installedAppPath); // $1
+            psi.ArgumentList.Add(stagedApp);        // $2
+            psi.ArgumentList.Add(staged);           // $3
+            psi.ArgumentList.Add(dmgPath);          // $4
             System.Diagnostics.Process.Start(psi);
+            launched = true;
             return AppleOpResult.Ok("Installing", "MacSign will relaunch on the new version.", "");
         }
         finally
         {
             if (attached) await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
+            if (!launched)
+            {
+                try { if (Directory.Exists(staged)) Directory.Delete(staged, true); } catch { /* best-effort */ }
+                try { if (File.Exists(script)) File.Delete(script); } catch { /* best-effort */ }
+                try { if (File.Exists(dmgPath)) File.Delete(dmgPath); } catch { /* best-effort */ }
+            }
         }
+    }
+
+    /// <summary>The detached swap+relaunch script. Paths are passed as positional args
+    /// ($1=installed .app, $2=staged .app, $3=staged dir, $4=downloaded .dmg) so NOTHING
+    /// is interpolated into the shell — only the integer pid is. Crash-safe: the old
+    /// bundle is renamed aside before the new one moves in, with rollback on failure.</summary>
+    public static string BuildSwapScript(int pid)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("#!/bin/sh");
+        sb.AppendLine($"while kill -0 {pid} 2>/dev/null; do sleep 0.2; done");
+        sb.AppendLine("/bin/rm -rf \"$1.new\" \"$1.old\"");
+        sb.AppendLine("/usr/bin/ditto \"$2\" \"$1.new\" || exit 1");
+        sb.AppendLine("if [ -e \"$1\" ]; then /bin/mv \"$1\" \"$1.old\"; fi");
+        sb.AppendLine("if /bin/mv \"$1.new\" \"$1\"; then /bin/rm -rf \"$1.old\"; else [ -e \"$1.old\" ] && /bin/mv \"$1.old\" \"$1\"; exit 1; fi");
+        sb.AppendLine("/bin/rm -rf \"$3\" \"$4\"");
+        sb.AppendLine("/usr/bin/open \"$1\"");
+        sb.AppendLine("/bin/rm -f \"$0\"");
+        return sb.ToString();
     }
 
     private static string FirstLine(string s) => (s ?? "").Split('\n').FirstOrDefault(l => l.Trim().Length > 0)?.Trim() ?? "";
