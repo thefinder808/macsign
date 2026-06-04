@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MacSign.App.Services;
 using MacSign.Signing;
+using MacSign.Signing.Verification;
 
 namespace MacSign.App.ViewModels;
 
@@ -21,7 +22,7 @@ namespace MacSign.App.ViewModels;
 /// </summary>
 public partial class SignViewModel : ObservableObject
 {
-    private readonly EngineService _engine = new();
+    private readonly EngineService _engine;
     private CancellationTokenSource? _cts;
 
     public ObservableCollection<FileItemViewModel> Files { get; } = new();
@@ -30,8 +31,11 @@ public partial class SignViewModel : ObservableObject
     /// the toolbar subtitle and the sidebar badge/credential card.</summary>
     public event Action? StateChanged;
 
-    public SignViewModel()
+    /// <param name="engine">Injectable for tests (a fake can script sign/verify
+    /// outcomes); production passes none and gets the real engine façade.</param>
+    public SignViewModel(EngineService? engine = null)
     {
+        _engine = engine ?? new EngineService();
         Files.CollectionChanged += OnFilesChanged;
     }
 
@@ -348,7 +352,28 @@ public partial class SignViewModel : ObservableObject
                 result = SignResult.Fail(ex.Message);
             }
 
-            if (result.Success) { file.RunState = FileRunState.Done; ok++; }
+            if (result.Success)
+            {
+                // The success banner claims "verified VALID" — so actually re-verify the file
+                // we just wrote rather than trusting the sign call. A signing bug or write
+                // corruption must NOT be reported as verified. Integrity only (SignatureValid),
+                // independent of chain trust: legitimate self-signed certs are untrusted yet
+                // produce a VALID signature, which is exactly what the banner asserts.
+                VerifyReport vr;
+                try { vr = await Task.Run(() => _engine.Verify(file.Path)); }
+                catch (Exception ex) { vr = VerifyReport.Failed(ex.Message); }
+
+                if (vr.Error is null && vr.IsSigned && vr.SignatureValid)
+                {
+                    file.RunState = FileRunState.Done;
+                    ok++;
+                }
+                else
+                {
+                    file.RunState = FileRunState.None;
+                    firstError ??= vr.Error ?? "signature did not verify after signing";
+                }
+            }
             else { file.RunState = FileRunState.None; firstError ??= result.Error; }
         }
 

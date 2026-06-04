@@ -26,14 +26,14 @@ public class EngineService
         catch { return false; }
     }
 
-    public AuthenticodeSigner? TryCreateSigner(SigningOptions options, out string? error)
+    public virtual AuthenticodeSigner? TryCreateSigner(SigningOptions options, out string? error)
         => AuthenticodeSigner.TryCreate(options, out error);
 
     /// <summary>
     /// Sign exactly one file. With <c>SignAllSignableFiles=false</c> the engine
     /// signs only <paramref name="filePath"/> (CollectTargets → [setupFile]).
     /// </summary>
-    public Task<SignResult> SignOneAsync(AuthenticodeSigner signer, string filePath,
+    public virtual Task<SignResult> SignOneAsync(AuthenticodeSigner signer, string filePath,
         SigningOptions options, IProgress<string>? log, CancellationToken ct)
     {
         var full = Path.GetFullPath(filePath);

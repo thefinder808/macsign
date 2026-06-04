@@ -56,6 +56,16 @@ internal readonly struct PeLayout
         if (certDirEntryOffset + 8 > file.Length)
             throw new InvalidDataException("Optional header has no Certificate Table data directory.");
 
+        // The COFF SizeOfOptionalHeader (the 2 bytes just before the optional header) declares
+        // how far the optional header — which holds CheckSum, NumberOfRvaAndSizes and the data
+        // directories — actually extends. The Security data-directory entry is the furthest
+        // byte we read/write inside it; if a malformed image declares a header too small to
+        // contain that entry, reject it rather than mutate bytes outside the declared header.
+        // (The read at peHeaderOffset+20 is safe: peHeaderOffset+24 <= file.Length above.)
+        ushort sizeOfOptionalHeader = BinaryPrimitives.ReadUInt16LittleEndian(file.Slice(peHeaderOffset + 20, 2));
+        if ((long)certDirEntryOffset + 8 > (long)optHeaderStart + sizeOfOptionalHeader)
+            throw new InvalidDataException("Declared optional-header size does not cover the Certificate Table data directory.");
+
         // NumberOfRvaAndSizes declares how many data directories actually exist; the
         // Security directory (index 4) is present only when the file declares more than 4.
         // Without this check, a PE with fewer directories has section-table bytes read as a

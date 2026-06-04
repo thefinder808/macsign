@@ -23,18 +23,35 @@ public class UpdateServiceTests
     public void IsNewer_compares(string latest, string current, bool expected)
         => Assert.Equal(expected, UpdateService.IsNewer(latest, current));
 
+    private static string HostArch() =>
+        RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+
     [Fact]
     public void AssetFor_picksHostArch()
     {
         var names = new[] { "MacSign-1.1.0-osx-arm64.dmg", "MacSign-1.1.0-osx-x64.dmg" };
-        var want = RuntimeInformation.OSArchitecture == Architecture.Arm64
-            ? "MacSign-1.1.0-osx-arm64.dmg" : "MacSign-1.1.0-osx-x64.dmg";
-        Assert.Equal(want, UpdateService.AssetNameFor(names));
+        Assert.Equal($"MacSign-1.1.0-osx-{HostArch()}.dmg", UpdateService.AssetNameFor(names, "1.1.0"));
     }
 
     [Fact]
     public void AssetFor_noMatch_returnsNull()
-        => Assert.Null(UpdateService.AssetNameFor(new[] { "MacSign-1.1.0-win-x64.zip" }));
+        => Assert.Null(UpdateService.AssetNameFor(new[] { "MacSign-1.1.0-win-x64.zip" }, "1.1.0"));
+
+    [Fact]
+    public void AssetFor_requiresExactName_ignoresStrayAssets()
+    {
+        var names = new[]
+        {
+            $"Evil-osx-{HostArch()}.dmg",                 // wrong product, right arch suffix
+            $"MacSign-9.9.9-osx-{HostArch()}.dmg",        // the only exact match
+            $"MacSign-9.9.8-osx-{HostArch()}.dmg",        // wrong version
+        };
+        Assert.Equal($"MacSign-9.9.9-osx-{HostArch()}.dmg", UpdateService.AssetNameFor(names, "9.9.9"));
+    }
+
+    [Fact]
+    public void AssetFor_wrongVersionInName_returnsNull()
+        => Assert.Null(UpdateService.AssetNameFor(new[] { $"MacSign-9.9.8-osx-{HostArch()}.dmg" }, "9.9.9"));
 
     private const string LatestJson = """
     {
@@ -101,11 +118,19 @@ public class UpdateServiceTests
     /// notarized. Routes by the target path's suffix (.dmg vs .app) so the trust gate
     /// is exercised against the inner app, not the container. This is the exact shape
     /// the old container-only VerifyAsync wrongly rejected.</summary>
+    private const string GoodVersion = "9.9.9";
+
     private static FakeRunner ReleaseShapeRunner(string? innerTeam = UpdateService.ExpectedTeamId,
-        bool innerVerifyOk = true, bool innerSpctlOk = true, bool dmgStapleOk = true)
+        bool innerVerifyOk = true, bool innerSpctlOk = true, bool dmgStapleOk = true,
+        string? innerBundleId = UpdateService.ExpectedBundleId, string innerExe = "MacSign",
+        string plistVersion = GoodVersion, string[]? appDirNames = null)
     {
+        appDirNames ??= new[] { "MacSign.app" };
         var teamLine = innerTeam is null ? "" : $"TeamIdentifier={innerTeam}\n";
-        var appInfo = $"Authority=Developer ID Application: Test\n{teamLine}flags=0x10000(runtime)\n";
+        var idLine = innerBundleId is null ? "" : $"Identifier={innerBundleId}\n";
+        // codesign -d also emits the signed CodeDirectory Identifier + Executable lines.
+        var appInfo = $"Executable=/Volumes/MacSign/MacSign.app/Contents/MacOS/{innerExe}\n" +
+                      $"Authority=Developer ID Application: Test\n{idLine}{teamLine}flags=0x10000(runtime)\n";
         return new FakeRunner { Respond = (file, args) =>
         {
             var a = args.ToList();
@@ -115,9 +140,13 @@ public class UpdateServiceTests
 
             if (file.EndsWith("hdiutil") && a.Contains("attach"))
             {
-                Directory.CreateDirectory(Path.Combine(a[a.IndexOf("-mountpoint") + 1], "MacSign.app"));
+                var mp = a[a.IndexOf("-mountpoint") + 1];
+                foreach (var n in appDirNames) Directory.CreateDirectory(Path.Combine(mp, n));
                 return new ProcessResult(0, "", "", false);
             }
+            // PlistBuddy reads CFBundleShortVersionString from the inner app.
+            if (file.EndsWith("PlistBuddy"))
+                return new ProcessResult(0, plistVersion, "", false);
             // codesign -d: the inner app reports our identity; the container has none.
             if (file.EndsWith("codesign") && a.Contains("-d"))
                 return onApp ? new ProcessResult(0, "", appInfo, false)
@@ -138,7 +167,7 @@ public class UpdateServiceTests
 
     [Fact]
     public async Task VerifyAsync_acceptsRealReleaseShape_unsignedDmg_signedNotarizedInnerApp()
-        => Assert.True(await SvcWith(ReleaseShapeRunner()).VerifyAsync(MakeDmg(), default));
+        => Assert.True(await SvcWith(ReleaseShapeRunner()).VerifyAsync(MakeDmg(), GoodVersion, default));
 
     [Theory]
     [InlineData("WRONGTEAM0", true,  true,  true)]   // inner app signed by a different Team ID
@@ -147,7 +176,37 @@ public class UpdateServiceTests
     [InlineData(UpdateService.ExpectedTeamId, true,  false, true)]   // inner app not notarized (Gatekeeper rejects)
     [InlineData(UpdateService.ExpectedTeamId, true,  true,  false)]  // the .dmg itself isn't stapled
     public async Task VerifyAsync_refuses_whenInnerAppOrDmgFails(string? team, bool v, bool sp, bool dmgStaple)
-        => Assert.False(await SvcWith(ReleaseShapeRunner(team, v, sp, dmgStaple)).VerifyAsync(MakeDmg(), default));
+        => Assert.False(await SvcWith(ReleaseShapeRunner(team, v, sp, dmgStaple)).VerifyAsync(MakeDmg(), GoodVersion, default));
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenInnerBundleIdIsWrong()
+        => Assert.False(await SvcWith(ReleaseShapeRunner(innerBundleId: "com.evil.Clone"))
+            .VerifyAsync(MakeDmg(), GoodVersion, default));
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenInnerBundleIdMissing()
+        => Assert.False(await SvcWith(ReleaseShapeRunner(innerBundleId: null))
+            .VerifyAsync(MakeDmg(), GoodVersion, default));
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenInnerExecutableIsWrong()
+        => Assert.False(await SvcWith(ReleaseShapeRunner(innerExe: "NotMacSign"))
+            .VerifyAsync(MakeDmg(), GoodVersion, default));
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenAppDirNameIsWrong()
+        => Assert.False(await SvcWith(ReleaseShapeRunner(appDirNames: new[] { "Imposter.app" }))
+            .VerifyAsync(MakeDmg(), GoodVersion, default));
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenMultipleTopLevelApps()
+        => Assert.False(await SvcWith(ReleaseShapeRunner(appDirNames: new[] { "MacSign.app", "Extra.app" }))
+            .VerifyAsync(MakeDmg(), GoodVersion, default));
+
+    [Fact]
+    public async Task VerifyAsync_refuses_whenVersionDoesNotMatch()
+        => Assert.False(await SvcWith(ReleaseShapeRunner(plistVersion: "1.2.3"))
+            .VerifyAsync(MakeDmg(), GoodVersion, default));
 
     [Fact]
     public async Task VerifyAsync_refuses_whenMountFails()
@@ -156,7 +215,7 @@ public class UpdateServiceTests
             file.EndsWith("hdiutil") && args.Contains("attach")
                 ? new ProcessResult(1, "", "hdiutil: attach failed", false)
                 : new ProcessResult(0, "", "", false) };
-        Assert.False(await SvcWith(f).VerifyAsync(MakeDmg(), default));
+        Assert.False(await SvcWith(f).VerifyAsync(MakeDmg(), GoodVersion, default));
     }
 
     [Fact]
@@ -169,18 +228,18 @@ public class UpdateServiceTests
             { Directory.CreateDirectory(a[a.IndexOf("-mountpoint") + 1]); return new ProcessResult(0, "", "", false); }
             return new ProcessResult(0, "", "", false);
         }};
-        Assert.False(await SvcWith(f).VerifyAsync(MakeDmg(), default));
+        Assert.False(await SvcWith(f).VerifyAsync(MakeDmg(), GoodVersion, default));
     }
 
     [Fact]
     public async Task VerifyAsync_refuses_whenNotADmg()
-        => Assert.False(await SvcWith(ReleaseShapeRunner()).VerifyAsync("/tmp/does-not-exist.dmg", default));
+        => Assert.False(await SvcWith(ReleaseShapeRunner()).VerifyAsync("/tmp/does-not-exist.dmg", GoodVersion, default));
 
     [Fact]
     public async Task VerifyAsync_alwaysDetaches_afterInspectingInnerApp()
     {
         var f = ReleaseShapeRunner();
-        await SvcWith(f).VerifyAsync(MakeDmg(), default);
+        await SvcWith(f).VerifyAsync(MakeDmg(), GoodVersion, default);
         Assert.Contains(f.Calls, c => c.File.EndsWith("hdiutil") && c.Args.Contains("detach"));
     }
 

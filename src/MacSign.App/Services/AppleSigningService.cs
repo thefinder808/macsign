@@ -15,9 +15,12 @@ public sealed record SigningIdentity(string Sha1, string Name);
 /// disk image (file), or something we don't sign.</summary>
 public enum AppleTargetKind { App, Dmg, Unsupported }
 
-/// <summary>Read-only verification report for a signed .app/.dmg.</summary>
+/// <summary>Read-only verification report for a signed .app/.dmg. <see cref="Identifier"/>
+/// and <see cref="Executable"/> come from the signed CodeDirectory (codesign -d), so once
+/// <see cref="Valid"/> holds they are tamper-evident — usable as a product-identity gate.</summary>
 public sealed record AppleSignReport(AppleTargetKind Kind, bool Valid, string? Signer,
-    string? TeamId, bool HardenedRuntime, bool Stapled, bool GatekeeperAccepted, string Log);
+    string? TeamId, string? Identifier, string? Executable, bool HardenedRuntime, bool Stapled,
+    bool GatekeeperAccepted, string Log);
 
 /// <summary>Result of a notarizability pre-flight: a pass flag + a human list of
 /// problems (empty when Ok) + the captured log.</summary>
@@ -296,6 +299,7 @@ public sealed class AppleSigningService
             && info.Contains("(runtime)", StringComparison.Ordinal);
         return new AppleSignReport(kind, verify.Success,
             Match(info, @"^Authority=(.+)$"), Match(info, @"^TeamIdentifier=(.+)$"),
+            Match(info, @"^Identifier=(.+)$"), Match(info, @"^Executable=(.+)$"),
             hardened, staple.Success, spctl.Success,
             info + "\n" + verify.StdErr + verify.StdOut + "\n" + staple.StdOut + staple.StdErr + "\n" + spctl.StdOut + spctl.StdErr);
     }

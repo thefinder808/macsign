@@ -41,7 +41,7 @@ public partial class UpdateViewModel : ObservableObject
             if (dmg is null) { Status = "Download failed. Open the release page to update manually."; Busy = false; return; }
 
             Status = "Verifying…";
-            if (!await _service.VerifyAsync(dmg, cts.Token))
+            if (!await _service.VerifyAsync(dmg, _info.Version, cts.Token))
             { Status = "Couldn’t verify the download. Open the release page to update manually."; Busy = false; return; }
 
             Status = "Installing…";
