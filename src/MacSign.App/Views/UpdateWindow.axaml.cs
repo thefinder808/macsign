@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
@@ -25,4 +26,11 @@ public partial class UpdateWindow : Window
     private void OnLater(object? sender, RoutedEventArgs e) => Close();
 
     private void OnSkip(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnOpenReleasePage(object? sender, RoutedEventArgs e)
+    {
+        var url = (DataContext as UpdateViewModel)?.ReleaseUrl;
+        if (string.IsNullOrWhiteSpace(url)) return;   // no-op if the release URL is blank
+        try { _ = Launcher.LaunchUriAsync(new Uri(url)); } catch { /* best-effort */ }
+    }
 }

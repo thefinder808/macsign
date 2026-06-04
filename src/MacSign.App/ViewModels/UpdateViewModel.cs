@@ -13,7 +13,6 @@ public partial class UpdateViewModel : ObservableObject
     private readonly UpdateService _service;
     private readonly AppData _data;
     private readonly SettingsStore _store;
-    private CancellationTokenSource? _cts;
 
     public string Title => $"MacSign {_info.Version} is available";
     public string ReleaseNotes => _info.ReleaseNotes;
@@ -33,19 +32,20 @@ public partial class UpdateViewModel : ObservableObject
     [RelayCommand]
     private async Task Install()
     {
-        Busy = true; _cts = new();
+        Busy = true;
+        using var cts = new CancellationTokenSource();
         try
         {
             Status = "Downloading…";
-            var dmg = await _service.DownloadAsync(_info, new Progress<double>(p => Progress = p), _cts.Token);
+            var dmg = await _service.DownloadAsync(_info, new Progress<double>(p => Progress = p), cts.Token);
             if (dmg is null) { Status = "Download failed. Open the release page to update manually."; Busy = false; return; }
 
             Status = "Verifying…";
-            if (!await _service.VerifyAsync(dmg, _cts.Token))
+            if (!await _service.VerifyAsync(dmg, cts.Token))
             { Status = "Couldn’t verify the download. Open the release page to update manually."; Busy = false; return; }
 
             Status = "Installing…";
-            var r = await _service.InstallAndRelaunchAsync(dmg, _cts.Token);
+            var r = await _service.InstallAndRelaunchAsync(dmg, cts.Token);
             if (!r.Success) { Status = r.Detail; Busy = false; return; }
             InstallStarted?.Invoke();   // window handler quits the app; the helper relaunches
         }
