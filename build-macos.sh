@@ -141,6 +141,17 @@ hdiutil convert "$RWDMG" -format UDZO -o "$DMG" >/dev/null
 rm -f "$RWDMG"
 rm -rf "$STAGE"
 
+# ── Code-sign the DMG container (Developer ID Application) ──
+# A disk image is signed as a flat blob — no Hardened Runtime / --deep / entitlements
+# (those are bundle-only). This completes the standard macOS distribution layout
+# (app signed · DMG signed · DMG notarized · ticket stapled) and must run BEFORE
+# notarization. Skipped on unsigned local builds.
+if [[ -n "${SIGN_IDENTITY:-}" ]]; then
+    echo "==> codesign DMG"
+    codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"
+    codesign --verify --verbose=2 "$DMG"
+fi
+
 # ── Notarize + staple ──
 if [[ -n "${SIGN_IDENTITY:-}" && -n "${NOTARY_PROFILE:-}" ]]; then
     echo "==> notarize (keychain profile '$NOTARY_PROFILE') + staple"
