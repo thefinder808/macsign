@@ -1,3 +1,8 @@
+using System;
+using System.Globalization;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MacSign.App.Services;
@@ -13,6 +18,7 @@ public partial class MainWindowViewModel : ObservableObject
 {
     private readonly SettingsStore _store;
     private readonly AppData _data;
+    private readonly UpdateService _updates;
 
     public SignViewModel Sign { get; }
     public VerifyViewModel Verify { get; }
@@ -21,10 +27,15 @@ public partial class MainWindowViewModel : ObservableObject
     public ActivityViewModel Activity { get; }
     public PreferencesViewModel Preferences { get; }
 
-    public MainWindowViewModel(SettingsStore? store = null)
+    // Raised (on the UI thread) when an update is available.
+    // The View opens UpdateWindow; the VM stays window-free.
+    public event Action<UpdateViewModel>? ShowUpdate;
+
+    public MainWindowViewModel(SettingsStore? store = null, UpdateService? updates = null)
     {
         _store = store ?? new SettingsStore();
         _data = _store.Load();
+        _updates = updates ?? new UpdateService();
 
         // Apply the saved appearance before the window paints.
         ThemeService.Apply(_data.Preferences.Theme);
@@ -34,7 +45,8 @@ public partial class MainWindowViewModel : ObservableObject
         Apple = new AppleSignViewModel(_data, _store);
         Profiles = new ProfilesViewModel(_data, _store);
         Activity = new ActivityViewModel(_data, _store);
-        Preferences = new PreferencesViewModel(_data, _store);
+        // Pass the shared UpdateService so Preferences.CheckNow reuses it.
+        Preferences = new PreferencesViewModel(_data, _store, updates: _updates);
 
         // Seed the Sign screen's defaults from prefs (replacing the hardcoded values).
         Sign.TimestampUrl = _data.Preferences.DefaultTimestampUrl;
@@ -53,7 +65,84 @@ public partial class MainWindowViewModel : ObservableObject
         Preferences.ClearHistoryRequested += Activity.Clear;
         Preferences.CapChanged += Activity.ReTrim;
         Preferences.ResetRequested += ResetAll;
+        // Preferences "Check Now" found an update → open the update dialog.
+        Preferences.UpdateAvailable += info => ShowUpdate?.Invoke(MakeUpdateViewModel(info));
     }
+
+    /// <summary>True if the app should run an automatic update check right now.
+    /// Returns false when auto-check is disabled, or when the last check was within 24 hours.</summary>
+    public static bool ShouldAutoCheck(bool autoOn, string? lastIso, DateTime nowUtc)
+    {
+        if (!autoOn) return false;
+        if (string.IsNullOrWhiteSpace(lastIso)) return true;
+        return !DateTime.TryParse(lastIso, null,
+                   DateTimeStyles.AdjustToUniversal, out var last)
+               || nowUtc - last > TimeSpan.FromHours(24);
+    }
+
+    /// <summary>Fire-and-forget throttled on-launch update check.
+    /// Call once from the View's Opened/Loaded handler after the window is shown.</summary>
+    public void StartLaunchUpdateCheck()
+    {
+        if (!ShouldAutoCheck(_data.Preferences.AutoCheckUpdates,
+                             _data.Preferences.LastUpdateCheckUtc,
+                             DateTime.UtcNow)) return;
+        _ = RunLaunchCheckAsync();
+    }
+
+    private async Task RunLaunchCheckAsync()
+    {
+        try
+        {
+            var r = await _updates.CheckAsync(CancellationToken.None);
+            if (r.Error is not null) return;   // failed check → don't stamp; retry next launch
+
+            // Stamp the check time + persist only on a successful check.
+            _data.Preferences.LastUpdateCheckUtc = DateTime.UtcNow.ToString("o");
+            _store.Save(_data);
+
+            if (r.UpdateAvailable && r.Info is not null
+                && r.Info.Version != _data.Preferences.SkippedVersion)
+            {
+                var vm = MakeUpdateViewModel(r.Info);
+                Dispatcher.UIThread.Post(() => ShowUpdate?.Invoke(vm));
+            }
+        }
+        catch
+        {
+            // Never surface launch-check errors — background only.
+        }
+    }
+
+    /// <summary>Invoked by the "Check for Updates…" menu item.
+    /// If an update is found, opens the update dialog. If not, navigates to
+    /// Preferences and invokes Check Now there (so the inline status message
+    /// "You're up to date." / "Couldn't check…" is visible to the user).</summary>
+    [RelayCommand]
+    private async Task CheckForUpdates()
+    {
+        try
+        {
+            var r = await _updates.CheckAsync(CancellationToken.None);
+
+            if (r.UpdateAvailable && r.Info is not null
+                && r.Info.Version != _data.Preferences.SkippedVersion)
+            {
+                ShowUpdate?.Invoke(MakeUpdateViewModel(r.Info));
+            }
+            else
+            {
+                // Navigate to Preferences, then run CheckNow so the user sees the
+                // inline status ("You're up to date." or "Couldn't check…").
+                CurrentView = AppView.Preferences;
+                await Preferences.CheckNowCommand.ExecuteAsync(null);
+            }
+        }
+        catch { /* silent — the Preferences screen surfaces any inline error */ }
+    }
+
+    private UpdateViewModel MakeUpdateViewModel(UpdateInfo info)
+        => new UpdateViewModel(info, _updates, _data, _store);
 
     /// <summary>Wipe all persisted data back to defaults and refresh the live UI.
     /// The sub-view-models all share the one <see cref="_data"/> instance, so we

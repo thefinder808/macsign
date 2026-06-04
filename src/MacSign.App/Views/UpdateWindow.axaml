@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MacSign.App.ViewModels"
+        x:Class="MacSign.App.Views.UpdateWindow"
+        x:DataType="vm:UpdateViewModel"
+        Title="Update Available"
+        Width="420" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Bg1}">
+    <StackPanel Margin="24" Spacing="14">
+
+        <!-- Title -->
+        <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="Bold"
+                   Foreground="{DynamicResource Ink}" TextWrapping="Wrap" />
+
+        <!-- Release notes -->
+        <ScrollViewer MaxHeight="220" HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <SelectableTextBlock Text="{Binding ReleaseNotes}"
+                                 FontSize="12.5" Foreground="{DynamicResource Ink2}"
+                                 TextWrapping="Wrap" />
+        </ScrollViewer>
+
+        <!-- Progress bar (only while busy) -->
+        <ProgressBar IsVisible="{Binding Busy}"
+                     Minimum="0" Maximum="1" Value="{Binding Progress}"
+                     Height="6" />
+
+        <!-- Status text -->
+        <TextBlock Text="{Binding Status}"
+                   IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   FontSize="12" Foreground="{DynamicResource Ink2}"
+                   TextWrapping="Wrap" />
+
+        <!-- Buttons -->
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+            <Button Classes="ghost" Content="Release page ↗"
+                    Foreground="{DynamicResource Accent}"
+                    Click="OnOpenReleasePage" />
+            <Button Classes="ghost" Content="Skip this version"
+                    Foreground="{DynamicResource Ink2}"
+                    Command="{Binding SkipCommand}" Click="OnSkip" />
+            <Button Classes="secondary" Content="Later" Click="OnLater" />
+            <Button Classes="primary" Content="Install &amp; Relaunch"
+                    Command="{Binding InstallCommand}"
+                    IsEnabled="{Binding !Busy}" />
+        </StackPanel>
+
+    </StackPanel>
+</Window>

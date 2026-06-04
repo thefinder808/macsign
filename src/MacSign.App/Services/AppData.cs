@@ -20,6 +20,11 @@ public sealed class AppPrefs
     public string DefaultTimestampUrl { get; set; } = "http://timestamp.digicert.com";
     public bool   TimestampByDefault  { get; set; } = true;
     public int    ActivityKeepLast    { get; set; } = 50;               // 0 = unlimited
+
+    // ── auto-updates (no secret) ──
+    public bool    AutoCheckUpdates   { get; set; } = true;   // throttled on-launch check
+    public string? LastUpdateCheckUtc { get; set; }           // ISO-8601; null = never checked
+    public string? SkippedVersion     { get; set; }           // version the user chose to skip
 }
 
 /// <summary>Remembered (non-secret) preferences for the Mac-app signing screen.

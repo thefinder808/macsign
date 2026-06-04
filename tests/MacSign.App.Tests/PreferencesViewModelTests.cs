@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 using MacSign.App.Services;
 using MacSign.App.ViewModels;
@@ -9,12 +10,13 @@ namespace MacSign.App.Tests;
 
 public class PreferencesViewModelTests
 {
-    private static PreferencesViewModel Make(out AppData data, out SettingsStore store, out FakeRunner runner)
+    private static PreferencesViewModel Make(out AppData data, out SettingsStore store, out FakeRunner runner,
+        UpdateService? updates = null)
     {
         store = new SettingsStore(Path.Combine(Path.GetTempPath(), "macsign-pref-" + Guid.NewGuid().ToString("N")));
         data = new AppData();
         runner = new FakeRunner();
-        return new PreferencesViewModel(data, store, runner);
+        return new PreferencesViewModel(data, store, runner, updates);
     }
 
     [Fact]
@@ -107,5 +109,68 @@ public class PreferencesViewModelTests
         Assert.Equal(500, vm.ActivityKeepLast);
         Assert.True(vm.IsCap500);
         Assert.False(capRaised);   // side effects suppressed during reload
+    }
+
+    // ── Auto-updates section ────────────────────────────────────────────────
+
+    private const string OldJson = """
+    {
+      "tag_name": "v0.0.1",
+      "html_url": "https://github.com/thefinder808/macsign/releases/tag/v0.0.1",
+      "body": "",
+      "assets": []
+    }
+    """;
+
+    private const string NewJson = """
+    {
+      "tag_name": "v9.9.9",
+      "html_url": "https://github.com/thefinder808/macsign/releases/tag/v9.9.9",
+      "body": "Shiny new things.",
+      "assets": [
+        { "name": "MacSign-9.9.9-osx-arm64.dmg", "browser_download_url": "https://example.test/arm64.dmg" },
+        { "name": "MacSign-9.9.9-osx-x64.dmg",   "browser_download_url": "https://example.test/x64.dmg" }
+      ]
+    }
+    """;
+
+    [Fact]
+    public void AutoCheckUpdates_persists()
+    {
+        // FakeHttp-backed UpdateService so the VM can never make a live network call.
+        var vm = Make(out _, out var store, out _,
+            new UpdateService(new HttpClient(new FakeHttp())));
+
+        // flip off and verify it round-trips through SettingsStore
+        vm.AutoCheckUpdates = false;
+
+        Assert.False(store.Load().Preferences.AutoCheckUpdates);
+    }
+
+    [Fact]
+    public async Task CheckNow_noUpdate_setsUpToDate()
+    {
+        var svc = new UpdateService(FakeHttp.ClientReturning(OldJson));
+        var vm = Make(out _, out _, out _, svc);
+
+        await vm.CheckNowCommand.ExecuteAsync(null);
+
+        Assert.Contains("up to date", vm.UpdateStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CheckNow_updateAvailable_raisesEvent()
+    {
+        var svc = new UpdateService(FakeHttp.ClientReturning(NewJson));
+        var vm = Make(out _, out _, out _, svc);
+
+        UpdateInfo? received = null;
+        vm.UpdateAvailable += info => received = info;
+
+        await vm.CheckNowCommand.ExecuteAsync(null);
+
+        Assert.NotNull(received);
+        Assert.Equal("9.9.9", received!.Version);
+        Assert.Contains("9.9.9", vm.UpdateStatus, StringComparison.OrdinalIgnoreCase);
     }
 }

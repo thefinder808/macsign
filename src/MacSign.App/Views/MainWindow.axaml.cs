@@ -10,7 +10,30 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainWindowViewModel();
+        var vm = new MainWindowViewModel();
+        DataContext = vm;
+        vm.ShowUpdate += OnShowUpdate;
+    }
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        if (DataContext is MainWindowViewModel vm)
+            vm.StartLaunchUpdateCheck();
+    }
+
+    private UpdateWindow? _updateWindow;
+    private void OnShowUpdate(UpdateViewModel updateVm)
+    {
+        // An update dialog is already open — bring it to front.
+        if (_updateWindow is not null)
+        {
+            _updateWindow.Activate();
+            return;
+        }
+        _updateWindow = new UpdateWindow(updateVm);
+        _updateWindow.Closed += (_, _) => _updateWindow = null;
+        _updateWindow.ShowDialog(this);
     }
 
     // The window extends under the title bar for the translucent sidebar look,
