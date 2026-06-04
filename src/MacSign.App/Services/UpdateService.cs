@@ -120,7 +120,10 @@ public sealed class UpdateService
 
     /// <summary>The trust gate. A DMG installs only if it is codesigned by our
     /// Developer ID Team ID AND notarized (stapled + Gatekeeper-accepted). Any failure
-    /// ⇒ false ⇒ the caller never mounts/installs it. Reuses AppleSigningService.</summary>
+    /// ⇒ false ⇒ the caller never mounts/installs it. Reuses AppleSigningService.
+    /// Checks the .dmg's own signature/notarization (the release image is
+    /// Developer-ID-signed + notarized by CI); the install step extracts the app
+    /// from that trusted image.</summary>
     public async Task<bool> VerifyAsync(string dmgPath, CancellationToken ct)
     {
         var r = await _apple.InspectAsync(dmgPath, ct);

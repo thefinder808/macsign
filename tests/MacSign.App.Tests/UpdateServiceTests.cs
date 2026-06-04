@@ -80,10 +80,11 @@ public class UpdateServiceTests
 
     // ---- VerifyAsync tests ----
 
-    private static FakeRunner GoodDmgRunner(string teamId = UpdateService.ExpectedTeamId,
+    private static FakeRunner GoodDmgRunner(string? teamId = UpdateService.ExpectedTeamId,
         bool verifyOk = true, bool stapleOk = true, bool spctlOk = true)
     {
-        var dInfo = $"Authority=Developer ID Application: Test (={teamId})\nTeamIdentifier={teamId}\nflags=0x10000(runtime)\n";
+        var teamLine = teamId is null ? "" : $"TeamIdentifier={teamId}\n";
+        var dInfo = $"Authority=Developer ID Application: Test\n{teamLine}flags=0x10000(runtime)\n";
         return new FakeRunner { Respond = (file, args) =>
         {
             if (file.EndsWith("codesign") && args.Contains("-d"))      return new ProcessResult(0, "", dInfo, false);
@@ -103,9 +104,10 @@ public class UpdateServiceTests
 
     [Theory]
     [InlineData("WRONGTEAM0", true,  true,  true)]   // not our Developer ID
+    [InlineData(null, true,  true,  true)]   // codesign output has no TeamIdentifier line
     [InlineData(UpdateService.ExpectedTeamId, false, true,  true)]   // codesign integrity fails
     [InlineData(UpdateService.ExpectedTeamId, true,  false, true)]   // not stapled (not notarized)
     [InlineData(UpdateService.ExpectedTeamId, true,  true,  false)]  // Gatekeeper rejects
-    public async Task VerifyAsync_refuses_whenAnyCheckFails(string team, bool v, bool staple, bool sp)
+    public async Task VerifyAsync_refuses_whenAnyCheckFails(string? team, bool v, bool staple, bool sp)
         => Assert.False(await SvcWith(GoodDmgRunner(team, v, staple, sp)).VerifyAsync("/tmp/x.dmg", default));
 }
