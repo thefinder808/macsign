@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -128,6 +130,31 @@ public class UpdateServiceTests
         Assert.True(File.Exists(path));
         Assert.EndsWith(".dmg", path);
         Assert.Equal(4096, new FileInfo(path!).Length);
+        File.Delete(path!);
+    }
+
+    private sealed class SyncProgress : IProgress<double>
+    {
+        public readonly List<double> Values = new();
+        public void Report(double v) => Values.Add(v);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_reportsProgress_whenContentLengthKnown()
+    {
+        var bytes = new byte[4096];
+        var content = new ByteArrayContent(bytes);
+        content.Headers.ContentLength = bytes.Length;   // make total known
+        var http = new HttpClient(new FakeHttp { Respond = _ =>
+            new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content } });
+        var prog = new SyncProgress();
+        var info = new UpdateInfo("9.9.9", "", "", "MacSign-9.9.9-osx-arm64.dmg", "https://example.test/a.dmg");
+
+        var path = await new UpdateService(http).DownloadAsync(info, prog, default);
+
+        Assert.NotNull(path);
+        Assert.NotEmpty(prog.Values);
+        Assert.Equal(1.0, prog.Values[^1], 3);   // final report reaches 100%
         File.Delete(path!);
     }
 }

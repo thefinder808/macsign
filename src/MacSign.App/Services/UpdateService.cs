@@ -135,21 +135,24 @@ public sealed class UpdateService
     }
 
     /// <summary>Download the asset to a temp .dmg, reporting 0..1 progress when the
-    /// server sends a Content-Length. Returns the path, or null on failure.</summary>
+    /// server sends a Content-Length. Returns the path, or null on failure (and the
+    /// partial temp file is best-effort deleted so retries don't orphan).</summary>
     public async Task<string?> DownloadAsync(UpdateInfo info, IProgress<double>? progress, CancellationToken ct)
     {
+        string? dest = null;
         try
         {
-            var dest = Path.Combine(Path.GetTempPath(),
+            dest = Path.Combine(Path.GetTempPath(),
                 $"macsign-update-{Guid.NewGuid():N}-{info.AssetName}");
             using var resp = await _http.GetAsync(info.AssetUrl, HttpCompletionOption.ResponseHeadersRead, ct);
-            if (!resp.IsSuccessStatusCode) return null;
+            if (!resp.IsSuccessStatusCode) { TryDelete(dest); return null; }
 
             var total = resp.Content.Headers.ContentLength;
             await using var src = await resp.Content.ReadAsStreamAsync(ct);
             await using var dst = File.Create(dest);
             var buffer = new byte[81920];
-            long read = 0; int n;
+            long read = 0;
+            int n;
             while ((n = await src.ReadAsync(buffer, ct)) > 0)
             {
                 await dst.WriteAsync(buffer.AsMemory(0, n), ct);
@@ -158,6 +161,8 @@ public sealed class UpdateService
             }
             return dest;
         }
-        catch { return null; }
+        catch { if (dest is not null) TryDelete(dest); return null; }
     }
+
+    private static void TryDelete(string path) { try { File.Delete(path); } catch { /* best-effort */ } }
 }
