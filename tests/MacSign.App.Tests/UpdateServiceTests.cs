@@ -157,4 +157,25 @@ public class UpdateServiceTests
         Assert.Equal(1.0, prog.Values[^1], 3);   // final report reaches 100%
         File.Delete(path!);
     }
+
+    // ---- InstallAndRelaunchAsync tests ----
+
+    [Fact]
+    public void InstalledAppPath_resolvesTwoUpFromMacOS()
+    {
+        // …/MyApp.app/Contents/MacOS  ->  …/MyApp.app
+        var baseDir = "/Applications/MacSign.app/Contents/MacOS";
+        Assert.Equal("/Applications/MacSign.app", UpdateService.InstalledAppPathFrom(baseDir));
+    }
+
+    [Fact]
+    public async Task InstallAndRelaunch_nonWritableDir_returnsRevealOutcome_doesNotQuit()
+    {
+        var svc = new UpdateService();
+        // A bundle path whose parent is not writable (root-owned); install must refuse.
+        var res = await svc.InstallAndRelaunchAsync("/tmp/whatever.dmg",
+            installedAppPath: "/usr/bin/MacSign.app", ct: default);
+        Assert.False(res.Success);
+        Assert.Contains("Applications", res.Detail);   // the "drag to Applications" fallback message
+    }
 }

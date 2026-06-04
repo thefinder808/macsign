@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,6 +32,9 @@ public sealed class UpdateService
     public const string ExpectedTeamId = "Q6LRJQSA42";
 
     private const string Owner = "thefinder808", Repo = "macsign";
+
+    private const string Hdiutil = "/usr/bin/hdiutil";
+    private const string Ditto   = "/usr/bin/ditto";
 
     private readonly HttpClient _http;
     private readonly AppleSigningService _apple;
@@ -165,4 +169,87 @@ public sealed class UpdateService
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch { /* best-effort */ } }
+
+    /// <summary>Resolve the .app bundle from the executable's base dir
+    /// (…/Contents/MacOS → two levels up).</summary>
+    public static string InstalledAppPathFrom(string baseDir)
+        => Path.GetFullPath(Path.Combine(baseDir, "..", ".."));
+
+    private static bool DirWritable(string dir)
+    {
+        try
+        {
+            var probe = Path.Combine(dir, ".macsign-write-probe-" + Guid.NewGuid().ToString("N"));
+            File.WriteAllText(probe, ""); File.Delete(probe);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Mount the (already-verified) DMG, stage the new app, write a detached
+    /// helper that waits for us to exit, atomically swaps the bundle, and relaunches.
+    /// Returns a failure (without quitting) if the install dir isn't writable.</summary>
+    public Task<AppleOpResult> InstallAndRelaunchAsync(string dmgPath, CancellationToken ct)
+        => InstallAndRelaunchAsync(dmgPath, InstalledAppPathFrom(AppContext.BaseDirectory), ct);
+
+    // installedAppPath is injectable for tests.
+    public async Task<AppleOpResult> InstallAndRelaunchAsync(string dmgPath, string installedAppPath, CancellationToken ct)
+    {
+        var parent = Path.GetDirectoryName(installedAppPath) ?? "/Applications";
+        if (!DirWritable(parent))
+            return AppleOpResult.Fail("Manual install needed",
+                "MacSign can't write to its install folder. Drag the new MacSign to Applications to finish updating.", "");
+
+        var stamp = Guid.NewGuid().ToString("N")[..8];
+        var mount = Path.Combine(Path.GetTempPath(), $"macsign-upd-mnt-{stamp}");
+        var staged = Path.Combine(Path.GetTempPath(), $"macsign-upd-app-{stamp}");
+        bool attached = false;
+        try
+        {
+            var att = await _runner.RunAsync(Hdiutil,
+                new[] { "attach", "-nobrowse", "-readonly", "-mountpoint", mount, dmgPath }, null, ct);
+            if (!att.Success) return AppleOpResult.Fail("Mount failed", FirstLine(att.StdErr + att.StdOut), att.StdErr);
+            attached = true;
+
+            var src = Directory.EnumerateDirectories(mount, "*.app").FirstOrDefault();
+            if (src is null) return AppleOpResult.Fail("Bad image", "No MacSign.app inside the disk image.", "");
+
+            Directory.CreateDirectory(staged);
+            var stagedApp = Path.Combine(staged, Path.GetFileName(src));
+            var dit = await _runner.RunAsync(Ditto, new[] { src, stagedApp }, null, ct);
+            if (!dit.Success) return AppleOpResult.Fail("Copy failed", FirstLine(dit.StdErr), dit.StdErr);
+
+            await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
+            attached = false;
+
+            // Detached helper: wait for our PID to exit, swap, clean up, relaunch.
+            var pid = Environment.ProcessId;
+            var script = Path.Combine(Path.GetTempPath(), $"macsign-upd-{stamp}.sh");
+            var newSide = installedAppPath + ".new";
+            var sb = new StringBuilder();
+            sb.AppendLine("#!/bin/sh");
+            sb.AppendLine($"while kill -0 {pid} 2>/dev/null; do sleep 0.2; done");
+            sb.AppendLine($"/bin/rm -rf \"{newSide}\"");
+            sb.AppendLine($"/usr/bin/ditto \"{stagedApp}\" \"{newSide}\" || exit 1");
+            sb.AppendLine($"/bin/rm -rf \"{installedAppPath}\"");
+            sb.AppendLine($"/bin/mv \"{newSide}\" \"{installedAppPath}\"");
+            sb.AppendLine($"/bin/rm -rf \"{staged}\" \"{dmgPath}\"");
+            sb.AppendLine($"/usr/bin/open \"{installedAppPath}\"");
+            sb.AppendLine("/bin/rm -f \"$0\"");
+            await File.WriteAllTextAsync(script, sb.ToString(), ct);
+
+            // Fire-and-forget detached — deliberately NOT through ProcessRunner (which
+            // kills its tree on exit); this must outlive us. It reparents to launchd.
+            var psi = new System.Diagnostics.ProcessStartInfo("/bin/sh", $"\"{script}\"")
+            { UseShellExecute = false };
+            System.Diagnostics.Process.Start(psi);
+            return AppleOpResult.Ok("Installing", "MacSign will relaunch on the new version.", "");
+        }
+        finally
+        {
+            if (attached) await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
+        }
+    }
+
+    private static string FirstLine(string s) => (s ?? "").Split('\n').FirstOrDefault(l => l.Trim().Length > 0)?.Trim() ?? "";
 }
