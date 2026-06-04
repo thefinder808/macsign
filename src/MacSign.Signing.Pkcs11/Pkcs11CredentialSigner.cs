@@ -60,6 +60,7 @@ internal sealed class Pkcs11CredentialSigner : ICredentialSigner
     public void Dispose()
     {
         _signingKey.Dispose();
+        _certificate.Dispose(); // parity with PfxCredentialSigner / AzureTrustedSigner
         _store.Dispose();
     }
 }

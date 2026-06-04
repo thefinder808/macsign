@@ -209,6 +209,11 @@ public sealed class UpdateService
     /// partial temp file is best-effort deleted so retries don't orphan).</summary>
     public async Task<string?> DownloadAsync(UpdateInfo info, IProgress<double>? progress, CancellationToken ct)
     {
+        // A prior attempt whose verify/install bailed leaves its .dmg behind; clear those
+        // first so abandoned downloads can't pile up (the successful install path deletes
+        // its own DMG via the swap script).
+        PruneStaleDownloads(Path.GetTempPath());
+
         string? dest = null;
         try
         {
@@ -235,6 +240,19 @@ public sealed class UpdateService
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch { /* best-effort */ } }
+
+    /// <summary>Best-effort delete of leftover download artifacts (<c>macsign-update-*</c>)
+    /// from prior, abandoned update attempts. Targets only the download prefix — mount points
+    /// and staging dirs use a different prefix and are cleaned up by their own flows.</summary>
+    public static void PruneStaleDownloads(string tempDir)
+    {
+        try
+        {
+            foreach (var f in Directory.EnumerateFiles(tempDir, "macsign-update-*"))
+                TryDelete(f);
+        }
+        catch { /* best-effort */ }
+    }
 
     /// <summary>Resolve the .app bundle from the executable's base dir
     /// (…/Contents/MacOS → two levels up).</summary>
