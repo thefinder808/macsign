@@ -88,7 +88,7 @@ public sealed class UpdateService
             req.Headers.UserAgent.Add(new ProductInfoHeaderValue("MacSign", AppInfo.Version));
             req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
 
-            var resp = await _http.SendAsync(req, ct);
+            using var resp = await _http.SendAsync(req, ct);
             if (!resp.IsSuccessStatusCode)
                 return new UpdateCheckResult(false, null, $"GitHub returned {(int)resp.StatusCode}.");
 
