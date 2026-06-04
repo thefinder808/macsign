@@ -12,6 +12,10 @@ Native macOS Authenticode signing for Windows artifacts — **no Windows machine
 
 > **Status: all backends shipped.** Signs **PE files** (`.exe`/`.dll`/`.sys`, incl. managed assemblies), **PowerShell scripts** (`.ps1`), and **MSI installers** (`.msi`), using a **local PFX certificate**, a **PKCS#11 token / HSM**, or **Azure Trusted Signing** (a.k.a. Azure Artifact Signing) — for the token and cloud paths the key never leaves the device/cloud — with optional **RFC3161 timestamping**, and **verifies** signatures (integrity + chain report). The Azure path is proven offline by a contract test (delegated path == the signtool-proven in-proc path) and has been signed + verified end-to-end against a live Trusted Signing account; re-verify it anytime with `scripts/verify-azure.sh` (uses your `az login`, no stored credentials). MacSign was originally conceived as a thin GUI over the `osslsigncode`/`jsign` CLIs; it was reimplemented as a fully-managed native engine instead.
 
+## Download
+
+Grab the latest signed + notarized **DMG** for your Mac from the **[Releases](https://github.com/thefinder808/macsign/releases/latest)** page — `MacSign-<ver>-osx-arm64.dmg` for Apple Silicon, `-osx-x64.dmg` for Intel — open it, and drag **MacSign** to Applications. It's Developer ID–signed and Apple-notarized, so it opens with no Gatekeeper warning. After that MacSign keeps itself current: it checks for new releases on launch (toggle in Preferences) and via **Help → "Check for Updates…"**, and installs them in one click. Or build from source below.
+
 ## Why
 
 The cross-platform tools for signing Windows binaries from a Mac are fiddly CLIs. MacSign reimplements Authenticode natively in .NET so signing is a single dependency-clean, notarizable app — and so the format logic is unit-testable and fully under our control.
