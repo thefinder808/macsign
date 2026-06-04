@@ -93,6 +93,31 @@
                 </StackPanel>
             </Border>
 
+            <!-- Updates -->
+            <Border Classes="card" Padding="18">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="section" Text="UPDATES" />
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <ToggleButton Classes="switch" IsChecked="{Binding AutoCheckUpdates}" />
+                        <TextBlock Text="Check for updates automatically" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Ink}" FontSize="12.5" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <Button Classes="secondary" Command="{Binding CheckNowCommand}">
+                            <TextBlock Text="Check Now" VerticalAlignment="Center" />
+                        </Button>
+                        <TextBlock VerticalAlignment="Center" FontSize="12.5"
+                                   Foreground="{DynamicResource Ink2}">
+                            <Run Text="Current version: " />
+                            <Run Text="{Binding CurrentVersion}" />
+                        </TextBlock>
+                    </StackPanel>
+                    <TextBlock FontSize="12.5" Foreground="{DynamicResource Ink2}"
+                               IsVisible="{Binding UpdateStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                               Text="{Binding UpdateStatus}" />
+                </StackPanel>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>
