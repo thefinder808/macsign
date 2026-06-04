@@ -117,4 +117,16 @@ public sealed class UpdateService
         catch (OperationCanceledException) { return new UpdateCheckResult(false, null, "Canceled."); }
         catch (Exception ex) { return new UpdateCheckResult(false, null, ex.Message); }
     }
+
+    /// <summary>The trust gate. A DMG installs only if it is codesigned by our
+    /// Developer ID Team ID AND notarized (stapled + Gatekeeper-accepted). Any failure
+    /// ⇒ false ⇒ the caller never mounts/installs it. Reuses AppleSigningService.</summary>
+    public async Task<bool> VerifyAsync(string dmgPath, CancellationToken ct)
+    {
+        var r = await _apple.InspectAsync(dmgPath, ct);
+        return r.Valid
+            && string.Equals(r.TeamId, ExpectedTeamId, StringComparison.Ordinal)
+            && r.Stapled
+            && r.GatekeeperAccepted;
+    }
 }
