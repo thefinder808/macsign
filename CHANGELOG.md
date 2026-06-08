@@ -6,6 +6,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.5] — 2026-06-08
+
+### Fixed
+- **Azure Trusted Signing now works when MacSign is launched from Finder/Dock/Launchpad.**
+  A macOS app launched from the Finder inherits only the minimal launchd `PATH`
+  (`/usr/bin:/bin:/usr/sbin:/sbin`), which hides a Homebrew-installed `az`. Azure.Identity's
+  `AzureCliCredential` then reported *"Azure CLI not installed"* and the whole credential
+  chain failed — even after a successful `az login`. MacSign now restores the standard
+  Homebrew tool directories (`/opt/homebrew/bin`, `/usr/local/bin`) on its `PATH` at startup,
+  so your existing `az login` token is found. (Launching from a terminal already inherited
+  these and was unaffected.)
+
+### Changed
+- The Azure credential hint on the Sign screen no longer claims a token was *"acquired
+  automatically"* before any token is fetched; it now describes the credential source instead.
+
 ## [1.1.4] — 2026-06-04
 
 ### Fixed
@@ -156,7 +172,8 @@ open-source licensing and project files and removes personal defaults from the U
 - Native macOS GUI (Avalonia): Sign / Verify / Profiles / Activity.
 - Tag-driven release CI that builds, signs, and notarizes the `arm64` + `x64` DMGs.
 
-[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.1.4...HEAD
+[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.1.5...HEAD
+[1.1.5]: https://github.com/thefinder808/macsign/releases/tag/v1.1.5
 [1.1.4]: https://github.com/thefinder808/macsign/releases/tag/v1.1.4
 [1.1.0]: https://github.com/thefinder808/macsign/releases/tag/v1.1.0
 [1.0.0]: https://github.com/thefinder808/macsign/releases/tag/v1.0.0
