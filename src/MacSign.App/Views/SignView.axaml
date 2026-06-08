@@ -306,7 +306,7 @@
                                         <Path Data="{StaticResource IcoFingerprint}" Stroke="{DynamicResource Accent}"
                                               StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16"
                                               VerticalAlignment="Top" />
-                                        <TextBlock Text="Signed in via az login — token acquired automatically."
+                                        <TextBlock Text="Uses your Azure sign-in (az login or AZURE_* credentials). Nothing is stored."
                                                    FontSize="12" Foreground="{DynamicResource Ink2}"
                                                    TextWrapping="Wrap" MaxWidth="230" />
                                     </StackPanel>
