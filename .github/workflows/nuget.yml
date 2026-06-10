@@ -1,8 +1,11 @@
 name: NuGet
 
 # Publishes the four engine packages (MacSign.Signing + .Msi/.Pkcs11/.Azure) to
-# nuget.org on every release tag. Requires a NUGET_API_KEY secret in the "release"
-# environment; until it's added, the job still packs but skips the push.
+# nuget.org on every release tag, authenticated via Trusted Publishing: the job's
+# GitHub OIDC token is exchanged for a one-hour API key, so there is no long-lived
+# secret to store or rotate. Requires a Trusted Publishing policy on nuget.org
+# (profile → Trusted Publishing) pointing at this repo, this workflow file
+# (nuget.yml), and the "release" environment.
 
 on:
   push:
@@ -16,6 +19,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      contents: read
+      id-token: write   # OIDC token issuance for the nuget.org token exchange
     steps:
       # Actions pinned to commit SHAs (supply-chain hardening for a public repo).
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -31,15 +37,19 @@ jobs:
           done
           ls -l dist/nuget
 
+      # Exchange the workflow's OIDC token for a short-lived (1 h) nuget.org API
+      # key. Runs right before the push so the key can't expire mid-job.
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        id: login
+        with:
+          user: thefinder808   # nuget.org profile name (not email)
+
       - name: Push to nuget.org
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_TEMP_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "NUGET_API_KEY secret is not set — packages were packed but NOT published."
-            exit 0
-          fi
           dotnet nuget push "dist/nuget/*.nupkg" \
-            --api-key "$NUGET_API_KEY" \
+            --api-key "$NUGET_TEMP_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
