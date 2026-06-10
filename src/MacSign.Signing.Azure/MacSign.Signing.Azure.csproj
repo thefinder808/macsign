@@ -10,6 +10,8 @@
   <PropertyGroup>
     <RootNamespace>MacSign.Signing.Azure</RootNamespace>
     <AssemblyName>MacSign.Signing.Azure</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <Description>Azure Trusted Signing (Azure Artifact Signing) credential backend for the MacSign.Signing Authenticode engine. The signing key stays in Azure's FIPS 140-2 L3 HSM; digests are signed via the Trusted Signing REST endpoint. Reference this package and call AzureBackend.Register().</Description>
   </PropertyGroup>
 
   <ItemGroup>
