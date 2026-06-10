@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-06-09
+
 ### Added
 - **The signing engine is now published to NuGet** as four packages —
   `MacSign.Signing` (PE + PowerShell formats, PFX signing, RFC3161 timestamping,
