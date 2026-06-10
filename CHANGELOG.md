@@ -12,8 +12,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   verification), `MacSign.Signing.Msi`, `MacSign.Signing.Pkcs11`, and
   `MacSign.Signing.Azure` — so other apps (first consumer: WrapTune MacOS) can sign
   in-process instead of shelling out to external tools. A new `nuget.yml` workflow
-  packs and pushes on every release tag; it requires a `NUGET_API_KEY` secret in the
-  `release` environment and degrades to pack-only until the secret is added.
+  packs and pushes on every release tag, authenticated via nuget.org **Trusted
+  Publishing** (GitHub OIDC exchanged for a one-hour API key) — no long-lived
+  secret to store or rotate.
 
 ## [1.1.5] — 2026-06-08
 
