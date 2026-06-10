@@ -8,6 +8,8 @@
   <PropertyGroup>
     <RootNamespace>MacSign.Signing.Pkcs11</RootNamespace>
     <AssemblyName>MacSign.Signing.Pkcs11</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <Description>PKCS#11 hardware token / HSM credential backend for the MacSign.Signing Authenticode engine. The private key never leaves the token. Reference this package and call Pkcs11Backend.Register() to sign with a PKCS#11 module.</Description>
   </PropertyGroup>
 
   <ItemGroup>

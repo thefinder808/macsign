@@ -9,6 +9,8 @@
   <PropertyGroup>
     <RootNamespace>MacSign.Signing</RootNamespace>
     <AssemblyName>MacSign.Signing</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <Description>Cross-platform Authenticode signing engine. Signs PE (.exe/.dll/.sys) and PowerShell (.ps1) files with a PFX certificate, with RFC3161 timestamping and signature verification, from any OS. MSI, PKCS#11 token, and Azure Trusted Signing support are in the MacSign.Signing.Msi / .Pkcs11 / .Azure backend packages.</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>MacSign.Signing.Msi</RootNamespace>
     <AssemblyName>MacSign.Signing.Msi</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <Description>MSI (Windows Installer / OLE2 compound file) format backend for the MacSign.Signing Authenticode engine. Reference this package and call MsiBackend.Register() to sign .msi files.</Description>
   </PropertyGroup>
 
   <ItemGroup>

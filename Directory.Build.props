@@ -15,6 +15,21 @@
     <Product>MacSign</Product>
     <Authors>Nathaniel Graham</Authors>
     <RepositoryUrl>https://github.com/thefinder808/macsign</RepositoryUrl>
+
+    <!-- NuGet packaging defaults. Only the engine libraries are published; they opt
+         IN with IsPackable=true in their own csproj. Version above doubles as the
+         package version, so packages stay in step with release tags. -->
+    <IsPackable>false</IsPackable>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/thefinder808/macsign</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>nuget-readme.md</PackageReadmeFile>
+    <PackageTags>authenticode;code-signing;pe;msi;powershell;timestamp;azure-trusted-signing;pkcs11</PackageTags>
   </PropertyGroup>
+
+  <!-- Every packable project ships the same engine-focused readme. -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)docs\nuget-readme.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>

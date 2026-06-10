@@ -6,6 +6,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **The signing engine is now published to NuGet** as four packages —
+  `MacSign.Signing` (PE + PowerShell formats, PFX signing, RFC3161 timestamping,
+  verification), `MacSign.Signing.Msi`, `MacSign.Signing.Pkcs11`, and
+  `MacSign.Signing.Azure` — so other apps (first consumer: WrapTune MacOS) can sign
+  in-process instead of shelling out to external tools. A new `nuget.yml` workflow
+  packs and pushes on every release tag; it requires a `NUGET_API_KEY` secret in the
+  `release` environment and degrades to pack-only until the secret is added.
+
 ## [1.1.5] — 2026-06-08
 
 ### Fixed
