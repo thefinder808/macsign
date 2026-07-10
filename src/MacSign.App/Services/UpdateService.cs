@@ -171,27 +171,37 @@ public sealed class UpdateService
             var app = apps[0];
             if (!string.Equals(Path.GetFileName(app), ExpectedAppName, StringComparison.Ordinal)) return false;
 
-            var r = await _apple.InspectAsync(app, ct);
-            bool appTrusted = r.Valid
-                && string.Equals(r.TeamId, ExpectedTeamId, StringComparison.Ordinal)
-                && r.GatekeeperAccepted                                                   // notarized Developer ID
-                && string.Equals(r.Identifier, ExpectedBundleId, StringComparison.Ordinal) // signed bundle id
-                && string.Equals(Path.GetFileName(r.Executable ?? ""), ExpectedExecutable, StringComparison.Ordinal);
-
-            // Bind to the advertised version: CFBundleShortVersionString must equal it. The
-            // Info.plist is sealed by the (verified) signature, so this is tamper-evident.
-            bool versionOk = string.Equals(
-                await ReadShortVersionAsync(app, ct), expectedVersion, StringComparison.Ordinal);
-
-            // Defense in depth: the downloaded .dmg must itself be a stapled release.
-            var staple = await _runner.RunAsync(Xcrun, new[] { "stapler", "validate", dmgPath }, null, ct);
-            return appTrusted && versionOk && staple.Success;
+            return await IsTrustedReleaseAsync(app, dmgPath, expectedVersion, ct);
         }
         finally
         {
             if (attached) await _runner.RunAsync(Hdiutil, new[] { "detach", mount, "-force" }, null, ct);
             try { if (Directory.Exists(mount)) Directory.Delete(mount); } catch { /* best-effort */ }
         }
+    }
+
+    /// <summary>The trust gate applied to a mounted release. The <paramref name="app"/> must be
+    /// Developer-ID signed by our Team ID AND notarized, carry our signed bundle id + executable
+    /// and the advertised version, and the <paramref name="dmgPath"/> must be stapled. Shared by
+    /// <see cref="VerifyAsync"/> and the install step so the bundle we install is re-checked
+    /// against the exact same criteria the download was verified against.</summary>
+    private async Task<bool> IsTrustedReleaseAsync(string app, string dmgPath, string expectedVersion, CancellationToken ct)
+    {
+        var r = await _apple.InspectAsync(app, ct);
+        bool appTrusted = r.Valid
+            && string.Equals(r.TeamId, ExpectedTeamId, StringComparison.Ordinal)
+            && r.GatekeeperAccepted                                                   // notarized Developer ID
+            && string.Equals(r.Identifier, ExpectedBundleId, StringComparison.Ordinal) // signed bundle id
+            && string.Equals(Path.GetFileName(r.Executable ?? ""), ExpectedExecutable, StringComparison.Ordinal);
+
+        // Bind to the advertised version: CFBundleShortVersionString must equal it. The
+        // Info.plist is sealed by the (verified) signature, so this is tamper-evident.
+        bool versionOk = string.Equals(
+            await ReadShortVersionAsync(app, ct), expectedVersion, StringComparison.Ordinal);
+
+        // Defense in depth: the .dmg must itself be a stapled release.
+        var staple = await _runner.RunAsync(Xcrun, new[] { "stapler", "validate", dmgPath }, null, ct);
+        return appTrusted && versionOk && staple.Success;
     }
 
     /// <summary>Read the bundle's <c>CFBundleShortVersionString</c> from its (signature-sealed)
@@ -273,11 +283,11 @@ public sealed class UpdateService
     /// <summary>Mount the (already-verified) DMG, stage the new app, write a detached
     /// helper that waits for us to exit, atomically swaps the bundle, and relaunches.
     /// Returns a failure (without quitting) if the install dir isn't writable.</summary>
-    public Task<AppleOpResult> InstallAndRelaunchAsync(string dmgPath, CancellationToken ct)
-        => InstallAndRelaunchAsync(dmgPath, InstalledAppPathFrom(AppContext.BaseDirectory), ct);
+    public Task<AppleOpResult> InstallAndRelaunchAsync(string dmgPath, string expectedVersion, CancellationToken ct)
+        => InstallAndRelaunchAsync(dmgPath, expectedVersion, InstalledAppPathFrom(AppContext.BaseDirectory), ct);
 
     // installedAppPath is injectable for tests.
-    public async Task<AppleOpResult> InstallAndRelaunchAsync(string dmgPath, string installedAppPath, CancellationToken ct)
+    public async Task<AppleOpResult> InstallAndRelaunchAsync(string dmgPath, string expectedVersion, string installedAppPath, CancellationToken ct)
     {
         var parent = Path.GetDirectoryName(installedAppPath) ?? "/Applications";
         if (!DirWritable(parent))
@@ -303,6 +313,14 @@ public sealed class UpdateService
                 && string.Equals(Path.GetFileName(apps[0]), ExpectedAppName, StringComparison.Ordinal)
                 ? apps[0] : null;
             if (src is null) return AppleOpResult.Fail("Bad image", "The disk image must contain exactly one MacSign.app.", "");
+
+            // Re-run the trust gate on the bundle we mounted HERE. VerifyAsync ran on a
+            // separate mount of the temp .dmg, so re-verifying now binds the bytes we install
+            // to the criteria we verified and closes the verify→install TOCTOU (a swapped .dmg
+            // in the temp dir would be caught here instead of being copied in).
+            if (!await IsTrustedReleaseAsync(src, dmgPath, expectedVersion, ct))
+                return AppleOpResult.Fail("Verification failed",
+                    "The update no longer passes verification and was not installed. Open the release page to update manually.", "");
 
             Directory.CreateDirectory(staged);
             var stagedApp = Path.Combine(staged, Path.GetFileName(src));

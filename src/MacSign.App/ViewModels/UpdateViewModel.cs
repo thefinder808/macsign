@@ -45,7 +45,7 @@ public partial class UpdateViewModel : ObservableObject
             { Status = "Couldn’t verify the download. Open the release page to update manually."; Busy = false; return; }
 
             Status = "Installing…";
-            var r = await _service.InstallAndRelaunchAsync(dmg, cts.Token);
+            var r = await _service.InstallAndRelaunchAsync(dmg, _info.Version, cts.Token);
             if (!r.Success) { Status = r.Detail; Busy = false; return; }
             InstallStarted?.Invoke();   // window handler quits the app; the helper relaunches
         }
