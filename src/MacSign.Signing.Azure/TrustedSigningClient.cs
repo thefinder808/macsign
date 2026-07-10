@@ -36,7 +36,17 @@ internal sealed class TrustedSigningClient : IDisposable
         _account = account;
         _profile = profile;
         _tokens = tokens;
-        _http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        // Don't follow redirects (a sign endpoint shouldn't bounce a token-bearing request
+        // elsewhere) and cap both the response size and the wall-clock, so a hostile or
+        // compromised endpoint can't exhaust memory or hang the sign — mirrors the RFC3161
+        // TimestampClient. The correctness of the signature is still gated by SignHash's
+        // self-verify against the leaf public key.
+        _http = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false },
+            disposeHandler: handler is null)
+        {
+            Timeout = TimeSpan.FromSeconds(30),
+            MaxResponseContentBufferSize = 1024 * 1024,
+        };
         _pollInterval = pollInterval ?? TimeSpan.FromSeconds(2);
         _maxPolls = maxPolls;
     }
@@ -78,10 +88,17 @@ internal sealed class TrustedSigningClient : IDisposable
         var status = await ReadStatus(postResp).ConfigureAwait(false);
 
         // Poll the long-running operation until it terminates. Prefer the service's
-        // Operation-Location header; otherwise construct the status URL from operationId.
-        var pollUrl = postResp.Headers.TryGetValues("Operation-Location", out var loc)
+        // Operation-Location header — but only follow it when it stays on the same https host
+        // we posted to. Otherwise a malicious or redirecting response could steer the next
+        // request (which re-attaches the Azure bearer token below) to an attacker's host and
+        // exfiltrate the token. When the header is absent or off-host, fall back to the
+        // status URL built from operationId, which is always same-host https.
+        var expectedHost = new Uri(signUrl).Host;
+        string? pollUrl = postResp.Headers.TryGetValues("Operation-Location", out var loc)
             ? loc.FirstOrDefault()
             : null;
+        if (!IsSameHostHttps(pollUrl, expectedHost))
+            pollUrl = null;
         pollUrl ??= status.OperationId is null
             ? null
             : $"https://{_host}/codesigningaccounts/{_account}/certificateprofiles/{_profile}/sign/{status.OperationId}?api-version={ApiVersion}";
@@ -109,6 +126,13 @@ internal sealed class TrustedSigningClient : IDisposable
     private static bool IsTerminal(string? s) =>
         string.Equals(s, "Succeeded", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(s, "Failed", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>True only for an absolute https URL on the same host we posted the sign
+    /// request to — the poll re-sends the bearer token, so it must not leave that origin.</summary>
+    private static bool IsSameHostHttps(string? url, string expectedHost) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var u)
+        && u.Scheme == Uri.UriSchemeHttps
+        && string.Equals(u.Host, expectedHost, StringComparison.OrdinalIgnoreCase);
 
     private static async Task<SignStatus> ReadStatus(HttpResponseMessage resp)
     {
