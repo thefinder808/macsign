@@ -169,6 +169,77 @@ public class AzureTrustedSigningTests
         Assert.Contains("MacSign Azure Test", r.SignerSubject!);
     }
 
+    // A malicious/redirecting response must not steer the token-bearing poll off-host.
+    [Fact]
+    public async Task Does_not_follow_a_cross_host_poll_url_from_the_response()
+    {
+        using var key = RSA.Create(2048);
+        var polledHosts = new List<string>();
+        string? postBody = null;
+
+        var handler = new StubHandler(async req =>
+        {
+            if (req.Method == HttpMethod.Post)
+            {
+                postBody = await req.Content!.ReadAsStringAsync();
+                var resp = Json(HttpStatusCode.Accepted, new { operationId = "op-1", status = "InProgress" });
+                resp.Headers.TryAddWithoutValidation("Operation-Location", "https://evil.example.com/steal-token");
+                return resp;
+            }
+            polledHosts.Add(req.RequestUri!.Host);
+            var digest = Convert.FromBase64String(JsonDocument.Parse(postBody!).RootElement.GetProperty("digest").GetString()!);
+            var sig = key.SignHash(digest, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            return Json(HttpStatusCode.OK, new { status = "Succeeded", signature = Convert.ToBase64String(sig) });
+        });
+
+        using var client = new TrustedSigningClient(
+            Endpoint, Account, Profile, new FakeToken("tok"), handler, pollInterval: TimeSpan.Zero);
+
+        await client.SignDigestAsync(SHA256.HashData([1, 2, 3]), "RS256", default);
+
+        // The poll fell back to the same-host operationId URL; the attacker host was never contacted.
+        Assert.NotEmpty(polledHosts);
+        Assert.All(polledHosts, h => Assert.Equal("eus.codesigning.azure.net", h));
+        Assert.DoesNotContain("evil.example.com", polledHosts);
+    }
+
+    // A hostile/compromised endpoint can't exhaust memory: the response body is capped.
+    [Fact]
+    public async Task Caps_the_response_body_size()
+    {
+        using var key = RSA.Create(2048);
+        string? postBody = null;
+
+        var handler = new StubHandler(async req =>
+        {
+            if (req.Method == HttpMethod.Post)
+            {
+                postBody = await req.Content!.ReadAsStringAsync();
+                return Json(HttpStatusCode.Accepted, new { operationId = "op", status = "InProgress" });
+            }
+            // A valid, complete Succeeded response — but padded well past the 1 MB cap, so it
+            // would succeed without the cap and must now be rejected on read.
+            var digest = Convert.FromBase64String(JsonDocument.Parse(postBody!).RootElement.GetProperty("digest").GetString()!);
+            var sig = key.SignHash(digest, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            var json = JsonSerializer.Serialize(new
+            {
+                status = "Succeeded",
+                signature = Convert.ToBase64String(sig),
+                pad = new string('x', 2 * 1024 * 1024),
+            });
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            };
+        });
+
+        using var client = new TrustedSigningClient(
+            Endpoint, Account, Profile, new FakeToken("t"), handler, pollInterval: TimeSpan.Zero);
+
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => client.SignDigestAsync(SHA256.HashData([1, 2, 3]), "RS256", default));
+    }
+
     [Fact]
     public void TryCreate_reports_missing_trusted_signing_options()
     {
