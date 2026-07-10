@@ -302,10 +302,32 @@ public class UpdateServiceTests
     {
         var svc = new UpdateService();
         // A bundle path whose parent is not writable (root-owned); install must refuse.
-        var res = await svc.InstallAndRelaunchAsync("/tmp/whatever.dmg",
+        var res = await svc.InstallAndRelaunchAsync("/tmp/whatever.dmg", GoodVersion,
             installedAppPath: "/usr/bin/MacSign.app", ct: default);
         Assert.False(res.Success);
         Assert.Contains("Applications", res.Detail);   // the "drag to Applications" fallback message
+    }
+
+    // Closes the verify→install TOCTOU: install re-runs the trust gate on the bundle it
+    // mounts, so a .dmg swapped in the temp dir after VerifyAsync (here: the inner app is
+    // signed by the wrong Team ID) is refused and never copied in or launched.
+    [Fact]
+    public async Task InstallAndRelaunch_reverifies_andRefuses_whenMountedBundleIsUntrusted()
+    {
+        var installDir = Path.Combine(Path.GetTempPath(), "macsign-inst-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(installDir);   // writable, so we get past DirWritable to the re-verify
+        try
+        {
+            var f = ReleaseShapeRunner(innerTeam: "WRONGTEAM0");   // valid shape, wrong signer
+            var res = await SvcWith(f).InstallAndRelaunchAsync(
+                MakeDmg(), GoodVersion, Path.Combine(installDir, "MacSign.app"), default);
+
+            Assert.False(res.Success);
+            Assert.Contains("verification", res.Title, StringComparison.OrdinalIgnoreCase);
+            // Refused BEFORE copying: no ditto (and therefore no staged bundle / relaunch).
+            Assert.DoesNotContain(f.Calls, c => c.File.EndsWith("ditto"));
+        }
+        finally { try { Directory.Delete(installDir, true); } catch { } }
     }
 
     [Fact]
