@@ -90,10 +90,27 @@ internal sealed partial class Ps1Format : ISignatureFormat
         return true;
     }
 
+    // The signed content is everything except the signature block, and the block must be
+    // the file's tail. We hash the content before it — and, if anything but whitespace
+    // follows the End marker (post-signing tampering: code injected after the block, or a
+    // grafted second block), we fold that trailing region back into the hashed content so
+    // the digest no longer matches and verification fails. A legitimate block is followed
+    // only by its own line ending, which is whitespace and hashes away, so genuinely signed
+    // scripts round-trip unchanged. Without this, trailing PowerShell executes yet sits
+    // outside the digest, and the verifier would call a tampered script VALID.
     private static string StripSignatureBlock(string text)
     {
-        var match = Regex.Match(text, @"\r?\n" + Regex.Escape(Begin));
-        return match.Success ? text[..match.Index] : text;
+        var begin = Regex.Match(text, @"\r?\n" + Regex.Escape(Begin));
+        if (!begin.Success)
+            return text; // unsigned
+
+        string content = text[..begin.Index];
+        int endMarker = text.IndexOf(End, begin.Index, StringComparison.Ordinal);
+        if (endMarker < 0)
+            return content; // Begin with no End: malformed block, nothing trustworthy follows
+
+        string trailing = text[(endMarker + End.Length)..];
+        return trailing.Trim().Length == 0 ? content : content + trailing;
     }
 
     private static byte[] LeadingBom(byte[] b) =>
