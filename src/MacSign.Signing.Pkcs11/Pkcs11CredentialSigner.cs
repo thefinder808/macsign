@@ -21,34 +21,42 @@ internal sealed class Pkcs11CredentialSigner : ICredentialSigner
     {
         _store = new Pkcs11X509Store(modulePath, new StaticPinProvider(pin));
 
-        // The store pairs certificate + private-key objects by CKA_ID, so the certs
-        // it lists are signing-capable; GetPrivateKey() below confirms a key is present.
-        var candidates = new List<Pkcs11X509Certificate>();
-        foreach (var slot in _store.Slots)
+        // Opening the store logs into the token (PIN). If anything below throws — no matching
+        // cert, an inaccessible key, an enumeration/parse error — dispose the store so that
+        // authenticated session is closed rather than leaked.
+        try
         {
-            if (slot.Token is not { } token)
-                continue;
-            candidates.AddRange(token.Certificates);
+            // The store pairs certificate + private-key objects by CKA_ID, so the certs
+            // it lists are signing-capable; GetPrivateKey() below confirms a key is present.
+            var candidates = new List<Pkcs11X509Certificate>();
+            foreach (var slot in _store.Slots)
+            {
+                if (slot.Token is not { } token)
+                    continue;
+                candidates.AddRange(token.Certificates);
+            }
+
+            var chosen = thumbprint is not null
+                ? candidates.FirstOrDefault(c =>
+                    string.Equals(c.Info.ParsedCertificate.Thumbprint, thumbprint, StringComparison.OrdinalIgnoreCase))
+                : candidates.Count == 1 ? candidates[0] : null;
+
+            if (chosen is null)
+                throw new InvalidOperationException(candidates.Count switch
+                {
+                    0 => "No certificate with a private key was found on the token.",
+                    _ => $"{candidates.Count} signing certificates found on the token — pass a thumbprint to select one.",
+                });
+
+            _certificate = chosen.Info.ParsedCertificate;
+            _signingKey = chosen.GetPrivateKey()
+                ?? throw new InvalidOperationException("The token's private key is not accessible.");
         }
-
-        var chosen = thumbprint is not null
-            ? candidates.FirstOrDefault(c =>
-                string.Equals(c.Info.ParsedCertificate.Thumbprint, thumbprint, StringComparison.OrdinalIgnoreCase))
-            : candidates.Count == 1 ? candidates[0] : null;
-
-        if (chosen is null)
+        catch
         {
             _store.Dispose();
-            throw new InvalidOperationException(candidates.Count switch
-            {
-                0 => "No certificate with a private key was found on the token.",
-                _ => $"{candidates.Count} signing certificates found on the token — pass a thumbprint to select one.",
-            });
+            throw;
         }
-
-        _certificate = chosen.Info.ParsedCertificate;
-        _signingKey = chosen.GetPrivateKey()
-            ?? throw new InvalidOperationException("The token's private key is not accessible.");
     }
 
     public X509Certificate2 Certificate => _certificate;
