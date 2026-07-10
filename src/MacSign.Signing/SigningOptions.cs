@@ -60,4 +60,28 @@ public sealed record SigningOptions
     /// or logged by MacSign. May be null for a password-less PFX.
     /// </summary>
     public string? Secret { get; init; }
+
+    /// <summary>
+    /// A record's synthesized <c>ToString()</c> prints every property — which would put the
+    /// <see cref="Secret"/> and <see cref="TrustedSigningAccessToken"/> in cleartext if an
+    /// options instance were ever interpolated into a log line or exception. Override the member
+    /// list so those two are redacted while the non-secret fields stay useful for diagnostics.
+    /// </summary>
+    private bool PrintMembers(System.Text.StringBuilder b)
+    {
+        b.Append("CertMode = ").Append(CertMode);
+        b.Append(", PfxPath = ").Append(PfxPath);
+        b.Append(", Pkcs11ModulePath = ").Append(Pkcs11ModulePath);
+        b.Append(", Pkcs11CertThumbprint = ").Append(Pkcs11CertThumbprint);
+        b.Append(", TrustedSigningEndpoint = ").Append(TrustedSigningEndpoint);
+        b.Append(", TrustedSigningAccount = ").Append(TrustedSigningAccount);
+        b.Append(", TrustedSigningProfile = ").Append(TrustedSigningProfile);
+        b.Append(", Description = ").Append(Description);
+        b.Append(", Url = ").Append(Url);
+        b.Append(", SignAllSignableFiles = ").Append(SignAllSignableFiles);
+        b.Append(", TimestampUrl = ").Append(TimestampUrl);
+        b.Append(", Secret = ").Append(Secret is null ? "(null)" : "(set)");
+        b.Append(", TrustedSigningAccessToken = ").Append(TrustedSigningAccessToken is null ? "(null)" : "(set)");
+        return true;
+    }
 }
