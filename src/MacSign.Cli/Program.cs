@@ -36,7 +36,7 @@ namespace MacSign.Cli
             {
                 return args[0] switch
                 {
-                    "sign" => await Sign(new Flags(args[1..])),
+                    "sign" => await Sign(new Flags(args[1..], "all")),
                     "verify" => Verify(new Flags(args[1..])),
                     "remove" => Remove(new Flags(args[1..])),
                     "gen-test-cert" => GenTestCert(new Flags(args[1..])),
@@ -53,9 +53,15 @@ namespace MacSign.Cli
 
         private static async Task<int> Sign(Flags f)
         {
+            bool all = f.Has("all");
+            // Never silently sign just one of several files: earlier `positional = a; last wins`
+            // dropped all but the last, exiting 0 as if every file had been signed.
+            if (f.Positionals.Count > 1)
+                return Fail(
+                    $"sign takes a single {(all ? "folder" : "file")}, but got {f.Positionals.Count}: " +
+                    $"{string.Join(", ", f.Positionals)}. To sign multiple files, use: macsign sign --all <folder>.");
             var file = f.Positional ?? throw new ArgumentException("Missing the file (or folder, with --all) to sign.");
             var password = ResolvePassword(f);
-            bool all = f.Has("all");
             var modulePath = f.Get("pkcs11-module");
             var tsEndpoint = f.Get("trusted-signing-endpoint");
 
@@ -97,7 +103,7 @@ namespace MacSign.Cli
 
         private static int Verify(Flags f)
         {
-            var file = f.Positional ?? throw new ArgumentException("Missing the file to verify.");
+            var file = f.RequireSinglePositional("file to verify");
             var r = SignatureVerifier.Verify(file);
 
             if (r.Error is not null) return Fail(r.Error);
@@ -124,7 +130,7 @@ namespace MacSign.Cli
 
         private static int Remove(Flags f)
         {
-            var file = f.Positional ?? throw new ArgumentException("Missing the file to remove the signature from.");
+            var file = f.RequireSinglePositional("file to remove the signature from");
             if (SignatureRemover.Remove(file))
                 Console.WriteLine($"Removed the signature from {Path.GetFileName(file)}.");
             else
@@ -238,39 +244,57 @@ namespace MacSign.Cli
         }
     }
 
-    /// <summary>Minimal <c>--flag value</c> / <c>--bool</c> parser with one trailing positional.</summary>
+    /// <summary>Minimal <c>--flag value</c> / <c>--bool</c> parser. Positionals are collected
+    /// (not "last wins"), and declared boolean flags never consume the token after them.</summary>
     internal sealed class Flags
     {
         private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _bools = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<string> _positionals = new();
 
-        public string? Positional { get; }
+        /// <summary>Every non-flag argument, in order.</summary>
+        public IReadOnlyList<string> Positionals => _positionals;
 
-        public Flags(string[] args)
+        /// <summary>The single positional, or null when there were zero or more than one.</summary>
+        public string? Positional => _positionals.Count == 1 ? _positionals[0] : null;
+
+        /// <param name="booleanFlags">Flags that take no value (e.g. <c>all</c>). Declaring them
+        /// stops the parser from greedily swallowing the following positional as their value — so
+        /// <c>--all &lt;folder&gt;</c> works, and the folder isn't mistaken for the flag's value.</param>
+        public Flags(string[] args, params string[] booleanFlags)
         {
-            string? positional = null;
+            var bools = new HashSet<string>(booleanFlags, StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < args.Length; i++)
             {
                 var a = args[i];
                 if (a.StartsWith("--", StringComparison.Ordinal))
                 {
                     var name = a[2..];
-                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                    if (!bools.Contains(name)
+                        && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
                         _values[name] = args[++i];
                     else
                         _bools.Add(name);
                 }
                 else
                 {
-                    positional = a; // last positional wins
+                    _positionals.Add(a);
                 }
             }
-            Positional = positional;
         }
 
         public string? Get(string name) => _values.TryGetValue(name, out var v) ? v : null;
         public bool Has(string name) => _bools.Contains(name) || _values.ContainsKey(name);
         public string Require(string name) => Get(name) ?? throw new ArgumentException($"Missing required --{name}.");
+
+        /// <summary>Exactly one positional, or a clear error — never silently drops extras.</summary>
+        public string RequireSinglePositional(string noun) => _positionals.Count switch
+        {
+            1 => _positionals[0],
+            0 => throw new ArgumentException($"Missing the {noun}."),
+            _ => throw new ArgumentException(
+                $"Expected a single {noun}, but got {_positionals.Count}: {string.Join(", ", _positionals)}."),
+        };
     }
 
     /// <summary>Writes engine progress straight to stdout (synchronous).</summary>
