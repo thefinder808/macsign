@@ -6,6 +6,54 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-07-09
+
+A security-hardening release: the fixes from a full security audit (multi-agent
+review + manual analysis), plus supply-chain hardening. No breaking API changes.
+
+### Security
+- **PowerShell (`.ps1`) verification now binds the entire file.** A signed script
+  was reported as `VALID` even when arbitrary PowerShell was appended *after*
+  `# SIG # End signature block` — code that PowerShell executes but that sat outside
+  the hashed region. Verification now folds any non-whitespace content after the
+  signature block back into the digest, so a tampered script correctly reports
+  `INVALID`. (The signature-block-must-be-the-file-tail invariant PE already
+  enforced.)
+- **Azure Trusted Signing client hardened.** The long-running-operation poll is now
+  followed only when it stays on the same HTTPS host the request was posted to — so a
+  redirecting or malicious endpoint can't steer the bearer-token-bearing request
+  elsewhere — plus a 1 MB response cap, a 30 s timeout, and no auto-redirect.
+- **In-app updater re-verifies at install time.** The notarization / Team ID /
+  bundle-id / version trust gate now re-runs on the exact bundle being installed
+  (not just the one checked after download), closing a verify→install
+  time-of-check/time-of-use gap.
+- **Signed-file writes are symlink-safe.** In-place writes (`AtomicFile`) and settings
+  persistence use a randomized temp name opened exclusively (`O_CREAT|O_EXCL`), so a
+  pre-planted symlink at a predictable path can no longer redirect the write.
+- Secrets (`Secret`, Azure access token) are redacted from `SigningOptions.ToString()`.
+
+### Changed
+- **CLI argument handling is safer.** `sign` now rejects more than one file with a
+  clear message pointing at `--all <folder>` (it previously signed only the last file
+  and exited 0), and `--all <folder>` now works regardless of flag order (a bare
+  `--all` used to consume the folder as its value). `verify` and `remove` reject stray
+  extra arguments instead of silently ignoring them.
+- **`Azure.Identity` upgraded 1.13.2 → 1.21.0** (the old version was deprecated on
+  nuget.org); this ships in the published `MacSign.Signing.Azure` package.
+
+### Added
+- **Reproducible builds via NuGet lock files.** Every project commits a
+  `packages.lock.json` pinning the exact version + hash of its full transitive
+  dependency graph; CI restores in locked mode, so an unexpected dependency change
+  fails the build instead of sliding in silently.
+
+### Fixed
+- The PKCS#11 credential now disposes its PIN-authenticated token session if
+  construction fails partway, instead of leaking it.
+- `build-macos.sh` cleanup now runs on any exit (the previous `RETURN` trap never
+  fired for a directly-executed script, so a failed build could leave a volume
+  mounted and a stray read-write image behind).
+
 ## [1.2.0] — 2026-06-09
 
 ### Added
@@ -184,7 +232,9 @@ open-source licensing and project files and removes personal defaults from the U
 - Native macOS GUI (Avalonia): Sign / Verify / Profiles / Activity.
 - Tag-driven release CI that builds, signs, and notarizes the `arm64` + `x64` DMGs.
 
-[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.1.5...HEAD
+[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/thefinder808/macsign/releases/tag/v1.3.0
+[1.2.0]: https://github.com/thefinder808/macsign/releases/tag/v1.2.0
 [1.1.5]: https://github.com/thefinder808/macsign/releases/tag/v1.1.5
 [1.1.4]: https://github.com/thefinder808/macsign/releases/tag/v1.1.4
 [1.1.0]: https://github.com/thefinder808/macsign/releases/tag/v1.1.0
