@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Pkcs11Interop.X509Store": {
+        "type": "Direct",
+        "requested": "[1.1.0, )",
+        "resolved": "1.1.0",
+        "contentHash": "qiM0+qh8ZWh3qOQkjB6UNoc4cxrizd7+gW5SmMXRp4mwlOoAwJZQWDrSBt+wn3mubokj1LQ/1JC6Kq5hFiwduw==",
+        "dependencies": {
+          "Pkcs11Interop": "5.3.0"
+        }
+      },
+      "Pkcs11Interop": {
+        "type": "Transitive",
+        "resolved": "5.3.0",
+        "contentHash": "NnnD5CheO5d0ZTP/clt7XCjUy+FraxZv0hVP0GWSvry8jH4IrLifta04M9cjITr0EzKshG4qnFu2pdZZfhjttA=="
+      },
+      "System.Security.Cryptography.Pkcs": {
+        "type": "Transitive",
+        "resolved": "10.0.8",
+        "contentHash": "2wOycCqMyg9Tu+SDP03FFwDEWBni/3xOKgt0bRXplOvyeIcUJmWO7m3gTCF2mIdtQLROLtOP5VwWRT8YBwP/bA=="
+      },
+      "macsign.signing": {
+        "type": "Project",
+        "dependencies": {
+          "System.Security.Cryptography.Pkcs": "[10.0.8, )"
+        }
+      }
+    }
+  }
+}

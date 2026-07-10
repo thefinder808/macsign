@@ -8,6 +8,20 @@
     <LangVersion>latest</LangVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
 
+    <!-- Supply chain: commit a NuGet lock file per project (packages.lock.json) pinning the
+         exact version + hash of every transitive dependency, so restores are reproducible and
+         a dependency change shows up as a reviewable diff. On CI, restore in locked mode so an
+         unexpected dependency change fails the build instead of sliding in silently. Local dev
+         still updates the lock file freely (RestoreLockedMode only when the CI env var is set,
+         which GitHub Actions sets — so no workflow edit is needed).
+         The RuntimeIdentifier=='' guard scopes enforcement to the framework-dependent restore
+         (the normal build + the whole test suite). A self-contained `dotnet publish -r <rid>`
+         (build-macos.sh / release.yml) restores extra RID runtime packs the committed lock file
+         doesn't list, which would fail locked mode — so locked mode is deliberately off for that
+         RID restore. The package versions are still pinned via the framework restore above. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true' and '$(RuntimeIdentifier)' == ''">true</RestoreLockedMode>
+
     <!-- Project metadata. Bump the Version in step with the release tag and CHANGELOG.md;
          it is what the CLI version command and the assembly metadata report. (The release
          DMG's bundle version is set separately, from the git tag, by build-macos.sh.) -->
