@@ -56,12 +56,14 @@ public sealed class SettingsStore
             Directory.CreateDirectory(_dir);
             var json = JsonSerializer.Serialize(data, Options);
 
-            // Write to a sibling temp then atomically rename, so a crash/full-disk mid-write
-            // can't truncate settings.json (a torn file fails to parse and Load would reset it).
-            var temp = FilePath + ".tmp";
+            // Write to a randomized sibling temp then atomically rename, so a crash/full-disk
+            // mid-write can't truncate settings.json (a torn file fails to parse and Load would
+            // reset it). A random name + CreateNew (O_CREAT|O_EXCL) also means a pre-planted
+            // symlink at the temp path is not followed — the open fails closed instead.
+            var temp = FilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
-                using (var fs = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var fs = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     var bytes = System.Text.Encoding.UTF8.GetBytes(json);
                     fs.Write(bytes, 0, bytes.Length);
