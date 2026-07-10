@@ -11,6 +11,24 @@ namespace MacSign.Signing.Tests;
 public class SecurityHardeningTests
 {
     [Fact]
+    public void SigningOptions_ToString_redacts_secrets()
+    {
+        var o = new SigningOptions
+        {
+            PfxPath = "/tmp/cert.pfx",
+            Secret = "hunter2-password",
+            TrustedSigningAccessToken = "eyJ.super.secret.jwt",
+        };
+
+        var s = o.ToString();
+
+        Assert.DoesNotContain("hunter2-password", s);      // the PFX password must not leak
+        Assert.DoesNotContain("eyJ.super.secret.jwt", s);  // nor the Azure token
+        Assert.Contains("/tmp/cert.pfx", s);               // non-secret fields stay useful
+        Assert.Contains("Secret = (set)", s);              // presence is shown, value is not
+    }
+
+    [Fact]
     public void Verify_rejects_a_signature_whose_content_is_not_spc_indirect_data()
     {
         // A CMS carrying a correct SHA-256 SpcIndirectData payload, but under the WRONG

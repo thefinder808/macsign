@@ -97,7 +97,10 @@ cleanup_dmg() {
     hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
     rm -rf "$STAGE" "$RWDMG"
 }
-trap cleanup_dmg RETURN 2>/dev/null || true
+# EXIT (not RETURN): a RETURN trap never fires for a directly-executed script, so a failure
+# mid-DMG-build would leave /Volumes/$APP_NAME mounted and a stray .rw-*.dmg behind. EXIT fires
+# on any exit; cleanup only touches the mount + intermediates (never the final $DMG).
+trap cleanup_dmg EXIT
 
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
