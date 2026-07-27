@@ -19,6 +19,7 @@ public sealed class AppPrefs
     public string Theme { get; set; } = "System";                       // System | Light | Dark
     public string DefaultTimestampUrl { get; set; } = "http://timestamp.digicert.com";
     public bool   TimestampByDefault  { get; set; } = true;
+    public bool   RestoreLastCredential { get; set; } = true;           // opt-out
     public int    ActivityKeepLast    { get; set; } = 50;               // 0 = unlimited
 
     // ── auto-updates (no secret) ──

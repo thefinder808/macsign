@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -70,6 +71,29 @@ public partial class MainWindowViewModel : ObservableObject
         Preferences.ResetRequested += ResetAll;
         // Preferences "Check Now" found an update → open the update dialog.
         Preferences.UpdateAvailable += info => ShowUpdate?.Invoke(MakeUpdateViewModel(info));
+
+        // Must run AFTER the prefs seeding above: ApplyProfile keeps the current timestamp
+        // URL for profiles that predate that field, and "current" has to mean the prefs
+        // default that was just seeded, not the SignViewModel ctor's hardcoded fallback.
+        RestoreLastCredentialIfEnabled();
+    }
+
+    /// <summary>Restores the most-recently-used profile's credential to the Sign screen at
+    /// launch (opt-out via <see cref="AppPrefs.RestoreLastCredential"/>), mirroring the
+    /// Apple screen's existing behaviour of remembering its credential across launches.</summary>
+    private void RestoreLastCredentialIfEnabled()
+    {
+        if (!_data.Preferences.RestoreLastCredential) return;
+
+        var last = _data.Profiles
+            .Where(p => !string.IsNullOrEmpty(p.LastUsedIso))
+            .MaxBy(LastUsed);
+        if (last is not null) Sign.ApplyProfile(last);
+
+        // Compare instants, not strings: the "o" format carries a UTC offset, and across a DST
+        // change an ordinal compare puts the two sides of the boundary in the wrong order.
+        static DateTimeOffset LastUsed(ProfileData p) =>
+            DateTimeOffset.TryParse(p.LastUsedIso, out var d) ? d : DateTimeOffset.MinValue;
     }
 
     /// <summary>True if the app should run an automatic update check right now.

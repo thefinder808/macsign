@@ -48,6 +48,11 @@
                         <TextBlock Text="Timestamp signatures by default (RFC 3161)" VerticalAlignment="Center"
                                    Foreground="{DynamicResource Ink}" FontSize="12.5" />
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <ToggleButton Classes="switch" IsChecked="{Binding RestoreLastCredential}" />
+                        <TextBlock Text="Restore the last-used credential at launch" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Ink}" FontSize="12.5" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
