@@ -61,6 +61,9 @@ public partial class MainWindowViewModel : ObservableObject
         Apple.RunRecorded += Activity.Record;
         // "Sign with…" a profile applies it and jumps to the Sign screen.
         Profiles.SignWithRequested += p => { Sign.ApplyProfile(p); CurrentView = AppView.Sign; };
+        // "Save as profile" on the Sign screen itself — reusing NewProfile means the save
+        // also navigates to Profiles, which is the confirmation (the app has no toast surface).
+        Sign.SaveProfileRequested += NewProfile;
         // Preferences → cross-VM actions.
         Preferences.ClearHistoryRequested += Activity.Clear;
         Preferences.CapChanged += Activity.ReTrim;

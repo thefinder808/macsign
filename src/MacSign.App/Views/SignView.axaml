@@ -339,6 +339,15 @@
                             </StackPanel>
                         </StackPanel>
 
+                        <Button Classes="secondary" HorizontalAlignment="Stretch" Height="38"
+                                Command="{Binding SaveProfileCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <Path Data="{StaticResource IcoPlus}" Stroke="{DynamicResource Ink}"
+                                      StrokeThickness="1.6" Stretch="Uniform" Width="14" Height="14" VerticalAlignment="Center" />
+                                <TextBlock Text="Save as profile" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
                     </StackPanel>
                 </ScrollViewer>
 

@@ -24,3 +24,153 @@ public class ProfilesViewModelTests
         Assert.Empty(store.Load().Profiles);
     }
 }
+
+/// <summary>Covers the Sign screen's profile interop (<c>CreateProfileSnapshot</c>/
+/// <c>ApplyProfile</c>/"Save as profile") — the correctness fixes are in
+/// <c>SignViewModel</c>, not <c>ProfilesViewModel</c>, but they exist to serve the
+/// Profiles feature, so the tests live alongside <see cref="ProfilesViewModelTests"/>.
+///
+/// macOS trap: every path used here is POSIX (e.g. "/certs/dev.pfx"). On Unix,
+/// <c>Path.GetFileNameWithoutExtension</c> does NOT strip a Windows-style
+/// "C:\certs\dev.pfx" — a Windows-path test would silently pass for the wrong reason
+/// (or fail) on the macOS CI runner these tests actually run on.</summary>
+public class SignProfileInteropTests
+{
+    [Fact]
+    public void CreateProfileSnapshot_then_ApplyProfile_round_trips_the_timestamp_url()
+    {
+        var source = new SignViewModel
+        {
+            CredMode = CredMode.Pfx,
+            PfxPath = "/certs/dev.pfx",
+            TimestampUrl = "http://tsa.example/from-source",
+        };
+        var snapshot = source.CreateProfileSnapshot();
+
+        var target = new SignViewModel();
+        target.ApplyProfile(snapshot);
+
+        Assert.Equal("http://tsa.example/from-source", target.TimestampUrl);
+    }
+
+    [Fact]
+    public void ApplyProfile_with_legacy_null_timestamp_url_keeps_the_current_url()
+    {
+        // A profile saved before TimestampUrl existed carries null. Blanking the
+        // field would silently drop the TSA while the toggle still reads "on".
+        var vm = new SignViewModel { TimestampUrl = "http://tsa.example/keep-me" };
+        var legacyProfile = new ProfileData
+        {
+            CredMode = "Pfx",
+            PfxPath = "/certs/dev.pfx",
+            TimestampUrl = null,
+        };
+
+        vm.ApplyProfile(legacyProfile);
+
+        Assert.Equal("http://tsa.example/keep-me", vm.TimestampUrl);
+    }
+
+    [Fact]
+    public void ApplyProfile_of_a_pfx_profile_clears_a_previously_set_azure_identity()
+    {
+        var vm = new SignViewModel
+        {
+            CredMode = CredMode.Azure,
+            Account = "stale-account",
+            Profile = "stale-profile",
+            Endpoint = "stale.endpoint",
+        };
+        var pfxProfile = new ProfileData { CredMode = "Pfx", PfxPath = "/certs/dev.pfx" };
+
+        vm.ApplyProfile(pfxProfile);
+
+        Assert.Equal("", vm.Account);
+        Assert.Equal("", vm.Profile);
+        Assert.Equal(SignViewModel.DefaultEndpoint, vm.Endpoint);
+    }
+
+    [Fact]
+    public void CreateProfileSnapshot_scopes_fields_to_the_active_credential_mode()
+    {
+        var pfxVm = new SignViewModel
+        {
+            CredMode = CredMode.Pfx,
+            PfxPath = "/certs/dev.pfx",
+            // Leftover values from a mode the user switched away from — must not leak in.
+            Account = "leftover-account",
+            Profile = "leftover-profile",
+            Endpoint = "leftover.endpoint",
+        };
+        var pfxSnapshot = pfxVm.CreateProfileSnapshot();
+        Assert.Equal("/certs/dev.pfx", pfxSnapshot.PfxPath);
+        Assert.Null(pfxSnapshot.Account);
+        Assert.Null(pfxSnapshot.Profile);
+        Assert.Null(pfxSnapshot.Endpoint);
+
+        var azureVm = new SignViewModel
+        {
+            CredMode = CredMode.Azure,
+            Account = "my-account",
+            Profile = "my-profile",
+            Endpoint = "eus.codesigning.azure.net",
+            // Leftover PFX value from before the user switched to Azure.
+            PfxPath = "/certs/leftover.pfx",
+        };
+        var azureSnapshot = azureVm.CreateProfileSnapshot();
+        Assert.Equal("my-account", azureSnapshot.Account);
+        Assert.Null(azureSnapshot.PfxPath);
+        Assert.Null(azureSnapshot.ModulePath);
+        Assert.Null(azureSnapshot.Thumbprint);
+    }
+
+    [Fact]
+    public void CreateProfileSnapshot_names_an_azure_profile_after_the_account()
+    {
+        var vm = new SignViewModel
+        {
+            CredMode = CredMode.Azure,
+            Account = "my-signing-account",
+            Profile = "prof",
+            Endpoint = "eus.codesigning.azure.net",
+        };
+
+        var snapshot = vm.CreateProfileSnapshot();
+
+        Assert.Equal("my-signing-account", snapshot.Name);
+    }
+
+    [Fact]
+    public void CreateProfileSnapshot_names_a_pfx_profile_after_the_file()
+    {
+        // The macOS path trap: this must be a POSIX path, not a Windows one.
+        var vm = new SignViewModel { CredMode = CredMode.Pfx, PfxPath = "/certs/dev.pfx" };
+
+        var snapshot = vm.CreateProfileSnapshot();
+
+        Assert.Equal("dev", snapshot.Name);
+    }
+
+    [Fact]
+    public void SaveProfileCommand_CanExecute_is_false_until_the_credential_is_complete()
+    {
+        var vm = new SignViewModel { CredMode = CredMode.Pfx };
+        Assert.False(vm.SaveProfileCommand.CanExecute(null));
+
+        vm.PfxPath = "/certs/dev.pfx";
+
+        Assert.True(vm.SaveProfileCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void SaveProfileCommand_raises_SaveProfileRequested_so_the_shell_can_add_it()
+    {
+        var vm = new SignViewModel { CredMode = CredMode.Pfx, PfxPath = "/certs/dev.pfx" };
+        var raised = 0;
+        vm.SaveProfileRequested += () => raised++;
+
+        vm.SaveProfileCommand.Execute(null);
+
+        Assert.Equal(1, raised);
+    }
+}

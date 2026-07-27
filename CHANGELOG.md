@@ -6,6 +6,28 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **"Save as profile" is now on the Sign screen itself.** Previously the only way to save
+  the current credential + options as a profile was a "New profile" button on the
+  *Profiles* screen — a control on a different screen than the fields it snapshots. The
+  Sign screen's inspector now has its own "Save as profile" button (disabled until the
+  active credential is complete), which saves and jumps to Profiles as confirmation.
+- **A saved profile's RFC 3161 timestamp URL is no longer dropped.** `ProfileData` gained
+  `TimestampUrl`; applying a profile saved before this field existed (a `null` URL)
+  leaves the current URL alone instead of blanking it while the timestamp toggle still
+  reads "on".
+- **Applying a profile no longer leaves a stale Azure identity behind.** Switching to a
+  PFX or PKCS#11 profile now clears the Account/Profile/Endpoint fields (falling back to
+  the default endpoint) instead of only overwriting them when the incoming profile
+  happened to carry non-null values.
+- **Saving a profile no longer captures fields from the wrong credential mode.** The
+  snapshot now scopes PFX/PKCS#11/Azure fields to the active mode, the same way signing
+  itself already does — so a PFX profile can no longer carry a leftover Azure account
+  (or vice versa).
+- **Azure profiles are no longer all named "Azure Trusted Signing."** A saved profile is
+  now named after its distinguishing detail — the PFX/module filename, or the Azure
+  account — so multiple Azure profiles are distinguishable in the Profiles list.
+
 ## [1.3.0] — 2026-07-09
 
 A security-hardening release: the fixes from a full security audit (multi-agent

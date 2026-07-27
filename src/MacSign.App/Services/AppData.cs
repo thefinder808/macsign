@@ -53,6 +53,7 @@ public sealed class ProfileData
     public string? Profile { get; set; }
     public string? Endpoint { get; set; }
     public bool Timestamp { get; set; }
+    public string? TimestampUrl { get; set; }
     public string? Description { get; set; }
     public string? Url { get; set; }
     public string? LastUsedIso { get; set; }
