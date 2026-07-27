@@ -20,8 +20,23 @@ internal sealed class PfxCredentialSigner : ICredentialSigner
 
         // NOTE: EphemeralKeySet is unsupported on macOS (throws), so we use the
         // default key set. The collection loader lets us separate leaf from chain.
-        var bag = X509CertificateLoader.LoadPkcs12Collection(
-            bytes, password, X509KeyStorageFlags.DefaultKeySet);
+        X509Certificate2Collection bag;
+        try
+        {
+            bag = X509CertificateLoader.LoadPkcs12Collection(
+                bytes, password, X509KeyStorageFlags.DefaultKeySet);
+        }
+        catch (CryptographicException ex)
+        {
+            // The platform's own message is unhelpful in a code-signing context (on
+            // Windows it's literally "The specified network password is not correct").
+            // Wrap it with the original as InnerException so nothing is lost.
+            throw new CryptographicException(
+                string.IsNullOrEmpty(password)
+                    ? "Could not open the PFX. If it is password-protected, supply the password."
+                    : "Could not open the PFX — the password may be wrong, or the file may be corrupt.",
+                ex);
+        }
 
         try
         {

@@ -40,6 +40,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   PKCS#11 card used to render as "token · …", identical for every certificate on a
   module. The card summary now includes the module's filename and the signing
   certificate's thumbprint prefix.
+- **A wrong or missing PFX password now reports a clear message instead of the raw
+  platform error.** Loading a `.pfx` with an incorrect password (or no password on a
+  protected file) used to surface as-is — on Windows that's literally "The specified
+  network password is not correct," which has nothing to do with code signing. The
+  engine now wraps the failure with an actionable message ("the password may be wrong,
+  or the file may be corrupt" / "supply the password") while keeping the original
+  exception as `InnerException`. Engine-side (`PfxCredentialSigner`), so the CLI
+  benefits too. An unprotected PFX remains fully supported — the password stays
+  optional.
 
 ### Added
 - **The Sign screen's Azure block now has an Endpoint field.** The Trusted Signing
