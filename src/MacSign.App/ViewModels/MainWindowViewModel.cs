@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -61,12 +62,38 @@ public partial class MainWindowViewModel : ObservableObject
         Apple.RunRecorded += Activity.Record;
         // "Sign with…" a profile applies it and jumps to the Sign screen.
         Profiles.SignWithRequested += p => { Sign.ApplyProfile(p); CurrentView = AppView.Sign; };
+        // "Save as profile" on the Sign screen itself — reusing NewProfile means the save
+        // also navigates to Profiles, which is the confirmation (the app has no toast surface).
+        Sign.SaveProfileRequested += NewProfile;
         // Preferences → cross-VM actions.
         Preferences.ClearHistoryRequested += Activity.Clear;
         Preferences.CapChanged += Activity.ReTrim;
         Preferences.ResetRequested += ResetAll;
         // Preferences "Check Now" found an update → open the update dialog.
         Preferences.UpdateAvailable += info => ShowUpdate?.Invoke(MakeUpdateViewModel(info));
+
+        // Must run AFTER the prefs seeding above: ApplyProfile keeps the current timestamp
+        // URL for profiles that predate that field, and "current" has to mean the prefs
+        // default that was just seeded, not the SignViewModel ctor's hardcoded fallback.
+        RestoreLastCredentialIfEnabled();
+    }
+
+    /// <summary>Restores the most-recently-used profile's credential to the Sign screen at
+    /// launch (opt-out via <see cref="AppPrefs.RestoreLastCredential"/>), mirroring the
+    /// Apple screen's existing behaviour of remembering its credential across launches.</summary>
+    private void RestoreLastCredentialIfEnabled()
+    {
+        if (!_data.Preferences.RestoreLastCredential) return;
+
+        var last = _data.Profiles
+            .Where(p => !string.IsNullOrEmpty(p.LastUsedIso))
+            .MaxBy(LastUsed);
+        if (last is not null) Sign.ApplyProfile(last);
+
+        // Compare instants, not strings: the "o" format carries a UTC offset, and across a DST
+        // change an ordinal compare puts the two sides of the boundary in the wrong order.
+        static DateTimeOffset LastUsed(ProfileData p) =>
+            DateTimeOffset.TryParse(p.LastUsedIso, out var d) ? d : DateTimeOffset.MinValue;
     }
 
     /// <summary>True if the app should run an automatic update check right now.
@@ -159,6 +186,13 @@ public partial class MainWindowViewModel : ObservableObject
         Activity.Clear();
         Apple.ReloadFromData();
         Preferences.ReloadFromData();
+        // ProfileData defaults CredMode to "Azure", so say "Pfx" to match a fresh view-model.
+        Sign.ApplyProfile(new ProfileData { CredMode = "Pfx" });
+        // ApplyProfile deliberately never touches the transient secret fields (PfxPassword,
+        // Pin — they aren't part of ProfileData), so a reset has to clear them here itself,
+        // or a typed password/PIN survives "Reset all settings".
+        Sign.PfxPassword = "";
+        Sign.Pin = "";
         Sign.TimestampUrl = _data.Preferences.DefaultTimestampUrl;
         Sign.TimestampEnabled = _data.Preferences.TimestampByDefault;
     }
@@ -166,7 +200,7 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void NewProfile()
     {
-        Profiles.Add(Sign.CreateProfileSnapshot());
+        Profiles.Save(Sign.CreateProfileSnapshot());
         CurrentView = AppView.Profiles;
     }
 

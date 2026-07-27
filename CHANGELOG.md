@@ -6,6 +6,65 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **"Save as profile" is now on the Sign screen itself.** Previously the only way to save
+  the current credential + options as a profile was a "New profile" button on the
+  *Profiles* screen — a control on a different screen than the fields it snapshots. The
+  Sign screen's inspector now has its own "Save as profile" button (disabled until the
+  active credential is complete), which saves and jumps to Profiles as confirmation.
+- **A saved profile's RFC 3161 timestamp URL is no longer dropped.** `ProfileData` gained
+  `TimestampUrl`; applying a profile saved before this field existed (a `null` URL)
+  leaves the current URL alone instead of blanking it while the timestamp toggle still
+  reads "on".
+- **Applying a profile no longer leaves a stale Azure identity behind.** Switching to a
+  PFX or PKCS#11 profile now clears the Account/Profile/Endpoint fields (falling back to
+  the default endpoint) instead of only overwriting them when the incoming profile
+  happened to carry non-null values.
+- **Saving a profile no longer captures fields from the wrong credential mode.** The
+  snapshot now scopes PFX/PKCS#11/Azure fields to the active mode, the same way signing
+  itself already does — so a PFX profile can no longer carry a leftover Azure account
+  (or vice versa).
+- **Azure profiles are no longer all named "Azure Trusted Signing."** A saved profile is
+  now named after its distinguishing detail — the PFX/module filename, or the Azure
+  account — so multiple Azure profiles are distinguishable in the Profiles list.
+- **"Reset all settings" now also clears the Sign screen's credential.** Previously it
+  wiped every saved profile but left whatever PFX/PKCS#11/Azure fields were still filled
+  in on the Sign screen — a reset that didn't reset. It now returns the Sign screen to an
+  empty PFX credential too, matching a fresh install.
+- **Re-saving a profile updates it instead of stacking a duplicate.** Saving a profile
+  whose credential (PFX path, PKCS#11 module + thumbprint, or Azure account + profile +
+  endpoint) matches an existing one now updates that profile's description, more-info
+  URL, and timestamp settings in place rather than adding a second card — while keeping
+  any name you'd given the original.
+- **Two PKCS#11 profiles on the same hardware token are now distinguishable.** Every
+  PKCS#11 card used to render as "token · …", identical for every certificate on a
+  module. The card summary now includes the module's filename and the signing
+  certificate's thumbprint prefix.
+- **A wrong or missing PFX password now reports a clear message instead of the raw
+  platform error.** Loading a `.pfx` with an incorrect password (or no password on a
+  protected file) used to surface as-is — on Windows that's literally "The specified
+  network password is not correct," which has nothing to do with code signing. The
+  engine now wraps the failure with an actionable message ("the password may be wrong,
+  or the file may be corrupt" / "supply the password") while keeping the original
+  exception as `InnerException`. Engine-side (`PfxCredentialSigner`), so the CLI
+  benefits too. An unprotected PFX remains fully supported — the password stays
+  optional.
+
+### Added
+- **The Sign screen's Azure block now has an Endpoint field.** The Trusted Signing
+  endpoint was previously hardcoded and only reachable from the CLI. It now has its own
+  text field alongside Account and Certificate profile, watermarked
+  `eus.codesigning.azure.net`; paste a URL straight from the Azure portal — the scheme
+  and trailing slash are stripped automatically.
+- **The Sign screen now restores your last-used credential at launch.** Previously the
+  Sign screen always opened with an empty PFX credential, even if you'd signed with a
+  saved profile moments before — the Apple ("Sign (Mac)") screen already remembered its
+  credential across launches, but the Windows Sign screen did not. MacSign now applies
+  the most-recently-used profile automatically on startup — not just the credential, but
+  the whole profile (description, more-info URL, and its timestamp settings too). New
+  Preferences → Signing defaults toggle, "Restore the last-used credential at launch" (on
+  by default; opt out to always start from an empty credential).
+
 ## [1.3.0] — 2026-07-09
 
 A security-hardening release: the fixes from a full security audit (multi-agent

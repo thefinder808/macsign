@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MacSign.App.Services;
 
@@ -32,10 +33,21 @@ public partial class ProfilesViewModel : ObservableObject
         };
     }
 
-    public void Add(ProfileData p)
+    /// <summary>Save a profile — matching an existing one on key material (see
+    /// <see cref="ProfileData.SameCredentialAs"/>) updates its settings in place instead of
+    /// stacking a duplicate; no match adds a new card.</summary>
+    public void Save(ProfileData p)
     {
-        _data.Profiles.Add(p);
-        Profiles.Add(new ProfileItemViewModel(p, this));
+        var existing = Profiles.FirstOrDefault(item => item.Data.SameCredentialAs(p));
+        if (existing is not null)
+        {
+            existing.RefreshFrom(p);
+        }
+        else
+        {
+            _data.Profiles.Add(p);
+            Profiles.Add(new ProfileItemViewModel(p, this));
+        }
         Persist();
     }
 

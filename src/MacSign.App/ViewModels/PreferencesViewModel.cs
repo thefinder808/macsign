@@ -45,6 +45,7 @@ public partial class PreferencesViewModel : ObservableObject
         _theme = p.Theme;
         _defaultTimestampUrl = p.DefaultTimestampUrl;
         _timestampByDefault = p.TimestampByDefault;
+        _restoreLastCredential = p.RestoreLastCredential;
         _activityKeepLast = p.ActivityKeepLast;
         _autoCheckUpdates = p.AutoCheckUpdates;
     }
@@ -70,8 +71,10 @@ public partial class PreferencesViewModel : ObservableObject
     // ── Signing defaults ──
     [ObservableProperty] private string _defaultTimestampUrl;
     [ObservableProperty] private bool _timestampByDefault;
-    partial void OnDefaultTimestampUrlChanged(string value) { if (_suppress) return; Persist(); }
-    partial void OnTimestampByDefaultChanged(bool value)    { if (_suppress) return; Persist(); }
+    [ObservableProperty] private bool _restoreLastCredential;
+    partial void OnDefaultTimestampUrlChanged(string value)   { if (_suppress) return; Persist(); }
+    partial void OnTimestampByDefaultChanged(bool value)      { if (_suppress) return; Persist(); }
+    partial void OnRestoreLastCredentialChanged(bool value)   { if (_suppress) return; Persist(); }
 
     // ── Activity & data ──
     [ObservableProperty]
@@ -165,6 +168,7 @@ public partial class PreferencesViewModel : ObservableObject
         Theme = p.Theme;
         DefaultTimestampUrl = p.DefaultTimestampUrl;
         TimestampByDefault = p.TimestampByDefault;
+        RestoreLastCredential = p.RestoreLastCredential;
         ActivityKeepLast = p.ActivityKeepLast;
         AutoCheckUpdates = p.AutoCheckUpdates;
         _suppress = false;
@@ -177,6 +181,7 @@ public partial class PreferencesViewModel : ObservableObject
         p.Theme = Theme;
         p.DefaultTimestampUrl = DefaultTimestampUrl;
         p.TimestampByDefault = TimestampByDefault;
+        p.RestoreLastCredential = RestoreLastCredential;
         p.ActivityKeepLast = ActivityKeepLast;
         p.AutoCheckUpdates = AutoCheckUpdates;
         _store.Save(_data);

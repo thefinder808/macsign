@@ -41,6 +41,17 @@ public class PreferencesViewModelTests
     }
 
     [Fact]
+    public void RestoreLastCredential_defaults_true_and_persists_when_changed()
+    {
+        var vm = Make(out _, out var store, out _);
+        Assert.True(vm.RestoreLastCredential);
+
+        vm.RestoreLastCredential = false;
+
+        Assert.False(store.Load().Preferences.RestoreLastCredential);
+    }
+
+    [Fact]
     public void SetCap_numeric_sets_value_and_active_flag()
     {
         var vm = Make(out _, out _, out _);

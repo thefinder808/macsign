@@ -22,6 +22,11 @@ namespace MacSign.App.ViewModels;
 /// </summary>
 public partial class SignViewModel : ObservableObject
 {
+    /// <summary>The Trusted Signing endpoint field's default — also what a profile
+    /// applies when it predates the <c>Endpoint</c> field (or was saved from a
+    /// non-Azure mode, which never carries one).</summary>
+    public const string DefaultEndpoint = "eus.codesigning.azure.net";
+
     private readonly EngineService _engine;
     private CancellationTokenSource? _cts;
 
@@ -43,7 +48,7 @@ public partial class SignViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPfx), nameof(IsPkcs11), nameof(IsAzure),
         nameof(CredBlurb), nameof(ActiveCredentialName), nameof(ActiveCredentialSub), nameof(CredentialReady))]
-    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
     private CredMode _credMode = CredMode.Pfx;
 
     public bool IsPfx => CredMode == CredMode.Pfx;
@@ -67,27 +72,27 @@ public partial class SignViewModel : ObservableObject
     // ── credential fields (transient; never persisted) ──
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveCredentialSub), nameof(CredentialReady))]
-    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
     private string _pfxPath = "";
     [ObservableProperty] private string _pfxPassword = "";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CredentialReady))]
-    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
     private string _modulePath = "";
     [ObservableProperty] private string _thumbprint = "";
     [ObservableProperty] private string _pin = "";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveCredentialSub), nameof(CredentialReady))]
-    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
     private string _account = "";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CredentialReady))]
-    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
     private string _profile = "";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CredentialReady))]
-    [NotifyCanExecuteChangedFor(nameof(SignCommand))]
-    private string _endpoint = "eus.codesigning.azure.net";
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
+    private string _endpoint = DefaultEndpoint;
 
     // ── options ──
     [ObservableProperty] private string _description = "";
@@ -429,19 +434,46 @@ public partial class SignViewModel : ObservableObject
     };
 
     // ── Profiles interop ──
+
+    /// <summary>Raised by "Save as profile" on the Sign screen. The shell owns the Profiles
+    /// collection, so it performs the actual add — this VM only reports the intent.</summary>
+    public event Action? SaveProfileRequested;
+
+    [RelayCommand(CanExecute = nameof(CredentialReady))]
+    private void SaveProfile() => SaveProfileRequested?.Invoke();
+
+    /// <summary>A profile name that distinguishes it from other profiles in the same mode
+    /// (unlike <see cref="ActiveCredentialName"/>, which is the same for every Azure
+    /// profile) — the file/module basename, or the Azure account.</summary>
+    private string DefaultProfileName => CredMode switch
+    {
+        CredMode.Pfx => string.IsNullOrWhiteSpace(PfxPath)
+            ? "PFX file"
+            : Path.GetFileNameWithoutExtension(PfxPath),
+        CredMode.Pkcs11 => string.IsNullOrWhiteSpace(ModulePath)
+            ? "PKCS#11 token"
+            : Path.GetFileNameWithoutExtension(ModulePath),
+        _ => string.IsNullOrWhiteSpace(Account) ? "Azure Trusted Signing" : Account,
+    };
+
+    /// <summary>Snapshots only the fields that belong to the active credential mode —
+    /// mirrors <see cref="BuildOptions"/> — so switching modes never leaks a stale
+    /// PFX path into an Azure profile or vice versa.</summary>
     public ProfileData CreateProfileSnapshot() => new()
     {
-        Name = ActiveCredentialName,
+        Name = DefaultProfileName,
         CredMode = CredMode.ToString(),
-        PfxPath = NullIfEmpty(PfxPath),
-        ModulePath = NullIfEmpty(ModulePath),
-        Thumbprint = NullIfEmpty(Thumbprint),
-        Account = NullIfEmpty(Account),
-        Profile = NullIfEmpty(Profile),
-        Endpoint = NullIfEmpty(Endpoint),
+        PfxPath    = IsPfx    ? NullIfEmpty(PfxPath)    : null,
+        ModulePath = IsPkcs11 ? NullIfEmpty(ModulePath) : null,
+        Thumbprint = IsPkcs11 ? NullIfEmpty(Thumbprint) : null,
+        Account    = IsAzure  ? NullIfEmpty(Account)    : null,
+        Profile    = IsAzure  ? NullIfEmpty(Profile)    : null,
+        Endpoint   = IsAzure  ? NullIfEmpty(Endpoint)   : null,
         Timestamp = TimestampEnabled,
+        TimestampUrl = NullIfEmpty(TimestampUrl),
         Description = NullIfEmpty(Description),
         Url = NullIfEmpty(MoreInfoUrl),
+        LastUsedIso = DateTime.Now.ToString("o"),
     };
 
     public void ApplyProfile(ProfileData p)
@@ -450,10 +482,13 @@ public partial class SignViewModel : ObservableObject
         PfxPath = p.PfxPath ?? "";
         ModulePath = p.ModulePath ?? "";
         Thumbprint = p.Thumbprint ?? "";
-        if (p.Account is not null) Account = p.Account;
-        if (p.Profile is not null) Profile = p.Profile;
-        if (p.Endpoint is not null) Endpoint = p.Endpoint;
+        Account  = p.Account  ?? "";
+        Profile  = p.Profile  ?? "";
+        Endpoint = p.Endpoint ?? DefaultEndpoint;
         TimestampEnabled = p.Timestamp;
+        // Deliberate exception: profiles predating TimestampUrl carry null. Blanking the
+        // URL would drop the TSA while the toggle still reads "on".
+        if (p.TimestampUrl is not null) TimestampUrl = p.TimestampUrl;
         Description = p.Description ?? "";
         MoreInfoUrl = p.Url ?? "";
         StateChanged?.Invoke();
