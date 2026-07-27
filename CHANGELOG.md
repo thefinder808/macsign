@@ -6,6 +6,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-07-26
+
+Profiles now reliably hold on to your signing setup, and the Sign screen comes back the
+way you left it. Ports the WinSign profile fixes upstream (PR #21), re-verified against
+this codebase, plus one gap found during review that also went back to WinSign.
+
 ### Fixed
 - **"Save as profile" is now on the Sign screen itself.** Previously the only way to save
   the current credential + options as a profile was a "New profile" button on the
@@ -291,7 +297,8 @@ open-source licensing and project files and removes personal defaults from the U
 - Native macOS GUI (Avalonia): Sign / Verify / Profiles / Activity.
 - Tag-driven release CI that builds, signs, and notarizes the `arm64` + `x64` DMGs.
 
-[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/thefinder808/macsign/releases/tag/v1.4.0
 [1.3.0]: https://github.com/thefinder808/macsign/releases/tag/v1.3.0
 [1.2.0]: https://github.com/thefinder808/macsign/releases/tag/v1.2.0
 [1.1.5]: https://github.com/thefinder808/macsign/releases/tag/v1.1.5
