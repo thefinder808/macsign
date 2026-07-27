@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace MacSign.App.Services;
@@ -58,6 +59,22 @@ public sealed class ProfileData
     public string? Description { get; set; }
     public string? Url { get; set; }
     public string? LastUsedIso { get; set; }
+
+    /// <summary>Identity is key material only — description, URL, and timestamping are
+    /// settings <i>on</i> a credential, not part of what makes two profiles "the same"
+    /// credential. Used to match an incoming save against an existing profile so re-saving
+    /// with different options updates it instead of stacking a duplicate.</summary>
+    public bool SameCredentialAs(ProfileData other) =>
+        Same(CredMode, other.CredMode) && CredMode switch
+        {
+            "Pfx" => Same(PfxPath, other.PfxPath),
+            "Pkcs11" => Same(ModulePath, other.ModulePath) && Same(Thumbprint, other.Thumbprint),
+            _ => Same(Account, other.Account) && Same(Profile, other.Profile)
+                 && Same(Endpoint, other.Endpoint),
+        };
+
+    private static bool Same(string? a, string? b) =>
+        string.Equals(a ?? "", b ?? "", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>One recorded signing run (metadata only).</summary>

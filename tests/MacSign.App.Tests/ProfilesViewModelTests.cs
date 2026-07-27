@@ -14,7 +14,7 @@ public class ProfilesViewModelTests
         var store = new SettingsStore(Path.Combine(Path.GetTempPath(), "macsign-prof-" + Guid.NewGuid().ToString("N")));
         var data = new AppData();
         var vm = new ProfilesViewModel(data, store);
-        vm.Add(new ProfileData { Name = "p1" });
+        vm.Save(new ProfileData { Name = "p1" });
         Assert.True(vm.HasProfiles);
 
         vm.Clear();
@@ -22,6 +22,67 @@ public class ProfilesViewModelTests
         Assert.Empty(vm.Profiles);
         Assert.True(vm.IsEmpty);
         Assert.Empty(store.Load().Profiles);
+    }
+
+    // ── re-save updates instead of duplicating (defect 7) ──────────────────
+
+    private static SettingsStore TempStore() =>
+        new(Path.Combine(Path.GetTempPath(), "macsign-prof-" + Guid.NewGuid().ToString("N")));
+
+    [Fact]
+    public void Save_of_a_new_credential_adds_a_profile()
+    {
+        var data = new AppData();
+        var vm = new ProfilesViewModel(data, TempStore());
+
+        vm.Save(new ProfileData { Name = "p1", CredMode = "Pfx", PfxPath = "/certs/dev.pfx" });
+
+        Assert.Single(vm.Profiles);
+        Assert.Single(data.Profiles);
+    }
+
+    [Fact]
+    public void Save_of_a_matching_credential_updates_the_existing_card_instead_of_duplicating()
+    {
+        var store = TempStore();
+        var data = new AppData();
+        var vm = new ProfilesViewModel(data, store);
+        vm.Save(new ProfileData
+        {
+            Name = "original-name", CredMode = "Pfx", PfxPath = "/certs/dev.pfx", Timestamp = false,
+        });
+
+        vm.Save(new ProfileData
+        {
+            Name = "default-name-from-second-save", CredMode = "Pfx", PfxPath = "/certs/dev.pfx",
+            Timestamp = true, TimestampUrl = "http://tsa.example",
+        });
+
+        Assert.Single(vm.Profiles);
+        Assert.Single(data.Profiles);
+        Assert.Single(store.Load().Profiles);
+    }
+
+    [Fact]
+    public void Save_of_a_matching_credential_keeps_the_original_name()
+    {
+        var vm = new ProfilesViewModel(new AppData(), TempStore());
+        vm.Save(new ProfileData { Name = "renamed-by-user", CredMode = "Pfx", PfxPath = "/certs/dev.pfx" });
+
+        vm.Save(new ProfileData { Name = "auto-generated-name", CredMode = "Pfx", PfxPath = "/certs/dev.pfx" });
+
+        Assert.Equal("renamed-by-user", vm.Profiles[0].Name);
+    }
+
+    [Fact]
+    public void Save_of_a_different_credential_adds_a_second_profile()
+    {
+        var vm = new ProfilesViewModel(new AppData(), TempStore());
+        vm.Save(new ProfileData { Name = "p1", CredMode = "Pfx", PfxPath = "/certs/dev.pfx" });
+
+        vm.Save(new ProfileData { Name = "p2", CredMode = "Pfx", PfxPath = "/certs/other.pfx" });
+
+        Assert.Equal(2, vm.Profiles.Count);
     }
 }
 

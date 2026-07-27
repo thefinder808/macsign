@@ -27,8 +27,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Azure profiles are no longer all named "Azure Trusted Signing."** A saved profile is
   now named after its distinguishing detail — the PFX/module filename, or the Azure
   account — so multiple Azure profiles are distinguishable in the Profiles list.
+- **"Reset all settings" now also clears the Sign screen's credential.** Previously it
+  wiped every saved profile but left whatever PFX/PKCS#11/Azure fields were still filled
+  in on the Sign screen — a reset that didn't reset. It now returns the Sign screen to an
+  empty PFX credential too, matching a fresh install.
+- **Re-saving a profile updates it instead of stacking a duplicate.** Saving a profile
+  whose credential (PFX path, PKCS#11 module + thumbprint, or Azure account + profile +
+  endpoint) matches an existing one now updates that profile's description, more-info
+  URL, and timestamp settings in place rather than adding a second card — while keeping
+  any name you'd given the original.
+- **Two PKCS#11 profiles on the same hardware token are now distinguishable.** Every
+  PKCS#11 card used to render as "token · …", identical for every certificate on a
+  module. The card summary now includes the module's filename and the signing
+  certificate's thumbprint prefix.
 
 ### Added
+- **The Sign screen's Azure block now has an Endpoint field.** The Trusted Signing
+  endpoint was previously hardcoded and only reachable from the CLI. It now has its own
+  text field alongside Account and Certificate profile, watermarked
+  `eus.codesigning.azure.net`; paste a URL straight from the Azure portal — the scheme
+  and trailing slash are stripped automatically.
 - **The Sign screen now restores your last-used credential at launch.** Previously the
   Sign screen always opened with an empty PFX credential, even if you'd signed with a
   saved profile moments before — the Apple ("Sign (Mac)") screen already remembered its

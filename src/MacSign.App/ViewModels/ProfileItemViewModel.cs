@@ -33,7 +33,7 @@ public partial class ProfileItemViewModel : ObservableObject
     public string Summary => Data.CredMode switch
     {
         "Pfx" => $"{FileName(Data.PfxPath, "pfx")} · {Ts}",
-        "Pkcs11" => $"token · {Ts}",
+        "Pkcs11" => $"{FileName(Data.ModulePath, "token")}{Thumb} · {Ts}",
         _ => $"Azure · {Data.Profile ?? "profile"} · {Ts}",
     };
 
@@ -45,7 +45,33 @@ public partial class ProfileItemViewModel : ObservableObject
     [RelayCommand] private void SignWith() => _parent.SignWith(this);
     [RelayCommand] private void Delete() => _parent.Delete(this);
 
+    /// <summary>Copies the settings that live <i>on</i> a credential — never the identity
+    /// fields, which by construction already matched (that's why this got called) — from a
+    /// re-saved profile. Deliberately keeps <see cref="Name"/>: a rename was intentional.</summary>
+    public void RefreshFrom(ProfileData src)
+    {
+        Data.Timestamp = src.Timestamp;
+        Data.TimestampUrl = src.TimestampUrl;
+        Data.Description = src.Description;
+        Data.Url = src.Url;
+        Data.LastUsedIso = src.LastUsedIso;
+        OnPropertyChanged(nameof(Summary));
+        OnPropertyChanged(nameof(LastUsedText));
+    }
+
     private string Ts => Data.Timestamp ? "timestamped" : "no timestamp";
+
+    /// <summary>" · " + the first 8 chars of the space-stripped thumbprint, or "" — keeps
+    /// two certificates on the same PKCS#11 module distinguishable in the Profiles list.</summary>
+    private string Thumb
+    {
+        get
+        {
+            var t = (Data.Thumbprint ?? "").Replace(" ", "");
+            return t.Length == 0 ? "" : " · " + t[..Math.Min(8, t.Length)];
+        }
+    }
+
     private static string FileName(string? path, string fallback) =>
         string.IsNullOrWhiteSpace(path) ? fallback : Path.GetFileName(path);
 }

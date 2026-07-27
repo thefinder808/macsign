@@ -301,6 +301,11 @@
                                     <TextBox Classes="mono" Text="{Binding Profile}" Watermark="my-cert-profile"
                                              ToolTip.Tip="The certificate profile inside that Trusted Signing account." />
                                 </StackPanel>
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="Endpoint" />
+                                    <TextBox Classes="mono" Text="{Binding Endpoint}" Watermark="eus.codesigning.azure.net"
+                                             ToolTip.Tip="The Trusted Signing endpoint for your account's region. Paste it straight from the Azure portal — scheme and trailing slash are stripped automatically." />
+                                </StackPanel>
                                 <Border Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,9">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Path Data="{StaticResource IcoFingerprint}" Stroke="{DynamicResource Accent}"

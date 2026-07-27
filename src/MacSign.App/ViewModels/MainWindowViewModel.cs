@@ -186,6 +186,8 @@ public partial class MainWindowViewModel : ObservableObject
         Activity.Clear();
         Apple.ReloadFromData();
         Preferences.ReloadFromData();
+        // ProfileData defaults CredMode to "Azure", so say "Pfx" to match a fresh view-model.
+        Sign.ApplyProfile(new ProfileData { CredMode = "Pfx" });
         Sign.TimestampUrl = _data.Preferences.DefaultTimestampUrl;
         Sign.TimestampEnabled = _data.Preferences.TimestampByDefault;
     }
@@ -193,7 +195,7 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void NewProfile()
     {
-        Profiles.Add(Sign.CreateProfileSnapshot());
+        Profiles.Save(Sign.CreateProfileSnapshot());
         CurrentView = AppView.Profiles;
     }
 

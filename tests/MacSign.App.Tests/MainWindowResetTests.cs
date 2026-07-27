@@ -38,6 +38,30 @@ public class MainWindowResetTests
     }
 
     [Fact]
+    public void ResetAll_clears_the_Sign_screens_credential()
+    {
+        var store = new SettingsStore(Path.Combine(Path.GetTempPath(), "macsign-main-" + Guid.NewGuid().ToString("N")));
+        var seed = new AppData();
+        seed.Profiles.Add(new ProfileData { Name = "p", CredMode = "Pfx", PfxPath = "/tmp/p.pfx", LastUsedIso = "2026-01-01T00:00:00-00:00" });
+        store.Save(seed);
+
+        var vm = new MainWindowViewModel(store);
+        // The restore-at-launch behaviour (defect 2) should have populated the credential —
+        // confirm that before proving reset clears it, so this test can't pass vacuously.
+        Assert.Equal("/tmp/p.pfx", vm.Sign.PfxPath);
+
+        vm.Preferences.ResetAllCommand.Execute(null);   // arm
+        vm.Preferences.ResetAllCommand.Execute(null);   // fire → ResetAll
+
+        Assert.Equal(CredMode.Pfx, vm.Sign.CredMode);
+        Assert.Equal("", vm.Sign.PfxPath);
+        Assert.Equal("", vm.Sign.ModulePath);
+        Assert.Equal("", vm.Sign.Account);
+        Assert.Equal("", vm.Sign.Profile);
+        Assert.Equal(SignViewModel.DefaultEndpoint, vm.Sign.Endpoint);
+    }
+
+    [Fact]
     public void Sign_defaults_are_seeded_from_prefs_at_construction()
     {
         var store = new SettingsStore(Path.Combine(Path.GetTempPath(), "macsign-main-" + Guid.NewGuid().ToString("N")));
