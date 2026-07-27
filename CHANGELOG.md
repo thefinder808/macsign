@@ -60,9 +60,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Sign screen always opened with an empty PFX credential, even if you'd signed with a
   saved profile moments before — the Apple ("Sign (Mac)") screen already remembered its
   credential across launches, but the Windows Sign screen did not. MacSign now applies
-  the most-recently-used profile automatically on startup. New Preferences → Signing
-  defaults toggle, "Restore the last-used credential at launch" (on by default; opt out
-  to always start from an empty credential).
+  the most-recently-used profile automatically on startup — not just the credential, but
+  the whole profile (description, more-info URL, and its timestamp settings too). New
+  Preferences → Signing defaults toggle, "Restore the last-used credential at launch" (on
+  by default; opt out to always start from an empty credential).
 
 ## [1.3.0] — 2026-07-09
 

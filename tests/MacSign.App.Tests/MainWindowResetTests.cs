@@ -42,13 +42,31 @@ public class MainWindowResetTests
     {
         var store = new SettingsStore(Path.Combine(Path.GetTempPath(), "macsign-main-" + Guid.NewGuid().ToString("N")));
         var seed = new AppData();
-        seed.Profiles.Add(new ProfileData { Name = "p", CredMode = "Pfx", PfxPath = "/tmp/p.pfx", LastUsedIso = "2026-01-01T00:00:00-00:00" });
+        seed.Profiles.Add(new ProfileData
+        {
+            Name = "p",
+            CredMode = "Pfx",
+            PfxPath = "/tmp/p.pfx",
+            LastUsedIso = "2026-01-01T00:00:00-00:00",
+            Description = "desc",
+            Url = "https://example.com",
+            Thumbprint = "ABC123",
+        });
         store.Save(seed);
 
         var vm = new MainWindowViewModel(store);
         // The restore-at-launch behaviour (defect 2) should have populated the credential —
         // confirm that before proving reset clears it, so this test can't pass vacuously.
         Assert.Equal("/tmp/p.pfx", vm.Sign.PfxPath);
+        Assert.Equal("desc", vm.Sign.Description);
+        Assert.Equal("https://example.com", vm.Sign.MoreInfoUrl);
+        Assert.Equal("ABC123", vm.Sign.Thumbprint);
+
+        // PfxPassword/Pin are transient secrets, deliberately not part of ProfileData, so
+        // ApplyProfile (and thus restore-at-launch above) never touches them — set them
+        // directly to prove ResetAll clears them too, not just the profile-sourced fields.
+        vm.Sign.PfxPassword = "hunter2";
+        vm.Sign.Pin = "123456";
 
         vm.Preferences.ResetAllCommand.Execute(null);   // arm
         vm.Preferences.ResetAllCommand.Execute(null);   // fire → ResetAll
@@ -59,6 +77,11 @@ public class MainWindowResetTests
         Assert.Equal("", vm.Sign.Account);
         Assert.Equal("", vm.Sign.Profile);
         Assert.Equal(SignViewModel.DefaultEndpoint, vm.Sign.Endpoint);
+        Assert.Equal("", vm.Sign.Description);
+        Assert.Equal("", vm.Sign.MoreInfoUrl);
+        Assert.Equal("", vm.Sign.Thumbprint);
+        Assert.Equal("", vm.Sign.PfxPassword);
+        Assert.Equal("", vm.Sign.Pin);
     }
 
     [Fact]

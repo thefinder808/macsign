@@ -180,6 +180,8 @@ public class SignProfileInteropTests
         };
         var azureSnapshot = azureVm.CreateProfileSnapshot();
         Assert.Equal("my-account", azureSnapshot.Account);
+        Assert.Equal("my-profile", azureSnapshot.Profile);
+        Assert.Equal("eus.codesigning.azure.net", azureSnapshot.Endpoint);
         Assert.Null(azureSnapshot.PfxPath);
         Assert.Null(azureSnapshot.ModulePath);
         Assert.Null(azureSnapshot.Thumbprint);

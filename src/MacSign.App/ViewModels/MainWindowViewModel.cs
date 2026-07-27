@@ -188,6 +188,11 @@ public partial class MainWindowViewModel : ObservableObject
         Preferences.ReloadFromData();
         // ProfileData defaults CredMode to "Azure", so say "Pfx" to match a fresh view-model.
         Sign.ApplyProfile(new ProfileData { CredMode = "Pfx" });
+        // ApplyProfile deliberately never touches the transient secret fields (PfxPassword,
+        // Pin — they aren't part of ProfileData), so a reset has to clear them here itself,
+        // or a typed password/PIN survives "Reset all settings".
+        Sign.PfxPassword = "";
+        Sign.Pin = "";
         Sign.TimestampUrl = _data.Preferences.DefaultTimestampUrl;
         Sign.TimestampEnabled = _data.Preferences.TimestampByDefault;
     }
