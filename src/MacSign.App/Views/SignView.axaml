@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:MacSign.App.ViewModels"
              xmlns:controls="using:MacSign.App.Controls"
+             xmlns:sign="using:MacSign.Signing"
              x:Class="MacSign.App.Views.SignView"
              x:DataType="vm:SignViewModel"
              DragDrop.AllowDrop="True">
@@ -306,7 +307,38 @@
                                     <TextBox Classes="mono" Text="{Binding Endpoint}" Watermark="eus.codesigning.azure.net"
                                              ToolTip.Tip="The Trusted Signing endpoint for your account's region. Paste it straight from the Azure portal — scheme and trailing slash are stripped automatically." />
                                 </StackPanel>
-                                <Border Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,9">
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="Tenant (optional)" />
+                                    <TextBox Classes="mono" Text="{Binding TenantId}" Watermark="contoso.onmicrosoft.com"
+                                             ToolTip.Tip="The Entra directory to authenticate against — a tenant GUID or a domain. Set this when the account holding the signing role is in a different tenant than your everyday sign-in: a token minted in the wrong tenant is rejected whatever roles it has." />
+                                </StackPanel>
+
+                                <!-- Which identity signs -->
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="fieldlabel" Text="Sign in with" />
+                                    <Border Background="{DynamicResource Hair}" CornerRadius="9" Padding="3">
+                                        <Grid ColumnDefinitions="*,*" ColumnSpacing="3">
+                                            <Button Grid.Column="0" Classes="segment"
+                                                    Classes.active="{Binding !IsAzureBrowserSource}"
+                                                    Command="{Binding SetAzureSourceCommand}"
+                                                    CommandParameter="{x:Static sign:TrustedSigningCredentialSource.Default}"
+                                                    ToolTip.Tip="Whatever this Mac is already signed in as — az login, or AZURE_* environment credentials.">
+                                                <TextBlock Text="This Mac" HorizontalAlignment="Center" />
+                                            </Button>
+                                            <Button Grid.Column="1" Classes="segment"
+                                                    Classes.active="{Binding IsAzureBrowserSource}"
+                                                    Command="{Binding SetAzureSourceCommand}"
+                                                    CommandParameter="{x:Static sign:TrustedSigningCredentialSource.InteractiveBrowser}"
+                                                    ToolTip.Tip="An account you pick in the browser. Useful when this Mac's default sign-in isn't the one allowed to sign.">
+                                                <TextBlock Text="Browser" HorizontalAlignment="Center" />
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Default source: unchanged behaviour, described accurately. -->
+                                <Border Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,9"
+                                        IsVisible="{Binding !IsAzureBrowserSource}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Path Data="{StaticResource IcoFingerprint}" Stroke="{DynamicResource Accent}"
                                               StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16"
@@ -314,6 +346,42 @@
                                         <TextBlock Text="Uses your Azure sign-in (az login or AZURE_* credentials). Nothing is stored."
                                                    FontSize="12" Foreground="{DynamicResource Ink2}"
                                                    TextWrapping="Wrap" MaxWidth="230" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Browser source: the readback that answers "who is signing?" -->
+                                <Border Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,9"
+                                        IsVisible="{Binding IsAzureBrowserSource}">
+                                    <StackPanel Spacing="7">
+                                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                                    IsVisible="{Binding !IsAzureSignedIn}">
+                                            <Path Data="{StaticResource IcoFingerprint}" Stroke="{DynamicResource Accent}"
+                                                  StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16"
+                                                  VerticalAlignment="Top" />
+                                            <TextBlock Text="Not signed in. Choose the account that should sign."
+                                                       FontSize="12" Foreground="{DynamicResource Ink2}"
+                                                       TextWrapping="Wrap" MaxWidth="230" />
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                                    IsVisible="{Binding IsAzureSignedIn}">
+                                            <Path Data="{StaticResource IcoFingerprint}" Stroke="{DynamicResource Accent}"
+                                                  StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16"
+                                                  VerticalAlignment="Top" />
+                                            <StackPanel Spacing="1" MaxWidth="230">
+                                                <TextBlock Text="Signing as" FontSize="11"
+                                                           Foreground="{DynamicResource Ink2}" />
+                                                <TextBlock Text="{Binding AzureAccountName}" Classes="mono"
+                                                           FontSize="12" Foreground="{DynamicResource Ink}"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Button Classes="ghost" Height="28" Padding="0"
+                                                HorizontalAlignment="Left"
+                                                Foreground="{DynamicResource Accent}"
+                                                Click="OnAzureSignIn"
+                                                Content="{Binding AzureSignInLabel}" />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

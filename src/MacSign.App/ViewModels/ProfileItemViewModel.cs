@@ -34,7 +34,7 @@ public partial class ProfileItemViewModel : ObservableObject
     {
         "Pfx" => $"{FileName(Data.PfxPath, "pfx")} · {Ts}",
         "Pkcs11" => $"{FileName(Data.ModulePath, "token")}{Thumb} · {Ts}",
-        _ => $"Azure · {Data.Profile ?? "profile"} · {Ts}",
+        _ => $"Azure · {Data.Profile ?? "profile"}{Src} · {Ts}",
     };
 
     public string LastUsedText =>
@@ -54,12 +54,21 @@ public partial class ProfileItemViewModel : ObservableObject
         Data.TimestampUrl = src.TimestampUrl;
         Data.Description = src.Description;
         Data.Url = src.Url;
+        // Tenant and credential source are settings, not identity (see SameCredentialAs), so a
+        // re-save reaches this method — and correcting a wrong tenant only takes effect here.
+        Data.TenantId = src.TenantId;
+        Data.CredentialSource = src.CredentialSource;
         Data.LastUsedIso = src.LastUsedIso;
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(LastUsedText));
     }
 
     private string Ts => Data.Timestamp ? "timestamped" : "no timestamp";
+
+    /// <summary>Flags the non-default Azure sign-in. "Which account does this actually use"
+    /// is the question this screen couldn't answer before; the default chain stays unlabelled
+    /// so the common case keeps a short line.</summary>
+    private string Src => Data.CredentialSource == "InteractiveBrowser" ? " · browser sign-in" : "";
 
     /// <summary>" · " + the first 8 chars of the space-stripped thumbprint, or "" — keeps
     /// two certificates on the same PKCS#11 module distinguishable in the Profiles list.</summary>

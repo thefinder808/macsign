@@ -78,6 +78,28 @@ public class ProfileDataSameCredentialTests
     }
 
     [Fact]
+    public void Tenant_and_credential_source_never_affect_the_match()
+    {
+        // A Trusted Signing account lives in exactly one subscription, hence exactly one
+        // tenant — so account+profile+endpoint already pins the directory, and treating the
+        // tenant as identity could only invent false distinctions. Concretely: save an Azure
+        // profile, later fill in the tenant, re-save, and you would get a second card for the
+        // same credential. That is the duplicate-stacking bug this method exists to prevent.
+        var a = new ProfileData
+        {
+            CredMode = "Azure", Account = "acct", Profile = "prof", Endpoint = "eus.codesigning.azure.net",
+            TenantId = null, CredentialSource = "Default",
+        };
+        var b = new ProfileData
+        {
+            CredMode = "Azure", Account = "acct", Profile = "prof", Endpoint = "eus.codesigning.azure.net",
+            TenantId = "contoso.onmicrosoft.com", CredentialSource = "InteractiveBrowser",
+        };
+
+        Assert.True(a.SameCredentialAs(b));
+    }
+
+    [Fact]
     public void Description_url_and_timestamp_settings_never_affect_the_match()
     {
         var a = new ProfileData

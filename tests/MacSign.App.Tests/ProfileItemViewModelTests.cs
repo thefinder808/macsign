@@ -87,6 +87,55 @@ public class ProfileItemViewModelTests
     }
 
     [Fact]
+    public void An_azure_card_says_when_it_signs_with_a_browser_account()
+    {
+        // The plan called for showing the tenant here, to tell two Azure cards apart. That
+        // stopped being the useful thing once tenant became a setting rather than identity
+        // (a Trusted Signing account is in exactly one tenant, so it can't distinguish two
+        // cards). The question a user actually can't answer from this screen is "which
+        // sign-in does this use" — so show that, and keep the line short enough not to
+        // ellipsize away the timestamp state.
+        var browser = new ProfileData
+        {
+            CredMode = "Azure", Account = "acct", Profile = "prof",
+            CredentialSource = "InteractiveBrowser", Timestamp = true,
+        };
+        var chain = new ProfileData
+        {
+            CredMode = "Azure", Account = "acct", Profile = "prof",
+            CredentialSource = "Default", Timestamp = true,
+        };
+
+        Assert.Equal("Azure · prof · browser sign-in · timestamped", new ProfileItemViewModel(browser, Vm()).Summary);
+        Assert.Equal("Azure · prof · timestamped", new ProfileItemViewModel(chain, Vm()).Summary);
+    }
+
+    [Fact]
+    public void RefreshFrom_applies_a_corrected_tenant_and_credential_source()
+    {
+        // The trap that comes with treating tenant as a setting rather than an identity field:
+        // a re-save matches the existing card, so it goes through RefreshFrom. Miss these two
+        // lines and correcting a wrong tenant appears to work in the UI while the old value
+        // quietly survives — a fix that doesn't fix anything.
+        var original = new ProfileData
+        {
+            Name = "azure", CredMode = "Azure", Account = "acct", Profile = "prof",
+            Endpoint = "eus.codesigning.azure.net", TenantId = "wrong-tenant", CredentialSource = "Default",
+        };
+        var item = new ProfileItemViewModel(original, Vm());
+
+        item.RefreshFrom(new ProfileData
+        {
+            Name = "azure", CredMode = "Azure", Account = "acct", Profile = "prof",
+            Endpoint = "eus.codesigning.azure.net",
+            TenantId = "right-tenant", CredentialSource = "InteractiveBrowser",
+        });
+
+        Assert.Equal("right-tenant", item.Data.TenantId);
+        Assert.Equal("InteractiveBrowser", item.Data.CredentialSource);
+    }
+
+    [Fact]
     public void RefreshFrom_raises_Summary_and_LastUsedText_so_the_card_repaints()
     {
         var original = new ProfileData { Name = "n", CredMode = "Pfx", PfxPath = "/certs/dev.pfx", Timestamp = false };

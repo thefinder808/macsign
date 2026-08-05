@@ -181,6 +181,21 @@ public class AzureCredentialSelectionTests
         Assert.All(keys, k => Assert.DoesNotContain("secret", k, StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void The_serialized_record_uses_the_field_names_the_app_persists()
+    {
+        // The GUI stores these five by name (AzureSignInData) instead of an opaque blob, so
+        // that settings.json stays reviewable. That makes the field names a contract: if
+        // Azure.Identity renames one, a remembered sign-in would silently stop replaying and
+        // the user would be asked to sign in again forever. Fail here instead.
+        var record = AzureCredentialFactory.ReadRecord(Record("someone@contoso.com", "tenant-a"))!;
+
+        using var doc = System.Text.Json.JsonDocument.Parse(AzureSignIn.Describe(record).SerializedRecord);
+
+        foreach (var name in new[] { "username", "authority", "homeAccountId", "tenantId", "clientId" })
+            Assert.True(doc.RootElement.TryGetProperty(name, out _), $"missing field: {name}");
+    }
+
     // ── Token acquisition ──────────────────────────────────────────────────────
 
     [Fact]
