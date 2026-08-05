@@ -141,9 +141,11 @@ public sealed class ProfileData
     /// <summary>Entra tenant to authenticate against — a GUID or a domain. Null = unpinned.</summary>
     public string? TenantId { get; set; }
 
-    /// <summary>"Default" (az login / env) or "InteractiveBrowser". String, not the enum,
-    /// to match how <see cref="CredMode"/> is persisted.</summary>
-    public string CredentialSource { get; set; } = "Default";
+    /// <summary>"Default" (az login / env) or "InteractiveBrowser". String, not the enum, to
+    /// match how <see cref="CredMode"/> is persisted. <b>Nullable on purpose</b>: null means
+    /// "this profile predates the field" (or isn't Azure), which <c>ApplyProfile</c> must be
+    /// able to tell apart from an explicit "Default".</summary>
+    public string? CredentialSource { get; set; }
 
     public bool Timestamp { get; set; }
     public string? TimestampUrl { get; set; }

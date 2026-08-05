@@ -528,7 +528,7 @@ public partial class SignViewModel : ObservableObject
         Profile    = IsAzure  ? NullIfEmpty(Profile)    : null,
         Endpoint   = IsAzure  ? NullIfEmpty(Endpoint)   : null,
         TenantId   = IsAzure  ? NullIfEmpty(TenantId)   : null,
-        CredentialSource = (IsAzure ? AzureSource : TrustedSigningCredentialSource.Default).ToString(),
+        CredentialSource = IsAzure ? AzureSource.ToString() : null,
         Timestamp = TimestampEnabled,
         TimestampUrl = NullIfEmpty(TimestampUrl),
         Description = NullIfEmpty(Description),
@@ -545,10 +545,24 @@ public partial class SignViewModel : ObservableObject
         Account  = p.Account  ?? "";
         Profile  = p.Profile  ?? "";
         Endpoint = p.Endpoint ?? DefaultEndpoint;
-        TenantId = p.TenantId ?? "";
-        AzureSource = p.CredentialSource == nameof(TrustedSigningCredentialSource.InteractiveBrowser)
-            ? TrustedSigningCredentialSource.InteractiveBrowser
-            : TrustedSigningCredentialSource.Default;
+        // Mode-scoped like everything else — a non-Azure profile clears both. But an *Azure*
+        // profile that predates these fields carries null, and blanking them would silently
+        // re-point signing at a different directory, or flip a signed-in user back to the
+        // machine default mid-session. Same deliberate exception TimestampUrl gets below;
+        // found by a legacy profile wiping a just-typed tenant on restore-at-launch.
+        if (!IsAzure)
+        {
+            TenantId = "";
+            AzureSource = TrustedSigningCredentialSource.Default;
+        }
+        else
+        {
+            if (p.TenantId is not null) TenantId = p.TenantId;
+            if (p.CredentialSource is not null)
+                AzureSource = p.CredentialSource == nameof(TrustedSigningCredentialSource.InteractiveBrowser)
+                    ? TrustedSigningCredentialSource.InteractiveBrowser
+                    : TrustedSigningCredentialSource.Default;
+        }
         TimestampEnabled = p.Timestamp;
         // Deliberate exception: profiles predating TimestampUrl carry null. Blanking the
         // URL would drop the TSA while the toggle still reads "on".

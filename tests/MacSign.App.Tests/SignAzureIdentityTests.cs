@@ -101,6 +101,60 @@ public class SignAzureIdentityTests
         Assert.False(vm.IsAzureSignedIn);
     }
 
+    [Fact]
+    public void Switching_the_sign_in_source_and_back_keeps_the_tenant()
+    {
+        // Reported from a live run: the tenant field emptied itself after toggling
+        // Browser → This Mac → Browser.
+        var vm = Azure();
+        vm.TenantId = "tenant-a";
+
+        vm.SetAzureSourceCommand.Execute(TrustedSigningCredentialSource.InteractiveBrowser);
+        vm.SetAzureSourceCommand.Execute(TrustedSigningCredentialSource.Default);
+        vm.SetAzureSourceCommand.Execute(TrustedSigningCredentialSource.InteractiveBrowser);
+
+        Assert.Equal("tenant-a", vm.TenantId);
+    }
+
+    [Fact]
+    public void Restoring_a_profile_saved_before_the_tenant_existed_does_not_blank_it()
+    {
+        // The likelier culprit. Every profile saved before this feature carries
+        // TenantId = null, and ApplyProfile maps null → "". At launch
+        // RestoreLastCredentialIfEnabled applies the most recent profile, so a tenant typed
+        // in the previous session is wiped by a profile that predates the field — exactly the
+        // asymmetry TimestampUrl already carries a deliberate exception for.
+        var vm = Azure();
+        vm.TenantId = "tenant-a";
+
+        vm.ApplyProfile(new ProfileData
+        {
+            CredMode = "Azure", Account = "acct", Profile = "prof",
+            Endpoint = SignViewModel.DefaultEndpoint,
+            TenantId = null,   // legacy profile
+        });
+
+        Assert.Equal("tenant-a", vm.TenantId);
+    }
+
+    [Fact]
+    public void Restoring_a_legacy_profile_does_not_silently_switch_the_sign_in_source()
+    {
+        // Same hazard, worse consequence: flipping a signed-in user back to the machine
+        // default would sign as a different identity than the one on screen a moment earlier.
+        var vm = Azure();
+        vm.AzureSource = TrustedSigningCredentialSource.InteractiveBrowser;
+
+        vm.ApplyProfile(new ProfileData
+        {
+            CredMode = "Azure", Account = "acct", Profile = "prof",
+            Endpoint = SignViewModel.DefaultEndpoint,
+            CredentialSource = null,   // legacy profile
+        });
+
+        Assert.Equal(TrustedSigningCredentialSource.InteractiveBrowser, vm.AzureSource);
+    }
+
     // ── What reaches the engine ────────────────────────────────────────────────
 
     [Fact]
@@ -148,7 +202,9 @@ public class SignAzureIdentityTests
         var snapshot = vm.CreateProfileSnapshot();
 
         Assert.Null(snapshot.TenantId);
-        Assert.Equal("Default", snapshot.CredentialSource);
+        // Null, not "Default" — every other mode-scoped field nulls out for the wrong mode,
+        // and null is what lets ApplyProfile tell "legacy profile" from "explicitly default".
+        Assert.Null(snapshot.CredentialSource);
     }
 
     [Fact]
