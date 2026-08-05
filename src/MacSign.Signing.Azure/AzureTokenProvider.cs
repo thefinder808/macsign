@@ -14,7 +14,8 @@ internal interface IAzureTokenProvider
 /// otherwise the credential chosen by <see cref="AzureCredentialFactory"/> supplies one —
 /// either Azure.Identity's default chain (<c>az login</c>, an environment service principal,
 /// managed identity) or an account picked earlier through the browser.
-/// Tokens are short-lived, so one is fetched per signing run rather than cached.
+/// A token is fetched per request; the <i>credential</i> behind it is reused per identity
+/// (see <see cref="AzureCredentialFactory"/>), so its own token cache survives across files.
 /// </summary>
 internal sealed class DefaultAzureTokenProvider : IAzureTokenProvider
 {
@@ -62,8 +63,11 @@ internal sealed class DefaultAzureTokenProvider : IAzureTokenProvider
                 "Detail: " + ex.Message, ex);
         }
         // A cancelled fetch is the caller stopping the run, not a misconfigured sign-in — it has
-        // to stay a cancellation so the layers above report it as one.
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // to stay a cancellation so the layers above report it as one. But only when the caller
+        // actually cancelled: HttpClient throws TaskCanceledException (a subclass) on its own
+        // timeout, and swallowing that as "cancelled" would drop the advice below. Same test
+        // the repo's RFC3161 TimestampClient already applies.
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             throw new InvalidOperationException(
                 $"Could not acquire an Azure access token for Trusted Signing (scope {Scope}). " +

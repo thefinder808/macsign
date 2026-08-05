@@ -33,7 +33,8 @@ public sealed record SigningOptions
 
     /// <summary>
     /// Optional pre-fetched access token (scope <c>https://codesigning.azure.net</c>).
-    /// When null, Azure.Identity's <c>DefaultAzureCredential</c> acquires one. Transient.
+    /// When null, one is acquired from the credential named by
+    /// <see cref="TrustedSigningCredentialSource"/>. Transient.
     /// </summary>
     public string? TrustedSigningAccessToken { get; init; }
 

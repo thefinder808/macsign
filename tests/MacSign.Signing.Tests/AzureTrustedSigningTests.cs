@@ -157,6 +157,39 @@ public class AzureTrustedSigningTests
         Assert.Contains("Artifact Signing Certificate Profile Signer", ex.Message);
     }
 
+    [Fact]
+    public async Task A_credential_that_times_out_fails_the_run_rather_than_reading_as_cancelled()
+    {
+        // Same hazard one layer up. Before this guard learned to check the token, a 30s HTTP
+        // timeout during certificate discovery escaped SignAsync as an OperationCanceledException
+        // and the GUI reported "Signing canceled", silently abandoning the rest of the batch.
+        AzureBackend.Register();
+        CredentialBackends.TrustedSigningFactory = (_, _) => throw new TaskCanceledException("timed out");
+        try
+        {
+            using var dir = new TempDir();
+            var file = FixturePe.CopyToTemp(dir.Path);
+            var options = new SigningOptions
+            {
+                CertMode = CertMode.TrustedSigning,
+                TrustedSigningEndpoint = Endpoint,
+                TrustedSigningAccount = Account,
+                TrustedSigningProfile = Profile,
+            };
+            var signer = AuthenticodeSigner.TryCreate(options, out var error) ?? throw new InvalidOperationException(error);
+
+            // No token passed at all, so nothing was cancelled.
+            var result = await signer.SignAsync(dir.Path, file, options);
+
+            Assert.False(result.Success);
+            Assert.Contains("Could not load the signing credential", result.Error);
+        }
+        finally
+        {
+            AzureBackend.Register();   // restore the real factory for anything that follows
+        }
+    }
+
     /// <summary>An unsigned JWT carrying just the two claims the error path reads.</summary>
     private static string Jwt(string username, string tenantId)
     {

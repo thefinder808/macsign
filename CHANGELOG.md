@@ -37,6 +37,27 @@ when a token is rejected the error tells you which account it belonged to.
   `TrustedSigningAuthRecord`, plus the public `AzureSignIn` helper, in the
   `MacSign.Signing` / `MacSign.Signing.Azure` packages. Purely additive — the new source
   defaults to the existing behaviour.
+- **Cancel now stops an Azure sign in progress.** The signing key's token never reached the
+  REST client, so a cancelled run kept going to the next file boundary — up to a two-minute
+  HTTP post-and-poll per digest. Cancelling now aborts the request in flight.
+- **Saving a profile says so.** "Save as profile" navigated to the Profiles screen and left
+  you to infer the rest; it now names what happened, and whether it added or updated a card.
+
+### Changed
+- **One Azure credential per identity instead of one per file.** The GUI builds a signing
+  credential for each file, so a run re-authenticated per file — on the default path, two
+  `az` subprocesses each time. Credentials are now reused for the identity they resolve to.
+
+### Fixed (during pre-release review)
+- A tenant written as a domain (`contoso.onmicrosoft.com`) rather than a GUID left the Sign
+  screen reading "Not signed in" after a successful sign-in, with no way to recover.
+- The tenant typed in the sign-in dialog was discarded, so signing afterwards resolved
+  against the account's home tenant instead of the one just chosen.
+- An Azure profile saved with the tenant deliberately blank inherited whatever tenant was
+  previously on screen, instead of being unpinned.
+- A profile saved before this release blanked the tenant and sign-in source when restored.
+- An HTTP timeout during signing was reported as "Signing canceled", abandoning the rest of
+  a batch under a cancellation the user never triggered.
 
 ## [1.4.0] — 2026-07-26
 

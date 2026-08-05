@@ -40,38 +40,50 @@ internal sealed class AzureTrustedSigner : ICredentialSigner
         // as the fallback for a caller that never opens a scope.
         _operationCt = ct;
 
-        // Discover the signing certificate by signing a throwaway digest; the signature
-        // is discarded and only the returned certificate chain is kept.
-        var probe = SignDigest(new byte[32], AuthenticodeAlgorithm);
-        if (string.IsNullOrWhiteSpace(probe.SigningCertificate))
-            throw new InvalidOperationException("Trusted Signing did not return a signing certificate.");
-
-        var certs = CertificateChain.Parse(probe.SigningCertificate!);
-        if (certs.Count == 0)
-            throw new InvalidOperationException("Trusted Signing returned an empty certificate chain.");
-
-        // The leaf is the end-entity: the cert that is not the issuer of any other in the
-        // chain (don't assume PKCS#7 ordering).
-        _certificate = certs.FirstOrDefault(c => !certs.Any(other =>
-            !ReferenceEquals(other, c) && other.IssuerName.RawData.AsSpan().SequenceEqual(c.SubjectName.RawData)))
-            ?? certs[0];
-
-        // Embed intermediates only — exclude the leaf and the self-signed root.
-        foreach (var cert in certs)
+        // Everything past this point can throw — a 403 from a missing role, a malformed chain,
+        // a non-RSA leaf, or now a cancelled probe — and _client owns an HttpClient plus, when
+        // no handler was injected, its own SocketsHttpHandler and connection pool. Dispose on
+        // any failure, the same guard PfxCredentialSigner and Pkcs11CredentialSigner carry.
+        try
         {
-            if (ReferenceEquals(cert, _certificate)) continue;
-            bool isRoot = cert.SubjectName.RawData.AsSpan().SequenceEqual(cert.IssuerName.RawData);
-            if (!isRoot) _chain.Add(cert);
-        }
+            // Discover the signing certificate by signing a throwaway digest; the signature
+            // is discarded and only the returned certificate chain is kept.
+            var probe = SignDigest(new byte[32], AuthenticodeAlgorithm);
+            if (string.IsNullOrWhiteSpace(probe.SigningCertificate))
+                throw new InvalidOperationException("Trusted Signing did not return a signing certificate.");
 
-        RSAParameters publicParameters;
-        using (var leafRsa = _certificate.GetRSAPublicKey()
-            ?? throw new InvalidOperationException("The Trusted Signing leaf certificate is not RSA (only RSA profiles are supported)."))
+            var certs = CertificateChain.Parse(probe.SigningCertificate!);
+            if (certs.Count == 0)
+                throw new InvalidOperationException("Trusted Signing returned an empty certificate chain.");
+
+            // The leaf is the end-entity: the cert that is not the issuer of any other in the
+            // chain (don't assume PKCS#7 ordering).
+            _certificate = certs.FirstOrDefault(c => !certs.Any(other =>
+                !ReferenceEquals(other, c) && other.IssuerName.RawData.AsSpan().SequenceEqual(c.SubjectName.RawData)))
+                ?? certs[0];
+
+            // Embed intermediates only — exclude the leaf and the self-signed root.
+            foreach (var cert in certs)
+            {
+                if (ReferenceEquals(cert, _certificate)) continue;
+                bool isRoot = cert.SubjectName.RawData.AsSpan().SequenceEqual(cert.IssuerName.RawData);
+                if (!isRoot) _chain.Add(cert);
+            }
+
+            RSAParameters publicParameters;
+            using (var leafRsa = _certificate.GetRSAPublicKey()
+                ?? throw new InvalidOperationException("The Trusted Signing leaf certificate is not RSA (only RSA profiles are supported)."))
+            {
+                publicParameters = leafRsa.ExportParameters(false);
+            }
+
+            _signingKey = new TrustedSigningRsa(publicParameters, (hash, alg) => SignDigest(hash, alg).Signature);
+        }
+        catch
         {
-            publicParameters = leafRsa.ExportParameters(false);
+            _client.Dispose();
+            throw;
         }
-
-        _signingKey = new TrustedSigningRsa(publicParameters, (hash, alg) => SignDigest(hash, alg).Signature);
     }
 
     public X509Certificate2 Certificate => _certificate;
