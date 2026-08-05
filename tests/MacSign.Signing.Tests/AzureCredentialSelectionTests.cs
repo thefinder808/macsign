@@ -132,6 +132,55 @@ public class AzureCredentialSelectionTests
         Assert.Equal("https://login.microsoftonline.com/tenant-a", record.Authority);
     }
 
+    // ── Credential reuse ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void The_same_configuration_reuses_one_credential()
+    {
+        // AuthenticodeSigner builds a credential per FILE and disposes it, so a 50-file run
+        // constructed 50 of them — and on the default path each one shells out to `az` twice
+        // (the cert-discovery probe, then the real sign), i.e. ~100 subprocesses for one run.
+        // What's cached is the TokenCredential, never the ICredentialSigner: that one IS
+        // disposed after each file, so caching it would blow up on file two.
+        var options = new SigningOptions { TrustedSigningTenantId = "cache-reuse-tenant" };
+
+        Assert.Same(AzureCredentialFactory.Create(options), AzureCredentialFactory.Create(options));
+    }
+
+    [Fact]
+    public void A_different_tenant_never_shares_a_credential()
+    {
+        var a = AzureCredentialFactory.Create(new SigningOptions { TrustedSigningTenantId = "cache-tenant-a" });
+        var b = AzureCredentialFactory.Create(new SigningOptions { TrustedSigningTenantId = "cache-tenant-b" });
+
+        Assert.NotSame(a, b);
+    }
+
+    [Fact]
+    public void The_cache_key_separates_every_field_that_picks_an_identity()
+    {
+        // Asserted on the key rather than by building credentials, so the interactive arm is
+        // covered without an InteractiveBrowserCredential reaching for the runner's keychain.
+        var baseline = new SigningOptions { TrustedSigningTenantId = "t", TrustedSigningAuthRecord = "r" };
+        var key = AzureCredentialFactory.KeyFor(baseline);
+
+        Assert.Equal(key, AzureCredentialFactory.KeyFor(baseline with { Description = "irrelevant" }));
+        Assert.NotEqual(key, AzureCredentialFactory.KeyFor(baseline with { TrustedSigningTenantId = "other" }));
+        Assert.NotEqual(key, AzureCredentialFactory.KeyFor(baseline with { TrustedSigningAuthRecord = "other" }));
+        Assert.NotEqual(key, AzureCredentialFactory.KeyFor(
+            baseline with { TrustedSigningCredentialSource = TrustedSigningCredentialSource.InteractiveBrowser }));
+    }
+
+    [Fact]
+    public void A_blank_tenant_and_an_absent_one_are_the_same_entry()
+    {
+        // The key has to normalise the way BuildDefaultOptions does, or "  " and null become
+        // two cache entries for one credential — a silent halving of the benefit.
+        Assert.Equal(
+            AzureCredentialFactory.KeyFor(new SigningOptions { TrustedSigningTenantId = "   " }),
+            AzureCredentialFactory.KeyFor(new SigningOptions()));
+    }
+
     // ── The explicit sign-in ───────────────────────────────────────────────────
 
     [Fact]

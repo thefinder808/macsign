@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using Azure.Core;
 using Azure.Identity;
@@ -27,7 +28,38 @@ internal static class AzureCredentialFactory
     /// </summary>
     internal const string TokenCacheName = "macsign";
 
+    /// <summary>
+    /// Everything that decides <i>which</i> identity a credential produces. A manually supplied
+    /// access token is deliberately absent: the provider short-circuits before a credential is
+    /// ever built when one is given.
+    /// </summary>
+    internal readonly record struct CredentialKey(
+        TrustedSigningCredentialSource Source, string? TenantId, string? AuthRecord);
+
+    /// <summary>Normalises the same way the option builders do — otherwise a blank tenant and
+    /// an absent one become two cache entries for one credential.</summary>
+    internal static CredentialKey KeyFor(SigningOptions options) => new(
+        options.TrustedSigningCredentialSource,
+        Tenant(options),
+        string.IsNullOrWhiteSpace(options.TrustedSigningAuthRecord) ? null : options.TrustedSigningAuthRecord);
+
+    /// <summary>
+    /// Credentials are reused for the lifetime of the process, keyed by the identity they
+    /// resolve to. <see cref="AuthenticodeSigner"/> constructs a credential <b>per file</b> and
+    /// disposes it, so without this a 50-file run built 50 — each one, on the default path,
+    /// shelling out to <c>az</c> twice.
+    /// <para>
+    /// Holding them is safe and deliberate: Azure.Identity credentials are thread-safe, are not
+    /// <see cref="IDisposable"/>, and keep no secret of their own (tokens live in the OS
+    /// keychain). A <c>GetOrAdd</c> race can build two — both valid, one discarded.
+    /// </para>
+    /// </summary>
+    private static readonly ConcurrentDictionary<CredentialKey, TokenCredential> Cache = new();
+
     internal static TokenCredential Create(SigningOptions options) =>
+        Cache.GetOrAdd(KeyFor(options), _ => Build(options));
+
+    private static TokenCredential Build(SigningOptions options) =>
         options.TrustedSigningCredentialSource switch
         {
             TrustedSigningCredentialSource.InteractiveBrowser =>
