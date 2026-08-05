@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MacSign.App.Services;
 
@@ -42,13 +44,45 @@ public partial class ProfilesViewModel : ObservableObject
         if (existing is not null)
         {
             existing.RefreshFrom(p);
+            // The card's own name, not the caller's generated one: RefreshFrom keeps a rename,
+            // so echoing the incoming name would announce a profile that isn't on screen.
+            Announce($"Updated “{existing.Name}”");
         }
         else
         {
             _data.Profiles.Add(p);
             Profiles.Add(new ProfileItemViewModel(p, this));
+            Announce($"Saved “{p.Name}”");
         }
         Persist();
+    }
+
+    // ── Save confirmation ──────────────────────────────────────────────────────
+    // Navigating here was the only signal that a save happened, which reads as nothing at all
+    // once you have a few cards: no way to tell which is new, or whether the click landed.
+    // Task.Delay rather than Dispatcher — the App tests never initialise Avalonia.
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSavedNotice))]
+    private string _savedNotice = "";
+
+    public bool HasSavedNotice => !string.IsNullOrEmpty(SavedNotice);
+
+    private CancellationTokenSource? _noticeCts;
+
+    private void Announce(string message)
+    {
+        SavedNotice = message;
+        _noticeCts?.Cancel();
+        _noticeCts = new CancellationTokenSource();
+        _ = ClearNoticeAfterDelay(_noticeCts.Token);
+    }
+
+    private async Task ClearNoticeAfterDelay(CancellationToken ct)
+    {
+        try { await Task.Delay(TimeSpan.FromSeconds(6), ct); }
+        catch (OperationCanceledException) { return; }
+        SavedNotice = "";
     }
 
     public void Delete(ProfileItemViewModel item)

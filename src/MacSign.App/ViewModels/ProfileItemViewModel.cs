@@ -68,7 +68,9 @@ public partial class ProfileItemViewModel : ObservableObject
     /// <summary>Flags the non-default Azure sign-in. "Which account does this actually use"
     /// is the question this screen couldn't answer before; the default chain stays unlabelled
     /// so the common case keeps a short line.</summary>
-    private string Src => Data.CredentialSource == "InteractiveBrowser" ? " · browser sign-in" : "";
+    /// <summary>"browser", not "browser sign-in": the card's summary sits in a half-width
+    /// column and ellipsizes, and the longer form pushed the timestamp state off the end.</summary>
+    private string Src => Data.CredentialSource == "InteractiveBrowser" ? " · browser" : "";
 
     /// <summary>" · " + the first 8 chars of the space-stripped thumbprint, or "" — keeps
     /// two certificates on the same PKCS#11 module distinguishable in the Profiles list.</summary>
