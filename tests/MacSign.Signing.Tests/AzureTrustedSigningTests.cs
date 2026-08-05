@@ -126,6 +126,22 @@ public class AzureTrustedSigningTests
     }
 
     [Fact]
+    public async Task An_empty_response_body_does_not_leave_a_dangling_detail()
+    {
+        // Seen live: a 401 with no body rendered "… Detail: " and then stopped, which reads
+        // like the message was cut off mid-sentence.
+        var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)));
+        using var client = new TrustedSigningClient(
+            Endpoint, Account, Profile, new FakeToken(Jwt("someone@contoso.com", "t")), handler, TimeSpan.Zero);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.SignDigestAsync(SHA256.HashData([1]), "RS256", default));
+
+        Assert.DoesNotContain("Detail:", ex.Message);
+        Assert.Contains("someone@contoso.com", ex.Message);   // the useful part survives
+    }
+
+    [Fact]
     public async Task An_unreadable_token_still_leaves_the_403_role_hint_intact()
     {
         // Degrade, never crash: losing the identity must not cost us the advice that was

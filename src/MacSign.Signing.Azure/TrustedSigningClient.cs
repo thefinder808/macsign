@@ -154,7 +154,10 @@ internal sealed class TrustedSigningClient : IDisposable
     {
         if (resp.IsSuccessStatusCode) return;
 
-        var detail = Trim(await resp.Content.ReadAsStringAsync().ConfigureAwait(false));
+        var body = Trim(await resp.Content.ReadAsStringAsync().ConfigureAwait(false));
+        // A 401 often carries no body at all; " Detail: " with nothing after it reads like the
+        // message was cut off mid-sentence.
+        var detail = string.IsNullOrWhiteSpace(body) ? "" : " Detail: " + body;
 
         // Naming the account is the difference between "some identity lacks a role" and a
         // one-line answer. Without it a user cannot tell whether the token even came from the
@@ -171,12 +174,11 @@ internal sealed class TrustedSigningClient : IDisposable
                 "(2837e146-70d7-4cfd-ad55-7efa6464f958) on the certificate profile — role " +
                 "assignments can take a few minutes to propagate. If the role is already " +
                 "assigned, check the tenant: a token minted in a tenant other than the one " +
-                "owning the signing account is rejected no matter which roles it holds. " +
-                "Detail: " + detail);
+                "owning the signing account is rejected no matter which roles it holds." + detail);
 
         throw new InvalidOperationException(
             $"Trusted Signing request failed ({(int)resp.StatusCode} {resp.StatusCode})." +
-            issuedTo + $" Detail: {detail}");
+            issuedTo + detail);
     }
 
     private static string Trim(string s) => s.Length > 500 ? s[..500] : s;
