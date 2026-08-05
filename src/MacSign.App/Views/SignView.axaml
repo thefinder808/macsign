@@ -310,7 +310,7 @@
                                 <StackPanel Spacing="5">
                                     <TextBlock Classes="fieldlabel" Text="Tenant (optional)" />
                                     <TextBox Classes="mono" Text="{Binding TenantId}" Watermark="contoso.onmicrosoft.com"
-                                             ToolTip.Tip="The Entra directory to authenticate against — a tenant GUID or a domain. Set this when the account holding the signing role is in a different tenant than your everyday sign-in: a token minted in the wrong tenant is rejected whatever roles it has." />
+                                             ToolTip.Tip="The Entra directory to authenticate against — a tenant GUID or a domain. Set this when the account holding the signing role is in a different tenant than your everyday sign-in: a token minted in the wrong tenant is rejected whatever roles it has. Effectively required if you sign in with a personal Microsoft account, whose own directory is never where an Azure signing account lives. `az account show --query tenantId -o tsv` prints it." />
                                 </StackPanel>
 
                                 <!-- Which identity signs -->

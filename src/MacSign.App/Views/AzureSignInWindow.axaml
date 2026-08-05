@@ -14,9 +14,11 @@
                    FontSize="12" Foreground="{DynamicResource Ink2}" TextWrapping="Wrap" />
 
         <StackPanel Spacing="5">
-            <TextBlock Classes="fieldlabel" Text="Tenant (optional)" />
+            <TextBlock Classes="fieldlabel" Text="Tenant" />
             <TextBox Classes="mono" Text="{Binding TenantId}" Watermark="contoso.onmicrosoft.com"
-                     ToolTip.Tip="The directory to sign in to — a tenant GUID or a domain. Leave blank to use the account's home tenant." />
+                     ToolTip.Tip="The directory to sign in to — a tenant GUID or a domain. Blank uses the account's own home directory, which for a personal Microsoft account is never where an Azure signing account lives. `az account show --query tenantId -o tsv` prints the right one." />
+            <TextBlock Text="Leave blank only if this account belongs to your Azure directory. A personal Microsoft account does not."
+                       FontSize="11" Foreground="{DynamicResource Ink2}" TextWrapping="Wrap" />
         </StackPanel>
 
         <TextBlock Text="Nothing is stored by MacSign but the account's name and tenant; the tokens go into your login keychain."

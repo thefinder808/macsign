@@ -69,6 +69,37 @@ public class AzureSignInViewModelTests
     }
 
     [Fact]
+    public async Task A_failure_with_no_tenant_says_to_try_setting_one()
+    {
+        // Hit for real on first use. Leaving the tenant blank means "the account's own home
+        // directory", which for a personal Microsoft account is the consumer tenant
+        // ("Microsoft Services") — never where an Azure signing account lives. Entra's reply
+        // is accurate and useless: it names a tenant you've never heard of and suggests adding
+        // yourself as an external user, when the actual fix is one field on the screen behind.
+        var vm = new AzureSignInViewModel(null,
+            (_, _) => throw new InvalidOperationException(
+                "Selected user account does not exist in tenant 'Microsoft Services'"));
+
+        await vm.SignInCommand.ExecuteAsync(null);
+
+        Assert.Contains("Microsoft Services", vm.Error);     // Entra's own words survive
+        Assert.Contains("Tenant", vm.Error);                 // …plus the way out
+    }
+
+    [Fact]
+    public async Task A_failure_with_a_tenant_set_adds_no_noise()
+    {
+        // The hint is only ever right when the tenant is blank; appending it to an unrelated
+        // failure would be a confident wrong answer, which is worse than none.
+        var vm = new AzureSignInViewModel("tenant-a",
+            (_, _) => throw new InvalidOperationException("AADSTS70016: pending end-user authorization"));
+
+        await vm.SignInCommand.ExecuteAsync(null);
+
+        Assert.Equal("AADSTS70016: pending end-user authorization", vm.Error);
+    }
+
+    [Fact]
     public async Task Cancelling_reads_as_cancelled_rather_than_as_an_error()
     {
         var vm = new AzureSignInViewModel(null,

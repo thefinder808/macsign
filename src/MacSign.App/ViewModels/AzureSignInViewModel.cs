@@ -52,6 +52,20 @@ public partial class AzureSignInViewModel : ObservableObject
 
     public AzureSignInData? Result { get; private set; }
 
+    /// <summary>
+    /// Appended only when no tenant was given, because that is the only case where it is
+    /// certainly right. A blank tenant signs in to the <i>account's own</i> directory — for a
+    /// personal Microsoft account that is the consumer tenant ("Microsoft Services"), which is
+    /// never where an Azure signing account lives. Entra's reply names a tenant the user has
+    /// never heard of and suggests adding themselves as an external user; the real fix is one
+    /// field away, and nothing in Entra's message can point at it.
+    /// </summary>
+    private const string BlankTenantHint =
+        "\n\nIf you signed in with a personal Microsoft account, fill in the Tenant field and " +
+        "try again — left blank, sign-in goes to that account's own directory rather than the " +
+        "Azure directory your signing account belongs to. `az account show --query tenantId -o tsv` " +
+        "prints the right one.";
+
     private bool CanSignIn() => !Busy;
 
     [RelayCommand(CanExecute = nameof(CanSignIn))]
@@ -75,7 +89,8 @@ public partial class AzureSignInViewModel : ObservableObject
             // Surfaced verbatim on purpose. Entra's own text (an AADSTS code, a consent
             // prompt, a blocked tenant) is far more actionable than anything we could
             // paraphrase, and paraphrasing it is how a fixable problem becomes a mystery.
-            Error = ex.Message;
+            // The one thing worth *adding* is the fix Entra can't know about — see below.
+            Error = ex.Message + (NullIfEmpty(TenantId) is null ? BlankTenantHint : "");
         }
         finally
         {
