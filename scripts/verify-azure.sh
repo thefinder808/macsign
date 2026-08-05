@@ -40,11 +40,14 @@ echo "Signing via Azure Trusted Signing ($TS_ACCOUNT / $TS_PROFILE) — key neve
 TENANT_ARGS=()
 [ -n "${TS_TENANT:-}" ] && TENANT_ARGS=(--trusted-signing-tenant "$TS_TENANT")
 
+# The ${arr[@]+"${arr[@]}"} guard is load-bearing, not style: macOS ships bash 3.2, where
+# expanding an EMPTY array under `set -u` is an "unbound variable" error. A plain
+# "${TENANT_ARGS[@]}" therefore killed the script in the common case of no tenant set.
 "${CLI[@]}" sign \
   --trusted-signing-endpoint "$TS_ENDPOINT" \
   --trusted-signing-account "$TS_ACCOUNT" \
   --trusted-signing-profile "$TS_PROFILE" \
-  "${TENANT_ARGS[@]}" \
+  ${TENANT_ARGS[@]+"${TENANT_ARGS[@]}"} \
   --description "MacSign Azure re-verify" "$TARGET"
 
 echo
