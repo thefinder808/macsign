@@ -37,7 +37,10 @@ public sealed class AzureSignInData
     public string? ClientId { get; set; }
     public string? Authority { get; set; }
 
-    /// <summary>A sign-in we can actually replay: the account id is what identifies it.</summary>
+    /// <summary>A sign-in we can actually replay: the account id is what identifies it.
+    /// Not persisted — it's derived, and the point of storing named fields is that what lands
+    /// in settings.json is exactly the account, with nothing else to interpret.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool IsSignedIn =>
         !string.IsNullOrWhiteSpace(Username) && !string.IsNullOrWhiteSpace(HomeAccountId);
 

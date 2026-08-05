@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using MacSign.App.Services;
 using Xunit;
 
@@ -41,6 +43,24 @@ public class AzureSignInDataTests
         Assert.Equal(data.HomeAccountId, again.HomeAccountId);
         Assert.Equal(data.ClientId, again.ClientId);
         Assert.Equal(data.Authority, again.Authority);
+    }
+
+    [Fact]
+    public void Only_the_account_fields_are_written_to_disk()
+    {
+        // The reason this is stored as named fields rather than an opaque blob is so that
+        // "no secrets persisted" is verifiable by reading the file. Derived state landing
+        // there undermines that, so pin the exact key set.
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "macsign-signin-" + Guid.NewGuid().ToString("N"));
+        var store = new SettingsStore(dir);
+        store.Save(new AppData { AzureSignIn = AzureSignInData.FromRecordJson(RecordJson) });
+
+        using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(store.FilePath));
+        var keys = doc.RootElement.GetProperty("AzureSignIn").EnumerateObject().Select(p => p.Name).ToList();
+
+        Assert.Equal(
+            new[] { "Authority", "ClientId", "HomeAccountId", "TenantId", "Username" },
+            keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
