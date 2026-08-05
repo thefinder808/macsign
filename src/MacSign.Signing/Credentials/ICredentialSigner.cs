@@ -19,4 +19,22 @@ internal interface ICredentialSigner : IDisposable
 
     /// <summary>Intermediate certificates to embed (excludes leaf and root). May be empty.</summary>
     IReadOnlyList<X509Certificate2> Chain { get; }
+
+    /// <summary>
+    /// Scope <paramref name="ct"/> over the synchronous calls the CMS layer is about to make on
+    /// <see cref="SigningKey"/>, until the returned scope is disposed.
+    /// <para>
+    /// The key is an <see cref="AsymmetricAlgorithm"/> because that is the extension point
+    /// <c>SignedCms.ComputeSignature</c> reaches through, and its <c>SignHash</c> takes no
+    /// <see cref="CancellationToken"/>. A credential whose signing is a network round-trip
+    /// (Azure) would therefore be uninterruptible — so it is handed the caller's token
+    /// out-of-band here instead. In-process keys have nothing to cancel and return null,
+    /// which <c>using</c> treats as a no-op scope.
+    /// </para>
+    /// <para>
+    /// Scopes are not safe to open concurrently on one credential; a credential belongs to a
+    /// single <c>SignAsync</c> call, which signs its files one at a time.
+    /// </para>
+    /// </summary>
+    IDisposable? UseCancellation(CancellationToken ct) => null;
 }

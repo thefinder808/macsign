@@ -11,6 +11,8 @@ public static class Pkcs11Backend
 {
     public static void Register() => CredentialBackends.Pkcs11Factory = Create;
 
-    private static ICredentialSigner Create(SigningOptions options) =>
+    // The token is unused: a PKCS#11 credential opens a local module and authenticates a
+    // session, with no interruptible wait to speak of.
+    private static ICredentialSigner Create(SigningOptions options, CancellationToken ct) =>
         new Pkcs11CredentialSigner(options.Pkcs11ModulePath!, options.Secret, options.Pkcs11CertThumbprint);
 }

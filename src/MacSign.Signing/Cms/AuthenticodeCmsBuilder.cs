@@ -42,7 +42,11 @@ internal sealed class AuthenticodeCmsBuilder : ICmsBuilder
         foreach (var intermediate in credential.Chain)
             signer.Certificates.Add(intermediate);
 
-        cms.ComputeSignature(signer);
+        // ComputeSignature is synchronous and calls straight into the signing key, so a
+        // credential that signs over the network can only see the caller's token if we hand it
+        // over first. Without this, cancelling waits out the whole round-trip.
+        using (credential.UseCancellation(ct))
+            cms.ComputeSignature(signer);
 
         // Phase 2: attach an RFC3161 timestamp (over the signer's signature value)
         // as an unsigned attribute, so the signature outlives the cert's validity.

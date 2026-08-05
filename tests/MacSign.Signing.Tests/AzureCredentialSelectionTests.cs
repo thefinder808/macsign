@@ -292,6 +292,22 @@ public class AzureCredentialSelectionTests
         Assert.Contains("az login", ex.Message);
     }
 
+    [Fact]
+    public async Task A_cancelled_token_fetch_stays_a_cancellation()
+    {
+        // Acquiring the token is the first network step of a sign, and it runs under the
+        // caller's token. The generic handler must not recast a cancellation as "run az login" —
+        // advice for a problem the user doesn't have, and SignAsync would then report the
+        // cancelled run as a file that failed to sign.
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var provider = new DefaultAzureTokenProvider(
+            new SigningOptions(), new ThrowingCredential(new OperationCanceledException(cts.Token)));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => provider.GetTokenAsync(cts.Token));
+    }
+
     private static string Record(string username, string tenantId) =>
         $$"""
         {

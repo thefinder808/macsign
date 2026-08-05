@@ -97,12 +97,15 @@ public sealed class AuthenticodeSigner
         {
             credential = options.CertMode switch
             {
-                CertMode.Pkcs11 => CredentialBackends.Pkcs11Factory!(options),
-                CertMode.TrustedSigning => CredentialBackends.TrustedSigningFactory!(options),
+                CertMode.Pkcs11 => CredentialBackends.Pkcs11Factory!(options, ct),
+                CertMode.TrustedSigning => CredentialBackends.TrustedSigningFactory!(options, ct),
                 _ => new PfxCredentialSigner(options.PfxPath!, options.Secret),
             };
         }
-        catch (Exception ex)
+        // A cancellation is not a bad credential: the cloud backend discovers its certificate
+        // over the network, so cancelling during that would otherwise be reported as
+        // "Could not load the signing credential: The operation was canceled."
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return SignResult.Fail($"Could not load the signing credential: {ex.Message}");
         }

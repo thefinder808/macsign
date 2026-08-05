@@ -61,7 +61,9 @@ internal sealed class DefaultAzureTokenProvider : IAzureTokenProvider
                 "(Sign screen → \"Sign in…\") to keep signing with the account you chose. " +
                 "Detail: " + ex.Message, ex);
         }
-        catch (Exception ex)
+        // A cancelled fetch is the caller stopping the run, not a misconfigured sign-in — it has
+        // to stay a cancellation so the layers above report it as one.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw new InvalidOperationException(
                 $"Could not acquire an Azure access token for Trusted Signing (scope {Scope}). " +

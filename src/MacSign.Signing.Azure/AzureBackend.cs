@@ -11,10 +11,11 @@ public static class AzureBackend
 {
     public static void Register() => CredentialBackends.TrustedSigningFactory = Create;
 
-    private static ICredentialSigner Create(SigningOptions options) =>
+    private static ICredentialSigner Create(SigningOptions options, CancellationToken ct) =>
         new AzureTrustedSigner(
             options.TrustedSigningEndpoint!,
             options.TrustedSigningAccount!,
             options.TrustedSigningProfile!,
-            new DefaultAzureTokenProvider(options));
+            new DefaultAzureTokenProvider(options),
+            ct: ct);
 }
