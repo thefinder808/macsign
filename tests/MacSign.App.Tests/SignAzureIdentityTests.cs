@@ -155,6 +155,63 @@ public class SignAzureIdentityTests
         Assert.Equal(TrustedSigningCredentialSource.InteractiveBrowser, vm.AzureSource);
     }
 
+    [Fact]
+    public void Signing_in_adopts_the_tenant_it_was_performed_against()
+    {
+        // The dialog has its own Tenant box, and the blank-tenant hint explicitly tells the
+        // user to fill it in there. Dropping that value left the Sign screen unpinned while
+        // the account was pinned — so later signs silently resolved against the account's
+        // home tenant, which is the exact failure this feature exists to prevent.
+        var vm = Azure();
+        var signIn = AzureSignInData.FromRecordJson(RecordJson);
+        signIn.RequestedTenant = "contoso.onmicrosoft.com";
+
+        vm.ApplyAzureSignIn(signIn);
+
+        Assert.Equal("contoso.onmicrosoft.com", vm.TenantId);
+        Assert.True(vm.IsAzureSignedIn);
+    }
+
+    [Fact]
+    public void Signing_in_without_a_tenant_leaves_the_field_alone()
+    {
+        var vm = Azure();
+        vm.TenantId = "tenant-a";
+
+        vm.ApplyAzureSignIn(AzureSignInData.FromRecordJson(RecordJson));   // no RequestedTenant
+
+        Assert.Equal("tenant-a", vm.TenantId);
+    }
+
+    // ── Pinned vs unpinned vs legacy ───────────────────────────────────────────
+
+    [Fact]
+    public void An_azure_profile_saved_with_no_tenant_records_it_as_unpinned()
+    {
+        // null means "this profile predates the field". An explicitly empty tenant has to be
+        // distinguishable from that, or "follow whatever az login says" cannot be saved at all.
+        var vm = Azure();
+        vm.TenantId = "";
+
+        Assert.Equal("", vm.CreateProfileSnapshot().TenantId);
+    }
+
+    [Fact]
+    public void Applying_an_unpinned_azure_profile_clears_a_previous_tenant()
+    {
+        var vm = Azure();
+        vm.TenantId = "tenant-a";
+
+        vm.ApplyProfile(new ProfileData
+        {
+            CredMode = "Azure", Account = "acct", Profile = "prof",
+            Endpoint = SignViewModel.DefaultEndpoint,
+            TenantId = "",   // explicitly unpinned, not legacy
+        });
+
+        Assert.Equal("", vm.TenantId);
+    }
+
     // ── What reaches the engine ────────────────────────────────────────────────
 
     [Fact]
@@ -170,6 +227,23 @@ public class SignAzureIdentityTests
         Assert.Equal("tenant-a", engine.Options!.TrustedSigningTenantId);
         Assert.Equal(TrustedSigningCredentialSource.InteractiveBrowser, engine.Options.TrustedSigningCredentialSource);
         Assert.Contains("chosen@contoso.com", engine.Options.TrustedSigningAuthRecord);
+    }
+
+    [Fact]
+    public async Task A_tenant_mismatched_sign_in_never_reaches_the_engine()
+    {
+        // CredentialReady disables the Sign button, but the invariant belongs on the data path
+        // too: AzureSignInData states it absolutely — "a mismatch must read as signed out,
+        // never as a silent fallback". Any future caller that bypasses CanExecute would
+        // otherwise hand the engine a record for a tenant the user did not ask for.
+        var (vm, engine) = Capturing();
+        vm.AzureSource = TrustedSigningCredentialSource.InteractiveBrowser;
+        vm.ApplyAzureSignIn(AzureSignInData.FromRecordJson(RecordJson));   // tenant-a
+        vm.TenantId = "tenant-b";
+
+        await vm.SignCommand.ExecuteAsync(null);
+
+        Assert.Null(engine.Options!.TrustedSigningAuthRecord);
     }
 
     [Fact]

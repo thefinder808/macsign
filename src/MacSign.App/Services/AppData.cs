@@ -37,6 +37,15 @@ public sealed class AzureSignInData
     public string? ClientId { get; set; }
     public string? Authority { get; set; }
 
+    /// <summary>
+    /// The tenant <i>as the user typed it</i> when signing in, which may be a domain
+    /// (<c>contoso.onmicrosoft.com</c>) where <see cref="TenantId"/> is always the canonical
+    /// GUID Entra reports. Kept so <see cref="MatchesTenant"/> can recognise the form the user
+    /// is still looking at in the Tenant field. Not part of the Azure.Identity record — our own
+    /// annotation, and not written by <see cref="ToRecordJson"/>.
+    /// </summary>
+    public string? RequestedTenant { get; set; }
+
     /// <summary>A sign-in we can actually replay: the account id is what identifies it.
     /// Not persisted — it's derived, and the point of storing named fields is that what lands
     /// in settings.json is exactly the account, with nothing else to interpret.</summary>
@@ -50,9 +59,20 @@ public sealed class AzureSignInData
     /// silent fallback to whichever account we happen to hold — signing as an identity the
     /// user did not ask for is the whole bug this feature exists to fix.
     /// </summary>
+    /// <remarks>
+    /// Matches either the canonical GUID or the form the user originally typed. A tenant may
+    /// legitimately be written as a domain, and Entra only ever reports the GUID — comparing
+    /// against <see cref="TenantId"/> alone left anyone who typed a domain permanently
+    /// "not signed in" with no way to recover.
+    /// </remarks>
     public bool MatchesTenant(string? tenantId) =>
         string.IsNullOrWhiteSpace(tenantId) ||
-        string.Equals(TenantId ?? "", tenantId.Trim(), StringComparison.OrdinalIgnoreCase);
+        Same(TenantId, tenantId) ||
+        Same(RequestedTenant, tenantId);
+
+    private static bool Same(string? stored, string requested) =>
+        !string.IsNullOrWhiteSpace(stored) &&
+        string.Equals(stored.Trim(), requested.Trim(), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Reads the record Azure.Identity handed back. Unreadable input yields a
     /// signed-out instance rather than throwing: this runs at startup on a file users edit.</summary>
