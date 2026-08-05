@@ -6,6 +6,38 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-08-05
+
+You can now choose which Microsoft Entra account signs with Azure Trusted Signing, and
+when a token is rejected the error tells you which account it belonged to.
+
+### Fixed
+- **Azure Trusted Signing no longer silently signs as whichever account the machine
+  happens to default to.** The credential was built with no options at all, so
+  Azure.Identity resolved it to the first thing that answered — on macOS, usually
+  whichever account `az login` last selected. With Platform SSO re-pinning that to a
+  device-registered account, there was no way to sign as anyone else.
+- **An authentication failure now names the identity.** 403 and 401 both report the
+  account and tenant the token was issued to, rather than only advising that "the signing
+  identity" needs a role — which is impossible to act on if you can't tell which identity
+  was used. The 403 also names a tenant mismatch as a cause, since no role assignment can
+  rescue a token minted in the wrong directory.
+
+### Added
+- **Sign in with a browser** (Sign screen → *Sign in…*). Pick the account yourself instead
+  of inheriting the machine's default; the choice is remembered across launches in the OS
+  keychain, and *Switch account* changes it. Signing itself never opens a browser, so it
+  can't interrupt a batch — a lapsed sign-in fails the run once with a message telling you
+  to sign in again.
+- **Tenant field** on the Sign screen and `--trusted-signing-tenant` on the CLI, accepting
+  a tenant GUID or a domain. Note this alone only helps when the signing account is in a
+  different tenant than your everyday one; if the account is in the right tenant but lacks
+  the role, use the browser sign-in or `az login --tenant <id>` instead.
+- `SigningOptions.TrustedSigningTenantId`, `TrustedSigningCredentialSource` and
+  `TrustedSigningAuthRecord`, plus the public `AzureSignIn` helper, in the
+  `MacSign.Signing` / `MacSign.Signing.Azure` packages. Purely additive — the new source
+  defaults to the existing behaviour.
+
 ## [1.4.0] — 2026-07-26
 
 Profiles now reliably hold on to your signing setup, and the Sign screen comes back the
