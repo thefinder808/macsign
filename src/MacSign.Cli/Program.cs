@@ -78,6 +78,7 @@ namespace MacSign.Cli
                 TrustedSigningEndpoint = tsEndpoint,
                 TrustedSigningAccount = f.Get("trusted-signing-account"),
                 TrustedSigningProfile = f.Get("trusted-signing-profile"),
+                TrustedSigningTenantId = f.Get("trusted-signing-tenant"),
                 TrustedSigningAccessToken = ResolveTrustedSigningToken(f),
                 Secret = password,
                 Description = f.Get("description"),
@@ -210,10 +211,14 @@ namespace MacSign.Cli
                                [--pkcs11-thumbprint <hex>] [--timestamp-url <url[,url2,…]>] <file>
 
                   macsign sign --trusted-signing-endpoint <host> --trusted-signing-account <acct>
-                               --trusted-signing-profile <profile>
+                               --trusted-signing-profile <profile> [--trusted-signing-tenant <id>]
                                [--trusted-signing-token <jwt> | --trusted-signing-token-env <VAR>]
                                [--timestamp-url <url[,url2,…]>] <file>
                                (no token flag → Azure.Identity: az login / env service principal / managed identity)
+                               --trusted-signing-tenant pins the directory (GUID or domain). Without it the
+                               token comes from whichever account `az login` last selected — to sign as a
+                               different account, run `az login --tenant <id>` or use the app's Sign screen,
+                               which can sign in through a browser and let you choose.
 
                   macsign verify <file>
 

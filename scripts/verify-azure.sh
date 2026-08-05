@@ -9,6 +9,8 @@
 #   TS_ENDPOINT   e.g. eus.codesigning.azure.net
 #   TS_ACCOUNT    your Trusted Signing account name
 #   TS_PROFILE    your certificate profile name
+#   TS_TENANT     (optional) tenant GUID or domain, when the signing account is not in
+#                 the tenant `az login` defaults to
 # A gitignored scripts/azure.env is sourced automatically if it exists.
 #
 # Usage:  ./scripts/verify-azure.sh [path-to-file]   (defaults to the fixture DLL)
@@ -33,10 +35,16 @@ TARGET="$WORK/$(basename "$SRC")"
 cp "$SRC" "$TARGET"
 
 echo "Signing via Azure Trusted Signing ($TS_ACCOUNT / $TS_PROFILE) — key never leaves Azure…"
+# Only pass --trusted-signing-tenant when TS_TENANT is set; an empty value would be read as
+# the next flag's name by the CLI's parser.
+TENANT_ARGS=()
+[ -n "${TS_TENANT:-}" ] && TENANT_ARGS=(--trusted-signing-tenant "$TS_TENANT")
+
 "${CLI[@]}" sign \
   --trusted-signing-endpoint "$TS_ENDPOINT" \
   --trusted-signing-account "$TS_ACCOUNT" \
   --trusted-signing-profile "$TS_PROFILE" \
+  "${TENANT_ARGS[@]}" \
   --description "MacSign Azure re-verify" "$TARGET"
 
 echo
