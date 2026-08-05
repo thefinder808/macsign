@@ -252,6 +252,28 @@ public class AzureTrustedSigningTests
         Assert.Contains("--trusted-signing-account", error);
     }
 
+    [Fact]
+    public void TryCreate_rejects_browser_sign_in_with_no_recorded_account()
+    {
+        AzureBackend.Register();
+        var signer = AuthenticodeSigner.TryCreate(
+            new SigningOptions
+            {
+                CertMode = CertMode.TrustedSigning,
+                TrustedSigningEndpoint = Endpoint,
+                TrustedSigningAccount = Account,
+                TrustedSigningProfile = Profile,
+                TrustedSigningCredentialSource = TrustedSigningCredentialSource.InteractiveBrowser,
+                // …and no TrustedSigningAuthRecord.
+            },
+            out var error);
+
+        // Fail once, up front. Signing calls SignAsync once per file, so without this guard
+        // a 50-file run would report the same "you aren't signed in" 50 times.
+        Assert.Null(signer);
+        Assert.Contains("sign in", error, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static X509Certificate2 SelfSignedCodeSigningCert(RSA key, out string signingCertificate)
