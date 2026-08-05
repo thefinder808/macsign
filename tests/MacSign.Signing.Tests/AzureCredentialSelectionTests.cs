@@ -132,6 +132,55 @@ public class AzureCredentialSelectionTests
         Assert.Equal("https://login.microsoftonline.com/tenant-a", record.Authority);
     }
 
+    // ── The explicit sign-in ───────────────────────────────────────────────────
+
+    [Fact]
+    public void Signing_in_is_the_one_place_a_browser_may_open()
+    {
+        // The exact inverse of Interactive_source_never_prompts_while_signing. Automatic
+        // authentication stays on here because this path only runs from a user gesture.
+        var opts = AzureSignIn.BuildOptions(tenantId: null);
+
+        Assert.False(opts.DisableAutomaticAuthentication);
+    }
+
+    [Fact]
+    public void Signing_in_writes_to_the_same_cache_signing_reads()
+    {
+        // If these two names ever diverge, sign-in appears to succeed and then every
+        // subsequent sign reports "not signed in" — with nothing on screen to explain why.
+        Assert.Equal(
+            AzureCredentialFactory.BuildInteractiveOptions(new SigningOptions()).TokenCachePersistenceOptions?.Name,
+            AzureSignIn.BuildOptions(tenantId: null).TokenCachePersistenceOptions?.Name);
+    }
+
+    [Fact]
+    public void Signing_in_targets_the_requested_tenant()
+    {
+        Assert.Equal("contoso.onmicrosoft.com", AzureSignIn.BuildOptions("  contoso.onmicrosoft.com ").TenantId);
+    }
+
+    [Fact]
+    public void A_sign_in_result_persists_account_fields_and_nothing_token_shaped()
+    {
+        // The reason we can store this in settings.json at all. The repo's invariant is that
+        // persisted data holds no secrets *by construction*, so assert the shape rather than
+        // trusting Azure.Identity to keep it that way.
+        var record = AzureCredentialFactory.ReadRecord(Record("someone@contoso.com", "tenant-a"))!;
+
+        var result = AzureSignIn.Describe(record);
+
+        Assert.Equal("someone@contoso.com", result.Username);
+        Assert.Equal("tenant-a", result.TenantId);
+
+        using var doc = System.Text.Json.JsonDocument.Parse(result.SerializedRecord);
+        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
+        Assert.Contains("username", keys);
+        Assert.Contains("tenantId", keys);
+        Assert.All(keys, k => Assert.DoesNotContain("token", k, StringComparison.OrdinalIgnoreCase));
+        Assert.All(keys, k => Assert.DoesNotContain("secret", k, StringComparison.OrdinalIgnoreCase));
+    }
+
     // ── Token acquisition ──────────────────────────────────────────────────────
 
     [Fact]
