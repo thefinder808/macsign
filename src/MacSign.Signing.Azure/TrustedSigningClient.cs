@@ -69,6 +69,10 @@ internal sealed class TrustedSigningClient : IDisposable
     {
         var token = await _tokens.GetTokenAsync(ct).ConfigureAwait(false);
 
+        // Rendered once, here, so the raw token never enters error-formatting scope below.
+        // Display only — nothing downstream may treat this as verified. See JwtIdentity.
+        var identity = JwtIdentity.Describe(token);
+
         var signUrl =
             $"https://{_host}/codesigningaccounts/{_account}/certificateprofiles/{_profile}/sign?api-version={ApiVersion}";
         var payload = JsonSerializer.Serialize(new
@@ -84,7 +88,7 @@ internal sealed class TrustedSigningClient : IDisposable
         post.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
 
         using var postResp = await _http.SendAsync(post, ct).ConfigureAwait(false);
-        await ThrowIfError(postResp).ConfigureAwait(false);
+        await ThrowIfError(postResp, identity).ConfigureAwait(false);
         var status = await ReadStatus(postResp).ConfigureAwait(false);
 
         // Poll the long-running operation until it terminates. Prefer the service's
@@ -110,7 +114,7 @@ internal sealed class TrustedSigningClient : IDisposable
             using var get = new HttpRequestMessage(HttpMethod.Get, pollUrl);
             get.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
             using var getResp = await _http.SendAsync(get, ct).ConfigureAwait(false);
-            await ThrowIfError(getResp).ConfigureAwait(false);
+            await ThrowIfError(getResp, identity).ConfigureAwait(false);
             status = await ReadStatus(getResp).ConfigureAwait(false);
         }
 
@@ -141,20 +145,38 @@ internal sealed class TrustedSigningClient : IDisposable
         return JsonSerializer.Deserialize<SignStatus>(json, JsonOptions) ?? new SignStatus();
     }
 
-    private static async Task ThrowIfError(HttpResponseMessage resp)
+    /// <summary>
+    /// Turns a failed response into an actionable exception. <paramref name="identity"/> is the
+    /// already-rendered description of the account the token was issued to (never the token
+    /// itself — it must not reach error-formatting scope), or null when it couldn't be read.
+    /// </summary>
+    private static async Task ThrowIfError(HttpResponseMessage resp, string? identity)
     {
         if (resp.IsSuccessStatusCode) return;
 
         var detail = Trim(await resp.Content.ReadAsStringAsync().ConfigureAwait(false));
+
+        // Naming the account is the difference between "some identity lacks a role" and a
+        // one-line answer. Without it a user cannot tell whether the token even came from the
+        // account they think they are signing with.
+        var who = identity is null
+            ? "The signing identity"
+            : $"The token was issued to {identity}, which";
+        var issuedTo = identity is null ? "" : $" The token was issued to {identity}.";
+
         if (resp.StatusCode == HttpStatusCode.Forbidden)
             throw new UnauthorizedAccessException(
-                "Trusted Signing returned 403 Forbidden. The signing identity likely needs the " +
+                $"Trusted Signing returned 403 Forbidden. {who} likely needs the " +
                 "\"Artifact Signing Certificate Profile Signer\" role " +
                 "(2837e146-70d7-4cfd-ad55-7efa6464f958) on the certificate profile — role " +
-                "assignments can take a few minutes to propagate. Detail: " + detail);
+                "assignments can take a few minutes to propagate. If the role is already " +
+                "assigned, check the tenant: a token minted in a tenant other than the one " +
+                "owning the signing account is rejected no matter which roles it holds. " +
+                "Detail: " + detail);
 
         throw new InvalidOperationException(
-            $"Trusted Signing request failed ({(int)resp.StatusCode} {resp.StatusCode}). Detail: {detail}");
+            $"Trusted Signing request failed ({(int)resp.StatusCode} {resp.StatusCode})." +
+            issuedTo + $" Detail: {detail}");
     }
 
     private static string Trim(string s) => s.Length > 500 ? s[..500] : s;
