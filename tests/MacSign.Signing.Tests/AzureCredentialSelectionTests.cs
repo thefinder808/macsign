@@ -245,6 +245,46 @@ public class AzureCredentialSelectionTests
             Assert.True(doc.RootElement.TryGetProperty(name, out _), $"missing field: {name}");
     }
 
+    // ── Pre-flight identity check ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Describing_the_current_identity_costs_a_token_not_a_signature()
+    {
+        // Deliberately does NOT construct a credential signer: that would run the
+        // certificate-discovery probe, which is a real Trusted Signing sign operation against
+        // the account's quota. Answering "who would sign?" only needs a token.
+        var identity = await AzureIdentity.DescribeAsync(
+            new FakeToken(Jwt("checker@contoso.com", "tenant-a")), default);
+
+        Assert.Equal("checker@contoso.com (tenant tenant-a)", identity);
+    }
+
+    [Fact]
+    public async Task An_unreadable_token_describes_nothing_rather_than_throwing()
+    {
+        Assert.Null(await AzureIdentity.DescribeAsync(new FakeToken("not-a-jwt"), default));
+    }
+
+    [Fact]
+    public async Task The_public_overload_reports_the_identity_of_a_supplied_token()
+    {
+        // Covers the PUBLIC entry point — the only one that reaches AzureCredentialFactory and
+        // so the only one that could ever prompt. An explicit token short-circuits before a
+        // credential is built, so this exercises it without touching the runner's keychain.
+        var identity = await AzureIdentity.DescribeAsync(
+            new SigningOptions { TrustedSigningAccessToken = Jwt("supplied@contoso.com", "tenant-a") });
+
+        Assert.Equal("supplied@contoso.com (tenant tenant-a)", identity);
+    }
+
+    private static string Jwt(string username, string tenant)
+    {
+        var payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+            new { preferred_username = username, tid = tenant });
+        var b64 = Convert.ToBase64String(payload).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return $"eyJhbGciOiJub25lIn0.{b64}.not-a-signature";
+    }
+
     // ── Token acquisition ──────────────────────────────────────────────────────
 
     [Fact]

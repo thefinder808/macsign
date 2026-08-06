@@ -160,11 +160,22 @@ public sealed class AuthenticodeSigner
                 }
             }
 
-            if (failures.Count > 0)
-                return SignResult.Fail(
-                    $"Signed {signedCount} file(s); {failures.Count} failed:\n  " + string.Join("\n  ", failures));
+            // Who authorized the run — but only when something was actually signed. Every
+            // target being skipped as already-signed still returns Ok, and naming an account
+            // there would turn "nothing happened" into a claim about who signed what.
+            var authenticatedAs = signedCount > 0 ? credential.AuthenticatedAs : null;
 
-            return SignResult.Ok();
+            if (failures.Count > 0)
+                // Files that did go out are still attributable — on a partial batch that is
+                // when an operator most needs to reconcile what actually got signed.
+                return SignResult.Fail(
+                    $"Signed {signedCount} file(s); {failures.Count} failed:\n  " + string.Join("\n  ", failures))
+                    with { AuthenticatedAs = authenticatedAs };
+
+            // Report who authorized the run, not just that it worked. For a cloud credential
+            // the Entra account is a different thing from the certificate subject, and until
+            // now it was only ever named when a request failed.
+            return SignResult.Ok() with { AuthenticatedAs = authenticatedAs };
         }
         finally
         {

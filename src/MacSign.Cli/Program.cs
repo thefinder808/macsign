@@ -98,7 +98,12 @@ namespace MacSign.Cli
             if (!result.Success)
                 return Fail(result.Error!);
 
-            Console.WriteLine("Done.");
+            // Name the account for a cloud credential. Same gap the GUI had: until now the
+            // identity was only ever reported when a request failed, so a sign that went out as
+            // the wrong-but-authorized account said nothing at all.
+            Console.WriteLine(result.AuthenticatedAs is null
+                ? "Done."
+                : $"Done. Signed as {result.AuthenticatedAs}.");
             return 0;
         }
 

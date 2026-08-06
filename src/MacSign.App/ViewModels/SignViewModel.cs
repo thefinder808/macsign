@@ -129,6 +129,77 @@ public partial class SignViewModel : ObservableObject
 
     public string AzureSignInLabel => IsAzureSignedIn ? "Switch account" : "Sign in…";
 
+    // ── "who would sign?" on the default source ──
+    // On the browser source the account is known from the stored sign-in and simply displayed.
+    // The default chain resolves to whatever the machine is signed in as, and that is only
+    // knowable by acquiring a token — a network call, and an `az` subprocess on the usual path.
+    // Too expensive to do on every keystroke, so it is an explicit action instead.
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCheckedIdentity))]
+    private string _checkedIdentity = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CheckIdentityLabel))]
+    [NotifyCanExecuteChangedFor(nameof(CheckIdentityCommand))]
+    private bool _isCheckingIdentity;
+
+    public bool HasCheckedIdentity => !string.IsNullOrEmpty(CheckedIdentity);
+
+    public string CheckIdentityLabel => IsCheckingIdentity ? "Checking…" : "Who would sign?";
+
+    /// <summary>
+    /// The answer must not outlive the question. Everything that decides which account the
+    /// default chain resolves to — see the credential cache's key — invalidates it.
+    /// </summary>
+    private void DiscardIdentityCheck() => CheckedIdentity = "";
+
+    /// <summary>Only the default Azure source: the browser source shows its account outright,
+    /// and a local key has no Entra account at all. Kept here rather than only in the XAML so
+    /// the invariant travels with the code.</summary>
+    private bool CanCheckIdentity() => !IsCheckingIdentity && IsAzure && !IsAzureBrowserSource;
+
+    [RelayCommand(CanExecute = nameof(CanCheckIdentity))]
+    private async Task CheckIdentityAsync()
+    {
+        IsCheckingIdentity = true;
+        CheckedIdentity = "";
+        // Bounded: on the usual path this shells out to `az`, and a stall would otherwise leave
+        // the button disabled and the panel blank with no way out short of quitting.
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try
+        {
+            var options = BuildOptions();
+            // Offloaded like every other engine call here — forcing the credential open reaches
+            // for the keychain, and doing that on the UI thread freezes the window.
+            var who = await Task.Run(() => _engine.DescribeAzureIdentityAsync(options, cts.Token), cts.Token);
+            CheckedIdentity = who ?? "Signed in, but the account couldn't be read.";
+        }
+        catch (OperationCanceledException)
+        {
+            CheckedIdentity = "Timed out working out which account would sign.";
+        }
+        catch (Exception ex)
+        {
+            // Surfaced rather than swallowed: "couldn't tell you" is the failure this whole
+            // feature exists to remove, and the sign-in error is the actionable part. Trimmed
+            // because the default chain's failure is an aggregate naming every credential it
+            // tried — routinely kilobytes, into a narrow inspector column.
+            CheckedIdentity = Trim(ex.Message, 300);
+        }
+        finally
+        {
+            IsCheckingIdentity = false;
+        }
+    }
+
+    private static string Trim(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+
+    partial void OnTenantIdChanged(string value) => DiscardIdentityCheck();
+    partial void OnAzureSourceChanged(TrustedSigningCredentialSource value) => DiscardIdentityCheck();
+    partial void OnAzureSignInChanged(AzureSignInData? value) => DiscardIdentityCheck();
+    partial void OnCredModeChanged(CredMode value) => DiscardIdentityCheck();
+
     [RelayCommand]
     private void SetAzureSource(TrustedSigningCredentialSource source)
     {
@@ -376,6 +447,11 @@ public partial class SignViewModel : ObservableObject
         var targets = Files.Where(f => f.IsSelected && f.IsSelectable).ToList();
         if (targets.Count == 0) return;
 
+        // Cleared before anything can record: the "couldn't start signing" path below calls
+        // Record() and returns, so a reset placed after it attributed a failed local-key run to
+        // the previous Azure run's account — and Record() persists that.
+        _authenticatedAs = null;
+
         var options = BuildOptions();
         var signer = _engine.TryCreateSigner(options, out var error);
         if (signer is null)
@@ -424,6 +500,11 @@ public partial class SignViewModel : ObservableObject
 
             if (result.Success)
             {
+                // Who authorized this run. For a cloud credential the Entra account is a
+                // different thing from the certificate subject, and it was previously only ever
+                // named when a request failed.
+                _authenticatedAs ??= result.AuthenticatedAs;
+
                 // The success banner claims "verified VALID" — so actually re-verify the file
                 // we just wrote rather than trusting the sign call. A signing bug or write
                 // corruption must NOT be reported as verified. Integrity only (SignatureValid),
@@ -463,12 +544,12 @@ public partial class SignViewModel : ObservableObject
         if (ok == targets.Count)
         {
             BannerTitle = $"{ok} file{(ok == 1 ? "" : "s")} signed{(TimestampEnabled ? " & timestamped" : "")}";
-            BannerDetail = "Signed and verified VALID after signing.";
+            BannerDetail = $"Signed and verified VALID after signing{AuthenticatedSuffix}.";
         }
         else
         {
             BannerTitle = $"{ok} of {targets.Count} signed";
-            BannerDetail = firstError ?? "Some files failed.";
+            BannerDetail = (firstError ?? "Some files failed.") + AuthenticatedSuffix;
         }
 
         var status = ok == 0 ? "fail" : ok == targets.Count ? "ok" : "warn";
@@ -481,11 +562,19 @@ public partial class SignViewModel : ObservableObject
     [RelayCommand]
     private void Cancel() => _cts?.Cancel();
 
+    /// <summary>The account the engine reported for the run just finished, when the credential
+    /// was cloud-backed. Null for a local key, whose identity is the certificate itself.</summary>
+    private string? _authenticatedAs;
+
+    /// <summary>" as user@contoso.com (tenant …)", or "" when there is no account to name.</summary>
+    private string AuthenticatedSuffix =>
+        string.IsNullOrWhiteSpace(_authenticatedAs) ? "" : $" as {_authenticatedAs}";
+
     private void Record(int count, string status, string detail) =>
         RunRecorded?.Invoke(new RunData
         {
             FileCount = count,
-            Credential = CredentialLabel,
+            Credential = CredentialLabel + AuthenticatedSuffix,
             Detail = detail,
             Status = status,
             WhenIso = DateTime.Now.ToString("o"),
@@ -580,6 +669,10 @@ public partial class SignViewModel : ObservableObject
         if (p.TimestampUrl is not null) TimestampUrl = p.TimestampUrl;
         Description = p.Description ?? "";
         MoreInfoUrl = p.Url ?? "";
+        // Explicit, because the property hooks only fire on a *changed* value: swapping to a
+        // different Trusted Signing account leaves the identity inputs untouched, so a stale
+        // readback would sit beside the new credential looking like an answer about it.
+        DiscardIdentityCheck();
         StateChanged?.Invoke();
     }
 

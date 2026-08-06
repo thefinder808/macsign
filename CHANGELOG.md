@@ -42,6 +42,14 @@ when a token is rejected the error tells you which account it belonged to.
   HTTP post-and-poll per digest. Cancelling now aborts the request in flight.
 - **Saving a profile says so.** "Save as profile" navigated to the Profiles screen and left
   you to infer the rest; it now names what happened, and whether it added or updated a card.
+- **A successful sign now says which account authorized it** — in the Sign screen's banner, in
+  the Activity record, and on the CLI (`Done. Signed as user@contoso.com (tenant …)`).
+  Previously the identity was only ever reported when a request *failed*, so a sign that went
+  out as the wrong-but-authorized account said nothing at all.
+- **"Who would sign?"** on the Sign screen's default credential source. That source resolves to
+  whatever account this Mac is signed in as, which is only knowable by acquiring a token — so
+  it is one explicit click rather than something shown automatically. It costs a token, not a
+  signature.
 
 ### Changed
 - **One Azure credential per identity instead of one per file.** The GUI builds a signing

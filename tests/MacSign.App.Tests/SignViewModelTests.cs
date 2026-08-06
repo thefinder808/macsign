@@ -21,6 +21,7 @@ internal sealed class FakeSignEngine : EngineService
 {
     private readonly AuthenticodeSigner _signer;
     public Func<string, SignResult> SignResultFor = _ => SignResult.Ok();
+    public Func<SigningOptions, string?> IdentityFor = _ => null;
     public Func<string, VerifyReport> VerifyFor = _ => new() { IsSigned = true, SignatureValid = true };
     public readonly List<string> Verified = new();
 
@@ -36,6 +37,9 @@ internal sealed class FakeSignEngine : EngineService
         SigningOptions options, IProgress<string>? log, CancellationToken ct)
         => Task.FromResult(SignResultFor(filePath));
 
+    public override Task<string?> DescribeAzureIdentityAsync(SigningOptions options, CancellationToken ct)
+        => Task.FromResult(IdentityFor(options));
+
     public override VerifyReport Verify(string filePath)
     {
         Verified.Add(filePath);
@@ -45,20 +49,8 @@ internal sealed class FakeSignEngine : EngineService
 
 public class SignViewModelTests
 {
-    // A real throwaway self-signed signer: the fake's SignOneAsync ignores it, but the VM
-    // needs a non-null signer to enter the loop and AuthenticodeSigner's ctor is private.
-    private static AuthenticodeSigner ThrowawaySigner()
-    {
-        using var rsa = RSA.Create(2048);
-        var req = new CertificateRequest("CN=MacSign Post-Sign Test", rsa,
-            HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
-        var pfx = Path.Combine(Path.GetTempPath(), "macsign-postsign-" + Guid.NewGuid().ToString("N") + ".pfx");
-        File.WriteAllBytes(pfx, cert.Export(X509ContentType.Pfx, "pw"));
-        return AuthenticodeSigner.TryCreate(
-            new SigningOptions { CertMode = CertMode.Pfx, PfxPath = pfx, Secret = "pw" }, out var err)
-            ?? throw new InvalidOperationException(err);
-    }
+
+    private static AuthenticodeSigner ThrowawaySigner() => TestSigners.Throwaway();
 
     private static (SignViewModel Vm, FakeSignEngine Engine, FileItemViewModel Row) Setup()
     {

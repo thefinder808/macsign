@@ -51,6 +51,14 @@ internal sealed class TrustedSigningClient : IDisposable
         _maxPolls = maxPolls;
     }
 
+    /// <summary>
+    /// The account the most recent token was issued to, or null if none has been fetched or it
+    /// couldn't be read. Display only — see <see cref="JwtIdentity"/>. Kept so a *successful*
+    /// run can report who signed; previously this was computed and then discarded unless the
+    /// request failed.
+    /// </summary>
+    internal string? LastIdentity { get; private set; }
+
     /// <summary>Strips the scheme and any trailing slash so a host or full URI both work.</summary>
     public static string NormalizeHost(string? endpoint)
     {
@@ -72,6 +80,7 @@ internal sealed class TrustedSigningClient : IDisposable
         // Rendered once, here, so the raw token never enters error-formatting scope below.
         // Display only — nothing downstream may treat this as verified. See JwtIdentity.
         var identity = JwtIdentity.Describe(token);
+        LastIdentity = identity;
 
         var signUrl =
             $"https://{_host}/codesigningaccounts/{_account}/certificateprofiles/{_profile}/sign?api-version={ApiVersion}";

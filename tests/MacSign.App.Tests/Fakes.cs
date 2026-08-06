@@ -38,3 +38,29 @@ internal sealed class FakeHttp : System.Net.Http.HttpMessageHandler
         { Content = new System.Net.Http.StringContent(json) }
     });
 }
+
+/// <summary>A real throwaway self-signed signer. The fake engines ignore it, but a view-model
+/// needs a non-null signer to enter its signing loop, and AuthenticodeSigner's ctor is private.</summary>
+internal static class TestSigners
+{
+    public static MacSign.Signing.AuthenticodeSigner Throwaway()
+    {
+        using var rsa = System.Security.Cryptography.RSA.Create(2048);
+        var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
+            "CN=MacSign Test", rsa,
+            System.Security.Cryptography.HashAlgorithmName.SHA256,
+            System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+        using var cert = req.CreateSelfSigned(System.DateTimeOffset.UtcNow.AddDays(-1),
+            System.DateTimeOffset.UtcNow.AddYears(1));
+        var pfx = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+            "macsign-testsigner-" + System.Guid.NewGuid().ToString("N") + ".pfx");
+        System.IO.File.WriteAllBytes(pfx, cert.Export(
+            System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, "pw"));
+        return MacSign.Signing.AuthenticodeSigner.TryCreate(
+            new MacSign.Signing.SigningOptions
+            {
+                CertMode = MacSign.Signing.CertMode.Pfx, PfxPath = pfx, Secret = "pw",
+            }, out var err)
+            ?? throw new System.InvalidOperationException(err);
+    }
+}

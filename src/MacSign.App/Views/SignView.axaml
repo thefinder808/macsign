@@ -336,16 +336,32 @@
                                     </Border>
                                 </StackPanel>
 
-                                <!-- Default source: unchanged behaviour, described accurately. -->
+                                <!-- Default source: describes the machine's sign-in, and offers to resolve it. -->
                                 <Border Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,9"
                                         IsVisible="{Binding !IsAzureBrowserSource}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Path Data="{StaticResource IcoFingerprint}" Stroke="{DynamicResource Accent}"
                                               StrokeThickness="1.6" Stretch="Uniform" Width="16" Height="16"
                                               VerticalAlignment="Top" />
-                                        <TextBlock Text="Uses your Azure sign-in (az login or AZURE_* credentials). Nothing is stored."
-                                                   FontSize="12" Foreground="{DynamicResource Ink2}"
-                                                   TextWrapping="Wrap" MaxWidth="230" />
+                                        <StackPanel Spacing="7" MaxWidth="230">
+                                            <TextBlock Text="Uses your Azure sign-in (az login or AZURE_* credentials). Nothing is stored."
+                                                       FontSize="12" Foreground="{DynamicResource Ink2}"
+                                                       TextWrapping="Wrap" />
+
+                                            <!-- Which account that resolves to is only knowable by
+                                                 acquiring a token, so it is an explicit action. -->
+                                            <TextBlock Text="{Binding CheckedIdentity}" Classes="mono"
+                                                       IsVisible="{Binding HasCheckedIdentity}"
+                                                       FontSize="11.5" Foreground="{DynamicResource Ink}"
+                                                       TextWrapping="Wrap" />
+
+                                            <Button Classes="ghost" Height="26" Padding="0"
+                                                    HorizontalAlignment="Left"
+                                                    Foreground="{DynamicResource Accent}"
+                                                    Command="{Binding CheckIdentityCommand}"
+                                                    ToolTip.Tip="Acquires a token to see which account would sign. Does not sign anything."
+                                                    Content="{Binding CheckIdentityLabel}" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
 
