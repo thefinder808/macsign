@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-08-06
+
+### Fixed
+- The Sign screen's Tenant field showed a domain (`contoso.onmicrosoft.com`) as its example,
+  while the tooltip and the blank-tenant error both pointed at
+  `az account show --query tenantId -o tsv`, which prints a GUID. Either form works, but
+  showing one and recommending the other was confusing. The example is now a GUID.
+
 ## [1.5.0] — 2026-08-05
 
 You can now choose which Microsoft Entra account signs with Azure Trusted Signing, and
