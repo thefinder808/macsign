@@ -92,6 +92,10 @@ internal sealed class AzureTrustedSigner : ICredentialSigner
 
     public IReadOnlyList<X509Certificate2> Chain => _chain;
 
+    /// <summary>Known from the certificate-discovery probe onwards, so it is available before
+    /// the first file is signed.</summary>
+    public string? AuthenticatedAs => _client.LastIdentity;
+
     /// <summary>
     /// Adopt the caller's cancellation token until the returned scope is disposed. Signing here
     /// is a REST round-trip plus a poll loop — minutes, in the worst case — and none of it is

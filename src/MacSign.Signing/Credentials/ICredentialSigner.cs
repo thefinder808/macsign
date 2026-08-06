@@ -37,4 +37,13 @@ internal interface ICredentialSigner : IDisposable
     /// </para>
     /// </summary>
     IDisposable? UseCancellation(CancellationToken ct) => null;
+
+    /// <summary>
+    /// The account that authenticated to obtain this credential, for a cloud-backed one.
+    /// Null for an in-process key, where the certificate already is the identity.
+    /// <para>
+    /// Display only — derived from an unvalidated token, so it must never gate a decision.
+    /// </para>
+    /// </summary>
+    string? AuthenticatedAs => null;
 }

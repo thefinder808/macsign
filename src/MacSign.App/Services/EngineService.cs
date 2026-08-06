@@ -41,6 +41,14 @@ public class EngineService
         return signer.SignAsync(dir, full, options, log, ct);
     }
 
+    /// <summary>
+    /// Who a sign would go out as, for the Azure credential described by <paramref name="options"/>.
+    /// Costs a token, not a signature — it deliberately does not build a credential signer,
+    /// whose certificate-discovery probe is a real Trusted Signing operation.
+    /// </summary>
+    public virtual Task<string?> DescribeAzureIdentityAsync(SigningOptions options, CancellationToken ct) =>
+        MacSign.Signing.Azure.AzureIdentity.DescribeAsync(options, ct);
+
     public virtual VerifyReport Verify(string filePath) => SignatureVerifier.Verify(filePath);
 
     /// <summary>Strip a file's Authenticode signature in place. No-throw (like Verify):

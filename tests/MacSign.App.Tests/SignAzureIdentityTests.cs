@@ -260,6 +260,72 @@ public class SignAzureIdentityTests
         Assert.Null(engine.Options.TrustedSigningAuthRecord);
     }
 
+    // ── Reporting who actually signed ──────────────────────────────────────────
+
+    [Fact]
+    public async Task A_successful_run_says_which_account_authorized_it()
+    {
+        // The gap this closes: on the default source the identity was only ever named when a
+        // request FAILED. An account that wrongly holds the role signed silently, which is the
+        // reported bug with a successful outcome.
+        var engine = new FakeSignEngine(TestSigners.Throwaway())
+        {
+            SignResultFor = _ => SignResult.Ok() with { AuthenticatedAs = "signer@contoso.com (tenant t)" },
+        };
+        var vm = new SignViewModel(engine) { CredMode = CredMode.Azure, Account = "acct", Profile = "prof" };
+        vm.Files.Add(new FileItemViewModel("/tmp/who-signed.dll", isSigned: false, sizeBytes: 1024));
+        RunData? recorded = null;
+        vm.RunRecorded += r => recorded = r;
+
+        await vm.SignCommand.ExecuteAsync(null);
+
+        Assert.Contains("signer@contoso.com", vm.BannerDetail);
+        Assert.Contains("signer@contoso.com", recorded!.Credential);
+    }
+
+    [Fact]
+    public async Task A_local_credential_reports_no_account_and_reads_as_before()
+    {
+        // A PFX has no Entra account — the certificate is the identity — so nothing should be
+        // appended, and the existing banner text must be untouched.
+        var engine = new FakeSignEngine(TestSigners.Throwaway());   // AuthenticatedAs stays null
+        var vm = new SignViewModel(engine) { CredMode = CredMode.Pfx, PfxPath = "/tmp/cred.pfx" };
+        vm.Files.Add(new FileItemViewModel("/tmp/local.dll", isSigned: false, sizeBytes: 1024));
+
+        await vm.SignCommand.ExecuteAsync(null);
+
+        Assert.DoesNotContain(" as ", vm.BannerDetail);
+    }
+
+    // ── Pre-flight "who would sign?" ───────────────────────────────────────────
+
+    [Fact]
+    public async Task Checking_the_identity_reports_who_would_sign()
+    {
+        var engine = new FakeSignEngine(TestSigners.Throwaway()) { IdentityFor = _ => "checker@contoso.com (tenant t)" };
+        var vm = new SignViewModel(engine) { CredMode = CredMode.Azure, Account = "acct", Profile = "prof" };
+
+        await vm.CheckIdentityCommand.ExecuteAsync(null);
+
+        Assert.Equal("checker@contoso.com (tenant t)", vm.CheckedIdentity);
+        Assert.False(vm.IsCheckingIdentity);
+    }
+
+    [Fact]
+    public async Task A_failed_identity_check_shows_why_rather_than_going_quiet()
+    {
+        var engine = new FakeSignEngine(TestSigners.Throwaway())
+        {
+            IdentityFor = _ => throw new InvalidOperationException("Run `az login`."),
+        };
+        var vm = new SignViewModel(engine) { CredMode = CredMode.Azure, Account = "acct", Profile = "prof" };
+
+        await vm.CheckIdentityCommand.ExecuteAsync(null);
+
+        Assert.Contains("az login", vm.CheckedIdentity);
+        Assert.False(vm.IsCheckingIdentity);
+    }
+
     // ── Profile round-trip (the mode-scoping invariant) ────────────────────────
 
     [Fact]

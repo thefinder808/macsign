@@ -164,7 +164,10 @@ public sealed class AuthenticodeSigner
                 return SignResult.Fail(
                     $"Signed {signedCount} file(s); {failures.Count} failed:\n  " + string.Join("\n  ", failures));
 
-            return SignResult.Ok();
+            // Report who authorized the run, not just that it worked. For a cloud credential
+            // the Entra account is a different thing from the certificate subject, and until
+            // now it was only ever named when a request failed.
+            return SignResult.Ok() with { AuthenticatedAs = credential.AuthenticatedAs };
         }
         finally
         {

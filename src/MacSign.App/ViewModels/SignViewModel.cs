@@ -129,6 +129,47 @@ public partial class SignViewModel : ObservableObject
 
     public string AzureSignInLabel => IsAzureSignedIn ? "Switch account" : "Sign in…";
 
+    // ── "who would sign?" on the default source ──
+    // On the browser source the account is known from the stored sign-in and simply displayed.
+    // The default chain resolves to whatever the machine is signed in as, and that is only
+    // knowable by acquiring a token — a network call, and an `az` subprocess on the usual path.
+    // Too expensive to do on every keystroke, so it is an explicit action instead.
+
+    [ObservableProperty] private string _checkedIdentity = "";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CheckIdentityCommand))]
+    private bool _isCheckingIdentity;
+
+    public bool HasCheckedIdentity => !string.IsNullOrEmpty(CheckedIdentity);
+
+    partial void OnCheckedIdentityChanged(string value) => OnPropertyChanged(nameof(HasCheckedIdentity));
+
+    private bool CanCheckIdentity() => !IsCheckingIdentity;
+
+    [RelayCommand(CanExecute = nameof(CanCheckIdentity))]
+    private async Task CheckIdentityAsync()
+    {
+        IsCheckingIdentity = true;
+        CheckedIdentity = "";
+        try
+        {
+            var options = BuildOptions();
+            var who = await _engine.DescribeAzureIdentityAsync(options, CancellationToken.None);
+            CheckedIdentity = who ?? "Signed in, but the account couldn't be read.";
+        }
+        catch (Exception ex)
+        {
+            // Surfaced rather than swallowed: "couldn't tell you" is the failure this whole
+            // feature exists to remove, and the sign-in error is the actionable part.
+            CheckedIdentity = ex.Message;
+        }
+        finally
+        {
+            IsCheckingIdentity = false;
+        }
+    }
+
     [RelayCommand]
     private void SetAzureSource(TrustedSigningCredentialSource source)
     {
@@ -396,6 +437,7 @@ public partial class SignViewModel : ObservableObject
         int ok = 0;
         string? firstError = null;
         bool canceled = false;
+        _authenticatedAs = null;
 
         for (int i = 0; i < targets.Count; i++)
         {
@@ -424,6 +466,11 @@ public partial class SignViewModel : ObservableObject
 
             if (result.Success)
             {
+                // Who authorized this run. For a cloud credential the Entra account is a
+                // different thing from the certificate subject, and it was previously only ever
+                // named when a request failed.
+                _authenticatedAs ??= result.AuthenticatedAs;
+
                 // The success banner claims "verified VALID" — so actually re-verify the file
                 // we just wrote rather than trusting the sign call. A signing bug or write
                 // corruption must NOT be reported as verified. Integrity only (SignatureValid),
@@ -463,7 +510,7 @@ public partial class SignViewModel : ObservableObject
         if (ok == targets.Count)
         {
             BannerTitle = $"{ok} file{(ok == 1 ? "" : "s")} signed{(TimestampEnabled ? " & timestamped" : "")}";
-            BannerDetail = "Signed and verified VALID after signing.";
+            BannerDetail = $"Signed and verified VALID after signing{AuthenticatedSuffix}.";
         }
         else
         {
@@ -481,11 +528,19 @@ public partial class SignViewModel : ObservableObject
     [RelayCommand]
     private void Cancel() => _cts?.Cancel();
 
+    /// <summary>The account the engine reported for the run just finished, when the credential
+    /// was cloud-backed. Null for a local key, whose identity is the certificate itself.</summary>
+    private string? _authenticatedAs;
+
+    /// <summary>" as user@contoso.com (tenant …)", or "" when there is no account to name.</summary>
+    private string AuthenticatedSuffix =>
+        string.IsNullOrWhiteSpace(_authenticatedAs) ? "" : $" as {_authenticatedAs}";
+
     private void Record(int count, string status, string detail) =>
         RunRecorded?.Invoke(new RunData
         {
             FileCount = count,
-            Credential = CredentialLabel,
+            Credential = CredentialLabel + AuthenticatedSuffix,
             Detail = detail,
             Status = status,
             WhenIso = DateTime.Now.ToString("o"),
