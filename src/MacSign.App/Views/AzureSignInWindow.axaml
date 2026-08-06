@@ -15,7 +15,7 @@
 
         <StackPanel Spacing="5">
             <TextBlock Classes="fieldlabel" Text="Tenant" />
-            <TextBox Classes="mono" Text="{Binding TenantId}" Watermark="contoso.onmicrosoft.com"
+            <TextBox Classes="mono" Text="{Binding TenantId}" Watermark="aaaabbbb-0000-cccc-1111-dddd2222eeee"
                      ToolTip.Tip="The directory to sign in to — a tenant GUID or a domain. Blank uses the account's own home directory, which for a personal Microsoft account is never where an Azure signing account lives. `az account show --query tenantId -o tsv` prints the right one." />
             <TextBlock Text="Leave blank only if this account belongs to your Azure directory. A personal Microsoft account does not."
                        FontSize="11" Foreground="{DynamicResource Ink2}" TextWrapping="Wrap" />
