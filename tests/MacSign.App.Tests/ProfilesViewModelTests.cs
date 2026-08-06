@@ -49,9 +49,9 @@ public class ProfilesViewModelTests
         // already there, nothing tells you which one is new, or that the click even landed.
         var vm = new ProfilesViewModel(new AppData(), TempStore());
 
-        vm.Save(new ProfileData { Name = "thefinder808-signing", CredMode = "Azure", Account = "acct" });
+        vm.Save(new ProfileData { Name = "my-signing-account", CredMode = "Azure", Account = "acct" });
 
-        Assert.Contains("thefinder808-signing", vm.SavedNotice);
+        Assert.Contains("my-signing-account", vm.SavedNotice);
         Assert.True(vm.HasSavedNotice);
     }
 
