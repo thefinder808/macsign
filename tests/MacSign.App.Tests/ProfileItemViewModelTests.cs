@@ -109,7 +109,7 @@ public class ProfileItemViewModelTests
         // "browser", not "browser sign-in". The first cut used the longer form and it did the
         // exact thing this comment claimed it wouldn't: the summary sits in a half-width
         // column with CharacterEllipsis, and a real profile name pushed "timestamped" off the
-        // end ("Azure · public-signing · browser sign-in · t…"). Keep this line short.
+        // end ("Azure · my-cert-profile · browser sign-in · t…"). Keep this line short.
         Assert.Equal("Azure · prof · browser · timestamped", new ProfileItemViewModel(browser, Vm()).Summary);
         Assert.Equal("Azure · prof · timestamped", new ProfileItemViewModel(chain, Vm()).Summary);
     }
