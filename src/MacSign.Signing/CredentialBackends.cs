@@ -10,9 +10,16 @@ namespace MacSign.Signing;
 /// </summary>
 public static class CredentialBackends
 {
+    /// <summary>
+    /// Builds a credential. The token covers construction itself, which for a cloud backend is a
+    /// network round-trip: Trusted Signing has no "get certificate" call, so its credential
+    /// discovers its own chain by signing a throwaway digest before it can be handed back.
+    /// </summary>
+    internal delegate ICredentialSigner CredentialFactory(SigningOptions options, CancellationToken ct);
+
     /// <summary>Set by <c>MacSign.Signing.Pkcs11</c> to enable PKCS#11 signing.</summary>
-    internal static Func<SigningOptions, ICredentialSigner>? Pkcs11Factory { get; set; }
+    internal static CredentialFactory? Pkcs11Factory { get; set; }
 
     /// <summary>Set by <c>MacSign.Signing.Azure</c> to enable Azure Trusted Signing.</summary>
-    internal static Func<SigningOptions, ICredentialSigner>? TrustedSigningFactory { get; set; }
+    internal static CredentialFactory? TrustedSigningFactory { get; set; }
 }

@@ -281,6 +281,34 @@ public class AzureCredentialSelectionTests
     }
 
     [Fact]
+    public async Task A_timeout_reads_as_a_failure_not_as_a_cancellation()
+    {
+        // HttpClient throws TaskCanceledException — a SUBCLASS of OperationCanceledException —
+        // when its own 30s timeout elapses, with the caller's token never signalled. Treating
+        // that as "the user cancelled" loses this actionable message, and higher up abandons
+        // the rest of a batch under a banner naming a cancellation that never happened.
+        var provider = new DefaultAzureTokenProvider(
+            new SigningOptions(), new ThrowingCredential(new TaskCanceledException("timed out")));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => provider.GetTokenAsync(default));
+
+        Assert.Contains("az login", ex.Message);
+    }
+
+    [Fact]
+    public async Task A_real_cancellation_still_propagates_untouched()
+    {
+        // The other half: once the caller's token HAS fired, the cancellation must stay a
+        // cancellation so the layers above report it as one rather than as a sign-in failure.
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var provider = new DefaultAzureTokenProvider(
+            new SigningOptions(), new ThrowingCredential(new OperationCanceledException(cts.Token)));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => provider.GetTokenAsync(cts.Token));
+    }
+
+    [Fact]
     public async Task A_default_chain_failure_still_points_at_az_login()
     {
         var provider = new DefaultAzureTokenProvider(
@@ -290,6 +318,22 @@ public class AzureCredentialSelectionTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => provider.GetTokenAsync(default));
 
         Assert.Contains("az login", ex.Message);
+    }
+
+    [Fact]
+    public async Task A_cancelled_token_fetch_stays_a_cancellation()
+    {
+        // Acquiring the token is the first network step of a sign, and it runs under the
+        // caller's token. The generic handler must not recast a cancellation as "run az login" —
+        // advice for a problem the user doesn't have, and SignAsync would then report the
+        // cancelled run as a file that failed to sign.
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var provider = new DefaultAzureTokenProvider(
+            new SigningOptions(), new ThrowingCredential(new OperationCanceledException(cts.Token)));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => provider.GetTokenAsync(cts.Token));
     }
 
     private static string Record(string username, string tenantId) =>

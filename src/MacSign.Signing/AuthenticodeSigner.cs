@@ -97,12 +97,17 @@ public sealed class AuthenticodeSigner
         {
             credential = options.CertMode switch
             {
-                CertMode.Pkcs11 => CredentialBackends.Pkcs11Factory!(options),
-                CertMode.TrustedSigning => CredentialBackends.TrustedSigningFactory!(options),
+                CertMode.Pkcs11 => CredentialBackends.Pkcs11Factory!(options, ct),
+                CertMode.TrustedSigning => CredentialBackends.TrustedSigningFactory!(options, ct),
                 _ => new PfxCredentialSigner(options.PfxPath!, options.Secret),
             };
         }
-        catch (Exception ex)
+        // A cancellation is not a bad credential: the cloud backend discovers its certificate
+        // over the network, so cancelling during that would otherwise be reported as
+        // "Could not load the signing credential: The operation was canceled." Qualified on the
+        // token, because HttpClient raises TaskCanceledException (a subclass) on its own timeout
+        // — that is a failure, and reporting it as a cancellation abandons the run silently.
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             return SignResult.Fail($"Could not load the signing credential: {ex.Message}");
         }
@@ -144,7 +149,7 @@ public sealed class AuthenticodeSigner
                     signedCount++;
                     log?.Report($"Signed {Path.GetFileName(file)}.");
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
                 {
                     // Single-file mode fails fast; batch (--all) keeps going so one bad file
                     // doesn't strand the rest, and every failure is reported at the end.

@@ -15,9 +15,10 @@ namespace MacSign.Signing.Azure;
 /// </para>
 /// <para>
 /// <b>Neither path may open a browser.</b> <see cref="AuthenticodeSigner"/> builds a credential
-/// once per file, so a credential that is allowed to prompt would open one browser window per
-/// file whenever the token cache is cold. Signing is silent-or-fail; the single place a browser
-/// is permitted to open is <see cref="AzureSignIn"/>, reached only by an explicit user gesture.
+/// once per <i>call</i>, and the GUI calls it once per file — so a credential allowed to prompt
+/// would open one browser window per file whenever the token cache is cold. Signing is
+/// silent-or-fail; the single place an <i>authentication</i> prompt may open is
+/// <see cref="AzureSignIn"/>, reached only by an explicit user gesture.
 /// </para>
 /// </summary>
 internal static class AzureCredentialFactory
@@ -45,9 +46,10 @@ internal static class AzureCredentialFactory
 
     /// <summary>
     /// Credentials are reused for the lifetime of the process, keyed by the identity they
-    /// resolve to. <see cref="AuthenticodeSigner"/> constructs a credential <b>per file</b> and
-    /// disposes it, so without this a 50-file run built 50 — each one, on the default path,
-    /// shelling out to <c>az</c> twice.
+    /// resolve to. <see cref="AuthenticodeSigner"/> constructs a credential per <i>call</i> and
+    /// disposes it, and the GUI calls it once per file — so without this a 50-file GUI run built
+    /// 50, each one shelling out to <c>az</c> twice on the default path. The CLI already built
+    /// one, since it signs a whole batch in a single call.
     /// <para>
     /// Holding them is safe and deliberate: Azure.Identity credentials are thread-safe, are not
     /// <see cref="IDisposable"/>, and keep no secret of their own (tokens live in the OS

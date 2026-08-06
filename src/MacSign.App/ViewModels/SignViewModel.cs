@@ -141,9 +141,16 @@ public partial class SignViewModel : ObservableObject
     /// "Save as profile".</summary>
     public event Action? AzureSignInChanged;
 
-    /// <summary>Records a completed sign-in, or null to sign out ("Switch account").</summary>
+    /// <summary>Records a completed sign-in, or null to clear it.</summary>
     public void ApplyAzureSignIn(AzureSignInData? signIn)
     {
+        // Adopt the tenant the sign-in was actually performed against. The dialog has its own
+        // Tenant box — and the blank-tenant hint tells the user to fill it in there — so
+        // discarding it would leave this screen unpinned while the account is pinned, and later
+        // signs would silently resolve against the account's home tenant instead.
+        if (!string.IsNullOrWhiteSpace(signIn?.RequestedTenant))
+            TenantId = signIn.RequestedTenant!.Trim();
+
         AzureSignIn = signIn;
         AzureSignInChanged?.Invoke();
         StateChanged?.Invoke();
@@ -527,7 +534,11 @@ public partial class SignViewModel : ObservableObject
         Account    = IsAzure  ? NullIfEmpty(Account)    : null,
         Profile    = IsAzure  ? NullIfEmpty(Profile)    : null,
         Endpoint   = IsAzure  ? NullIfEmpty(Endpoint)   : null,
-        TenantId   = IsAzure  ? NullIfEmpty(TenantId)   : null,
+        // Empty, not null, for an Azure profile: null is reserved for "this profile predates
+        // the field" (see ApplyProfile), so writing null here would make a deliberately
+        // unpinned tenant indistinguishable from a legacy one — and it would then inherit
+        // whatever tenant was on screen before.
+        TenantId   = IsAzure  ? (TenantId ?? "").Trim()  : null,
         CredentialSource = IsAzure ? AzureSource.ToString() : null,
         Timestamp = TimestampEnabled,
         TimestampUrl = NullIfEmpty(TimestampUrl),
@@ -607,7 +618,12 @@ public partial class SignViewModel : ObservableObject
         TrustedSigningCredentialSource = IsAzure ? AzureSource : TrustedSigningCredentialSource.Default,
         // Scoped to the browser source on purpose: switching back to the default sign-in must
         // actually use it, not keep quietly signing as the browser account.
-        TrustedSigningAuthRecord = IsAzure && IsAzureBrowserSource ? AzureSignIn?.ToRecordJson() : null,
+        // IsAzureSignedIn, not merely "we hold a record": a record for a different tenant than
+        // the one asked for must never reach the engine. CredentialReady disables the button
+        // today, but the invariant belongs on the data path too — see AzureSignInData.
+        TrustedSigningAuthRecord = IsAzure && IsAzureBrowserSource && IsAzureSignedIn
+            ? AzureSignIn!.ToRecordJson()
+            : null,
         Secret = CredMode switch
         {
             CredMode.Pfx => NullIfEmpty(PfxPassword),

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
@@ -156,6 +157,39 @@ public class AzureTrustedSigningTests
         Assert.Contains("Artifact Signing Certificate Profile Signer", ex.Message);
     }
 
+    [Fact]
+    public async Task A_credential_that_times_out_fails_the_run_rather_than_reading_as_cancelled()
+    {
+        // Same hazard one layer up. Before this guard learned to check the token, a 30s HTTP
+        // timeout during certificate discovery escaped SignAsync as an OperationCanceledException
+        // and the GUI reported "Signing canceled", silently abandoning the rest of the batch.
+        AzureBackend.Register();
+        CredentialBackends.TrustedSigningFactory = (_, _) => throw new TaskCanceledException("timed out");
+        try
+        {
+            using var dir = new TempDir();
+            var file = FixturePe.CopyToTemp(dir.Path);
+            var options = new SigningOptions
+            {
+                CertMode = CertMode.TrustedSigning,
+                TrustedSigningEndpoint = Endpoint,
+                TrustedSigningAccount = Account,
+                TrustedSigningProfile = Profile,
+            };
+            var signer = AuthenticodeSigner.TryCreate(options, out var error) ?? throw new InvalidOperationException(error);
+
+            // No token passed at all, so nothing was cancelled.
+            var result = await signer.SignAsync(dir.Path, file, options);
+
+            Assert.False(result.Success);
+            Assert.Contains("Could not load the signing credential", result.Error);
+        }
+        finally
+        {
+            AzureBackend.Register();   // restore the real factory for anything that follows
+        }
+    }
+
     /// <summary>An unsigned JWT carrying just the two claims the error path reads.</summary>
     private static string Jwt(string username, string tenantId)
     {
@@ -221,7 +255,7 @@ public class AzureTrustedSigningTests
         var handler = LocalKeyEndpoint(key, signingCert);
 
         // Register a factory that builds the real AzureTrustedSigner over the fake endpoint.
-        CredentialBackends.TrustedSigningFactory = opts =>
+        CredentialBackends.TrustedSigningFactory = (opts, _) =>
             new AzureTrustedSigner(opts.TrustedSigningEndpoint!, opts.TrustedSigningAccount!,
                 opts.TrustedSigningProfile!, new FakeToken("tok"), handler);
 
@@ -353,7 +387,193 @@ public class AzureTrustedSigningTests
         Assert.Contains("sign in", error, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ── Cancellation: the caller's token has to reach the REST client ──────────
+
+    [Fact]
+    public async Task Cancelling_mid_sign_aborts_the_in_flight_request()
+    {
+        using var key = RSA.Create(2048);
+        using var certWithKey = SelfSignedCodeSigningCert(key, out var signingCert);
+
+        using var cts = new CancellationTokenSource();
+        var inFlight = new TaskCompletionSource();
+        int posts = 0;
+
+        var handler = new StubHandler(async (req, requestCt) =>
+        {
+            // The first POST is the constructor's certificate-discovery probe — answer it
+            // normally, so this test is about the file's own sign and nothing else.
+            if (Interlocked.Increment(ref posts) == 1)
+                return await LocalKeyResponse(key, signingCert, req);
+
+            inFlight.TrySetResult();
+            // Stall until the request's own token fires. The fallback deliberately SUCCEEDS:
+            // a regression then fails this test in five seconds instead of hanging CI forever.
+            await Task.Delay(TimeSpan.FromSeconds(5), requestCt);
+            return await LocalKeyResponse(key, signingCert, req);
+        });
+
+        using var azure = new AzureTrustedSigner(Endpoint, Account, Profile, new FakeToken("tok"), handler);
+
+        // Cancel exactly when the request is on the wire, so this proves an in-flight abort
+        // rather than a check made before anything was sent.
+        _ = inFlight.Task.ContinueWith(_ => cts.Cancel(), TaskScheduler.Default);
+
+        var elapsed = Stopwatch.StartNew();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => new AuthenticodeCmsBuilder().BuildAsync(Spc(), azure, TrustedSigningOptions(), cts.Token));
+        elapsed.Stop();
+
+        Assert.True(inFlight.Task.IsCompleted, "the sign request never reached the endpoint");
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(4),
+            $"cancellation took {elapsed.Elapsed} — the request ran to completion instead of being aborted");
+    }
+
+    [Fact]
+    public async Task Cancelling_stops_the_operation_poll_loop()
+    {
+        // Signing is a long-running operation: the POST can return InProgress and leave the
+        // client polling, up to sixty times with a wait between each. That wait is the longest
+        // stretch of a run and has to end on cancellation, not on the poll budget.
+        using var key = RSA.Create(2048);
+        using var certWithKey = SelfSignedCodeSigningCert(key, out var signingCert);
+
+        using var cts = new CancellationTokenSource();
+        var polled = new TaskCompletionSource();
+        int posts = 0;
+
+        var handler = new StubHandler(async (req, _) =>
+        {
+            if (req.Method == HttpMethod.Post)
+                return Interlocked.Increment(ref posts) == 1
+                    ? await LocalKeyResponse(key, signingCert, req)   // the ctor's probe
+                    : Json(HttpStatusCode.Accepted, new { operationId = "op-1", status = "InProgress" });
+
+            polled.TrySetResult();
+            return Json(HttpStatusCode.OK, new { operationId = "op-1", status = "InProgress" }); // never terminal
+        });
+
+        using var azure = new AzureTrustedSigner(
+            Endpoint, Account, Profile, new FakeToken("tok"), handler,
+            pollInterval: TimeSpan.FromMilliseconds(50));
+
+        _ = polled.Task.ContinueWith(_ => cts.Cancel(), TaskScheduler.Default);
+
+        var elapsed = Stopwatch.StartNew();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => new AuthenticodeCmsBuilder().BuildAsync(Spc(), azure, TrustedSigningOptions(), cts.Token));
+        elapsed.Stop();
+
+        Assert.True(polled.Task.IsCompleted, "the operation was never polled");
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(2),
+            $"cancellation took {elapsed.Elapsed} — the loop ran out its poll budget instead of stopping");
+    }
+
+    [Fact]
+    public async Task A_cancelled_sign_surfaces_as_cancellation_not_as_a_file_failure()
+    {
+        // What the GUI's Cancel button and the CLI's Ctrl-C both depend on. SignAsync catches
+        // per-file exceptions and reports them as "Failed to sign <file>", which for a
+        // cancellation would read like the file itself was bad.
+        using var key = RSA.Create(2048);
+        using var certWithKey = SelfSignedCodeSigningCert(key, out var signingCert);
+
+        using var cts = new CancellationTokenSource();
+        var inFlight = new TaskCompletionSource();
+        int posts = 0;
+
+        var handler = new StubHandler(async (req, requestCt) =>
+        {
+            if (Interlocked.Increment(ref posts) == 1)
+                return await LocalKeyResponse(key, signingCert, req);   // the ctor's probe
+
+            inFlight.TrySetResult();
+            await Task.Delay(TimeSpan.FromSeconds(5), requestCt);
+            return await LocalKeyResponse(key, signingCert, req);
+        });
+
+        // The probe is answered immediately, so only the per-file sign is under test here.
+        CredentialBackends.TrustedSigningFactory = (opts, _) =>
+            new AzureTrustedSigner(opts.TrustedSigningEndpoint!, opts.TrustedSigningAccount!,
+                opts.TrustedSigningProfile!, new FakeToken("tok"), handler);
+
+        using var tmp = new TempDir();
+        var dll = FixturePe.CopyToTemp(tmp.Path);
+        var options = TrustedSigningOptions();
+
+        var signer = AuthenticodeSigner.TryCreate(options, out _);
+        _ = inFlight.Task.ContinueWith(_ => cts.Cancel(), TaskScheduler.Default);
+
+        var elapsed = Stopwatch.StartNew();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => signer!.SignAsync(tmp.Path, dll, options, log: null, cts.Token));
+        elapsed.Stop();
+
+        // The timing matters as much as the exception type. Cancellation would surface anyway
+        // from the write that follows the sign — but only after the sign had run its full
+        // course, which is exactly the wait this is meant to end.
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(4),
+            $"cancellation took {elapsed.Elapsed} — the sign ran to completion first");
+    }
+
+    [Fact]
+    public async Task Cancelling_aborts_the_certificate_discovery_probe()
+    {
+        // The credential's constructor signs a throwaway digest, because that is the only way
+        // Trusted Signing hands back the certificate chain. The GUI calls SignAsync once per
+        // file, so the probe is half of a run's Azure traffic — leaving it uncancellable would
+        // leave half of the wait in place.
+        using var key = RSA.Create(2048);
+        using var certWithKey = SelfSignedCodeSigningCert(key, out var signingCert);
+
+        using var cts = new CancellationTokenSource();
+        var inFlight = new TaskCompletionSource();
+
+        var handler = new StubHandler(async (req, requestCt) =>
+        {
+            inFlight.TrySetResult();   // the very first request is the probe
+            await Task.Delay(TimeSpan.FromSeconds(5), requestCt);
+            return await LocalKeyResponse(key, signingCert, req);
+        });
+
+        CredentialBackends.TrustedSigningFactory = (opts, ct) =>
+            new AzureTrustedSigner(opts.TrustedSigningEndpoint!, opts.TrustedSigningAccount!,
+                opts.TrustedSigningProfile!, new FakeToken("tok"), handler, ct: ct);
+
+        using var tmp = new TempDir();
+        var dll = FixturePe.CopyToTemp(tmp.Path);
+        var options = TrustedSigningOptions();
+        var signer = AuthenticodeSigner.TryCreate(options, out _);
+
+        _ = inFlight.Task.ContinueWith(_ => cts.Cancel(), TaskScheduler.Default);
+
+        var elapsed = Stopwatch.StartNew();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => signer!.SignAsync(tmp.Path, dll, options, log: null, cts.Token));
+        elapsed.Stop();
+
+        Assert.True(inFlight.Task.IsCompleted, "the probe never reached the endpoint");
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(4),
+            $"cancellation took {elapsed.Elapsed} — the probe ran to completion");
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    private static SigningOptions TrustedSigningOptions() => new()
+    {
+        CertMode = CertMode.TrustedSigning,
+        TrustedSigningEndpoint = Endpoint,
+        TrustedSigningAccount = Account,
+        TrustedSigningProfile = Profile,
+        Description = "MacSign",
+    };
+
+    /// <summary>The SpcIndirectData for the unsigned PE fixture — the CMS layer's input.</summary>
+    private static byte[] Spc()
+    {
+        var format = new PeFormat();
+        return format.BuildSpcIndirectData(format.ComputeDigest(FixturePe.UnsignedBytes()));
+    }
 
     private static X509Certificate2 SelfSignedCodeSigningCert(RSA key, out string signingCertificate)
     {
@@ -372,7 +592,12 @@ public class AzureTrustedSigningTests
     }
 
     /// <summary>A fake sign endpoint that signs the posted digest with a local key.</summary>
-    private static StubHandler LocalKeyEndpoint(RSA key, string signingCertificate) => new(async req =>
+    private static StubHandler LocalKeyEndpoint(RSA key, string signingCertificate) =>
+        new(req => LocalKeyResponse(key, signingCertificate, req));
+
+    /// <summary>One terminal sign response, signed with the local key.</summary>
+    private static async Task<HttpResponseMessage> LocalKeyResponse(
+        RSA key, string signingCertificate, HttpRequestMessage req)
     {
         var body = await req.Content!.ReadAsStringAsync();
         var digest = Convert.FromBase64String(JsonDocument.Parse(body).RootElement.GetProperty("digest").GetString()!);
@@ -383,7 +608,7 @@ public class AzureTrustedSigningTests
             signature = Convert.ToBase64String(sig),
             signingCertificate,
         });
-    });
+    }
 
     private static HttpResponseMessage Json(HttpStatusCode code, object body) => new(code)
     {
@@ -391,11 +616,19 @@ public class AzureTrustedSigningTests
     };
 }
 
-/// <summary>Routes every request through a caller-supplied responder.</summary>
-internal sealed class StubHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> responder) : HttpMessageHandler
+/// <summary>
+/// Routes every request through a caller-supplied responder. The two-argument form also hands
+/// the responder the request's <see cref="CancellationToken"/>, so a stalling fake can prove an
+/// in-flight request is actually aborted rather than merely abandoned.
+/// </summary>
+internal sealed class StubHandler(
+    Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder) : HttpMessageHandler
 {
+    public StubHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> responder)
+        : this((req, _) => responder(req)) { }
+
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        => responder(request);
+        => responder(request, cancellationToken);
 }
 
 /// <summary>A token provider that returns a fixed token (no Azure round-trip).</summary>

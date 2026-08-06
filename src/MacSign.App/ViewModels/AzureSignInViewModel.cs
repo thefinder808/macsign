@@ -78,6 +78,10 @@ public partial class AzureSignInViewModel : ObservableObject
         {
             var account = await _authenticate(NullIfEmpty(TenantId), _cts.Token);
             Result = AzureSignInData.FromRecordJson(account.SerializedRecord);
+            // Remember the tenant as typed here. Entra only reports the canonical GUID, so
+            // without this a domain-form tenant would never match the field the user is
+            // looking at, and the Sign screen would read "not signed in" forever.
+            Result.RequestedTenant = NullIfEmpty(TenantId);
             Succeeded?.Invoke();
         }
         catch (OperationCanceledException)

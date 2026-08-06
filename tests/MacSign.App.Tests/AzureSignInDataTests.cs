@@ -58,9 +58,27 @@ public class AzureSignInDataTests
         using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(store.FilePath));
         var keys = doc.RootElement.GetProperty("AzureSignIn").EnumerateObject().Select(p => p.Name).ToList();
 
+        // Five account fields from Azure.Identity's record, plus RequestedTenant — our own
+        // annotation recording the tenant as the user typed it. All six are non-secret.
         Assert.Equal(
-            new[] { "Authority", "ClientId", "HomeAccountId", "TenantId", "Username" },
+            new[] { "Authority", "ClientId", "HomeAccountId", "RequestedTenant", "TenantId", "Username" },
             keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public void The_rebuilt_record_carries_only_the_fields_azure_identity_defined()
+    {
+        // RequestedTenant is ours, not Azure.Identity's. It must stay out of the record we
+        // hand back to the credential, or we would be feeding a foreign field into
+        // AuthenticationRecord.Deserialize.
+        var data = AzureSignInData.FromRecordJson(RecordJson);
+        data.RequestedTenant = "contoso.onmicrosoft.com";
+
+        using var doc = System.Text.Json.JsonDocument.Parse(data.ToRecordJson()!);
+        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
+
+        Assert.DoesNotContain("RequestedTenant", keys);
+        Assert.Contains("tenantId", keys);
     }
 
     [Fact]
@@ -94,5 +112,33 @@ public class AzureSignInDataTests
         // The reported bug in miniature: silently authenticating as the account you happen to
         // have, rather than the one the configuration asked for, is exactly what went wrong.
         Assert.False(AzureSignInData.FromRecordJson(RecordJson).MatchesTenant("tenant-b"));
+    }
+
+    [Fact]
+    public void A_domain_tenant_matches_the_sign_in_it_was_used_for()
+    {
+        // Entra always reports the canonical GUID in the record, but the Tenant field
+        // deliberately accepts a domain — `contoso.onmicrosoft.com` is its own watermark.
+        // Comparing only against the record left anyone who typed a domain reading as
+        // permanently "not signed in", with no way out short of wiping settings.
+        var data = AzureSignInData.FromRecordJson(RecordJson);      // tenantId = "tenant-a"
+        data.RequestedTenant = "contoso.onmicrosoft.com";
+
+        Assert.True(data.MatchesTenant("contoso.onmicrosoft.com"));
+        Assert.True(data.MatchesTenant("CONTOSO.ONMICROSOFT.COM"));
+        Assert.True(data.MatchesTenant("  contoso.onmicrosoft.com  "));
+        // …and the canonical form keeps working, so switching the field to the GUID is fine.
+        Assert.True(data.MatchesTenant("tenant-a"));
+    }
+
+    [Fact]
+    public void A_genuinely_different_tenant_still_reads_as_signed_out()
+    {
+        // The permissiveness above must not swallow the case the check exists for.
+        var data = AzureSignInData.FromRecordJson(RecordJson);
+        data.RequestedTenant = "contoso.onmicrosoft.com";
+
+        Assert.False(data.MatchesTenant("fabrikam.onmicrosoft.com"));
+        Assert.False(data.MatchesTenant("tenant-b"));
     }
 }
