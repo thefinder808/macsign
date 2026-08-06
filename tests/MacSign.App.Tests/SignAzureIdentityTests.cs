@@ -297,7 +297,102 @@ public class SignAzureIdentityTests
         Assert.DoesNotContain(" as ", vm.BannerDetail);
     }
 
+    [Fact]
+    public async Task A_run_that_fails_to_start_is_not_attributed_to_the_previous_account()
+    {
+        // The reset lived after the "couldn't build a signer" early return, so a local-key
+        // failure inherited the last Azure run's account — and Record() persists it. A PKCS#11
+        // module-not-found row reading "as alice@contoso.com" is the wrong-account confusion
+        // this feature removes, written to settings.json.
+        var engine = new FakeSignEngine(TestSigners.Throwaway())
+        {
+            SignResultFor = _ => SignResult.Ok() with { AuthenticatedAs = "alice@contoso.com (tenant t)" },
+        };
+        var vm = new SignViewModel(engine) { CredMode = CredMode.Azure, Account = "acct", Profile = "prof" };
+        vm.Files.Add(new FileItemViewModel("/tmp/first.dll", isSigned: false, sizeBytes: 1024));
+        await vm.SignCommand.ExecuteAsync(null);
+
+        // Now a run that never gets a credential at all.
+        var failing = new CapturingEngine();               // TryCreateSigner returns null
+        var vm2 = new SignViewModel(failing) { CredMode = CredMode.Pfx, PfxPath = "/tmp/gone.pfx" };
+        vm2.Files.Add(new FileItemViewModel("/tmp/second.dll", isSigned: false, sizeBytes: 1024));
+        RunData? recorded = null;
+        vm2.RunRecorded += r => recorded = r;
+
+        await vm2.SignCommand.ExecuteAsync(null);
+
+        Assert.DoesNotContain("alice@contoso.com", recorded!.Credential);
+    }
+
     // ── Pre-flight "who would sign?" ───────────────────────────────────────────
+
+    [Fact]
+    public async Task Changing_an_identity_input_discards_a_stale_check()
+    {
+        // The answer must not outlive the question. Check under tenant A, correct the tenant to
+        // B, and a pre-fix answer would sit there reading as the post-fix one — the confident
+        // wrong answer this whole feature exists to remove.
+        var engine = new FakeSignEngine(TestSigners.Throwaway()) { IdentityFor = _ => "alice@contoso.com (tenant a)" };
+        var vm = new SignViewModel(engine) { CredMode = CredMode.Azure, Account = "acct", Profile = "prof" };
+        await vm.CheckIdentityCommand.ExecuteAsync(null);
+        Assert.True(vm.HasCheckedIdentity);
+
+        vm.TenantId = "tenant-b";
+
+        Assert.False(vm.HasCheckedIdentity);
+    }
+
+    [Fact]
+    public async Task Switching_the_source_or_applying_a_profile_discards_a_stale_check()
+    {
+        var engine = new FakeSignEngine(TestSigners.Throwaway()) { IdentityFor = _ => "alice@contoso.com (tenant a)" };
+        var vm = new SignViewModel(engine) { CredMode = CredMode.Azure, Account = "acct", Profile = "prof" };
+
+        await vm.CheckIdentityCommand.ExecuteAsync(null);
+        vm.SetAzureSourceCommand.Execute(TrustedSigningCredentialSource.InteractiveBrowser);
+        Assert.False(vm.HasCheckedIdentity);
+
+        vm.SetAzureSourceCommand.Execute(TrustedSigningCredentialSource.Default);
+        await vm.CheckIdentityCommand.ExecuteAsync(null);
+        // Note the account alone does NOT change which Entra identity signs, so this answer
+        // would still be technically right — but a readback carried across a wholesale
+        // credential switch reads as an answer about the new one.
+        vm.ApplyProfile(new ProfileData { CredMode = "Azure", Account = "other", Profile = "p" });
+
+        Assert.False(vm.HasCheckedIdentity);
+    }
+
+    [Fact]
+    public void Checking_is_offered_only_for_the_default_azure_source()
+    {
+        // Today only the XAML hides the button; the invariant belongs in the command too.
+        var vm = Azure();
+        Assert.True(vm.CheckIdentityCommand.CanExecute(null));
+
+        vm.AzureSource = TrustedSigningCredentialSource.InteractiveBrowser;
+        Assert.False(vm.CheckIdentityCommand.CanExecute(null));
+
+        vm.AzureSource = TrustedSigningCredentialSource.Default;
+        vm.CredMode = CredMode.Pfx;
+        Assert.False(vm.CheckIdentityCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task A_long_failure_is_trimmed_to_something_the_panel_can_show()
+    {
+        // The default chain's failure is a wrapper plus an aggregate naming every credential it
+        // tried — routinely 1-2 KB, rendered into a 230px column. Unreadable exactly when it
+        // matters most.
+        var engine = new FakeSignEngine(TestSigners.Throwaway())
+        {
+            IdentityFor = _ => throw new InvalidOperationException(new string('x', 4000)),
+        };
+        var vm = new SignViewModel(engine) { CredMode = CredMode.Azure, Account = "acct", Profile = "prof" };
+
+        await vm.CheckIdentityCommand.ExecuteAsync(null);
+
+        Assert.True(vm.CheckedIdentity.Length < 500, $"was {vm.CheckedIdentity.Length} chars");
+    }
 
     [Fact]
     public async Task Checking_the_identity_reports_who_would_sign()

@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace MacSign.Signing.Azure;
 
 /// <summary>
-/// Reads the account out of an access token so an authentication failure can say <i>who</i> the
-/// token was issued to.
+/// Reads the account out of an access token so MacSign can say <i>who</i> it was issued to —
+/// on a rejection, on a successful run, and when asked outright ("who would sign?").
 /// <para>
 /// <b>Display only.</b> The token's signature is never checked here and nothing in this file may
 /// ever gate a security decision — treat every value as attacker-controlled text that is only
@@ -13,8 +13,9 @@ namespace MacSign.Signing.Azure;
 /// is exactly how someone can spend days granting roles to the wrong account.
 /// </para>
 /// <para>
-/// Every path returns null instead of throwing. This runs while formatting an error, and an
-/// exception raised there would replace a useful diagnostic with a confusing crash.
+/// Every path returns null instead of throwing. It runs while formatting an error — where an
+/// exception would replace a useful diagnostic with a confusing crash — and also on the success
+/// and pre-flight paths, where null simply means "couldn't read the account" and callers say so.
 /// </para>
 /// </summary>
 internal static class JwtIdentity

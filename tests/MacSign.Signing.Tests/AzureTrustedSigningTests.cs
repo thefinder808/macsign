@@ -213,6 +213,47 @@ public class AzureTrustedSigningTests
     }
 
     [Fact]
+    public async Task A_run_that_signed_nothing_names_nobody()
+    {
+        // Every target already signed → the engine skips them all and still returns Ok, so
+        // naming an account turned "nothing happened" into an affirmative claim about who
+        // signed what. The CLI printed "Done. Signed as alice@…" over zero signatures.
+        AzureBackend.Register();
+        using var key = RSA.Create(2048);
+        using var certWithKey = SelfSignedCodeSigningCert(key, out var signingCert);
+        var handler = LocalKeyEndpoint(key, signingCert);
+        CredentialBackends.TrustedSigningFactory = (_, ct) => new AzureTrustedSigner(
+            Endpoint, Account, Profile,
+            new FakeToken(Jwt("signer@contoso.com", "tenant-a")), handler, TimeSpan.Zero, ct);
+        try
+        {
+            using var dir = new TempDir();
+            var file = FixturePe.CopyToTemp(dir.Path);
+            var options = new SigningOptions
+            {
+                CertMode = CertMode.TrustedSigning,
+                TrustedSigningEndpoint = Endpoint,
+                TrustedSigningAccount = Account,
+                TrustedSigningProfile = Profile,
+            };
+            var signer = AuthenticodeSigner.TryCreate(options, out var e) ?? throw new InvalidOperationException(e);
+
+            var first = await signer.SignAsync(dir.Path, file, options);
+            Assert.Equal("signer@contoso.com (tenant tenant-a)", first.AuthenticatedAs);
+
+            // Same file again: already signed, so nothing is signed this time.
+            var second = await signer.SignAsync(dir.Path, file, options);
+
+            Assert.True(second.Success);
+            Assert.Null(second.AuthenticatedAs);
+        }
+        finally
+        {
+            AzureBackend.Register();
+        }
+    }
+
+    [Fact]
     public async Task A_credential_that_times_out_fails_the_run_rather_than_reading_as_cancelled()
     {
         // Same hazard one layer up. Before this guard learned to check the token, a 30s HTTP

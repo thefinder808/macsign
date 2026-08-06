@@ -67,4 +67,19 @@ var options = signingOptions with
 };
 ```
 
+Which account actually signed is reported on the result, so a successful run is attributable
+and not just "it worked" — `null` for a local key, whose certificate already is the identity:
+
+```csharp
+SignResult result = await signer.SignAsync(sourceFolder, setupFile, options);
+Console.WriteLine(result.AuthenticatedAs);   // user@contoso.com (tenant 1234…)
+```
+
+To answer it *before* signing, `AzureIdentity.DescribeAsync(options)` acquires a token and
+reads it. It deliberately does not build a credential signer — that would run the
+certificate-discovery probe, which is a real Trusted Signing operation against your quota.
+
+Both values come from an unvalidated token and are for display only; never gate a decision on
+them.
+
 Licensed under Apache-2.0.

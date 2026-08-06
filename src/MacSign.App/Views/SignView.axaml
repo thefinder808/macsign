@@ -336,7 +336,7 @@
                                     </Border>
                                 </StackPanel>
 
-                                <!-- Default source: unchanged behaviour, described accurately. -->
+                                <!-- Default source: describes the machine's sign-in, and offers to resolve it. -->
                                 <Border Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,9"
                                         IsVisible="{Binding !IsAzureBrowserSource}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -359,9 +359,8 @@
                                                     HorizontalAlignment="Left"
                                                     Foreground="{DynamicResource Accent}"
                                                     Command="{Binding CheckIdentityCommand}"
-                                                    IsEnabled="{Binding !IsCheckingIdentity}"
                                                     ToolTip.Tip="Acquires a token to see which account would sign. Does not sign anything."
-                                                    Content="Who would sign?" />
+                                                    Content="{Binding CheckIdentityLabel}" />
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>

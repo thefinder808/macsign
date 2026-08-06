@@ -265,6 +265,18 @@ public class AzureCredentialSelectionTests
         Assert.Null(await AzureIdentity.DescribeAsync(new FakeToken("not-a-jwt"), default));
     }
 
+    [Fact]
+    public async Task The_public_overload_reports_the_identity_of_a_supplied_token()
+    {
+        // Covers the PUBLIC entry point — the only one that reaches AzureCredentialFactory and
+        // so the only one that could ever prompt. An explicit token short-circuits before a
+        // credential is built, so this exercises it without touching the runner's keychain.
+        var identity = await AzureIdentity.DescribeAsync(
+            new SigningOptions { TrustedSigningAccessToken = Jwt("supplied@contoso.com", "tenant-a") });
+
+        Assert.Equal("supplied@contoso.com (tenant tenant-a)", identity);
+    }
+
     private static string Jwt(string username, string tenant)
     {
         var payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
