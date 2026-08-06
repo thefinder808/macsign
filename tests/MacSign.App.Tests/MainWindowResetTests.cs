@@ -8,6 +8,51 @@ namespace MacSign.App.Tests;
 
 public class MainWindowResetTests
 {
+    private const string RecordJson = """
+        {"username":"chosen@contoso.com","authority":"https://login.microsoftonline.com/t",
+         "homeAccountId":"h","tenantId":"t","clientId":"c","version":"1.0"}
+        """;
+
+    [Fact]
+    public void A_remembered_azure_sign_in_is_restored_at_launch()
+    {
+        var store = new SettingsStore(Path.Combine(Path.GetTempPath(), "macsign-main-" + Guid.NewGuid().ToString("N")));
+        var seed = new AppData { AzureSignIn = AzureSignInData.FromRecordJson(RecordJson) };
+        store.Save(seed);
+
+        var vm = new MainWindowViewModel(store);
+
+        Assert.Equal("chosen@contoso.com", vm.Sign.AzureSignIn?.Username);
+    }
+
+    [Fact]
+    public void Signing_in_is_persisted_by_the_shell()
+    {
+        // SignViewModel has no store of its own; the shell listens and writes.
+        var dir = Path.Combine(Path.GetTempPath(), "macsign-main-" + Guid.NewGuid().ToString("N"));
+        var vm = new MainWindowViewModel(new SettingsStore(dir));
+
+        vm.Sign.ApplyAzureSignIn(AzureSignInData.FromRecordJson(RecordJson));
+
+        Assert.Equal("chosen@contoso.com", new SettingsStore(dir).Load().AzureSignIn.Username);
+    }
+
+    [Fact]
+    public void ResetAll_clears_the_azure_sign_in()
+    {
+        // Not a secret, but "Reset all settings" that leaves your Entra identity behind is the
+        // same defect as leaving a typed password behind — which this repo has already fixed once.
+        var store = new SettingsStore(Path.Combine(Path.GetTempPath(), "macsign-main-" + Guid.NewGuid().ToString("N")));
+        store.Save(new AppData { AzureSignIn = AzureSignInData.FromRecordJson(RecordJson) });
+        var vm = new MainWindowViewModel(store);
+
+        vm.Preferences.ResetAllCommand.Execute(null);   // arm
+        vm.Preferences.ResetAllCommand.Execute(null);   // fire
+
+        Assert.False(vm.Sign.IsAzureSignedIn);
+        Assert.False(store.Load().AzureSignIn.IsSignedIn);
+    }
+
     [Fact]
     public void ResetAll_clears_profiles_activity_and_resets_prefs()
     {

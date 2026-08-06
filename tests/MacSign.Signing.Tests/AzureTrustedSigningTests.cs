@@ -85,6 +85,85 @@ public class AzureTrustedSigningTests
         Assert.Contains("2837e146-70d7-4cfd-ad55-7efa6464f958", ex.Message);
     }
 
+    [Fact]
+    public async Task A_403_names_the_identity_the_token_was_issued_to()
+    {
+        // The reported bug in one assertion: "it goes out with my daily driver account" was
+        // impossible to confirm, because the rejection named a role but never an identity.
+        var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("AuthorizationFailed"),
+        }));
+        using var client = new TrustedSigningClient(
+            Endpoint, Account, Profile,
+            new FakeToken(Jwt("daily.driver@contoso.com", "wrong-tenant-id")), handler, TimeSpan.Zero);
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => client.SignDigestAsync(SHA256.HashData([1]), "RS256", default));
+
+        Assert.Contains("daily.driver@contoso.com", ex.Message);
+        Assert.Contains("wrong-tenant-id", ex.Message);
+    }
+
+    [Fact]
+    public async Task A_401_also_names_the_identity()
+    {
+        // 401 falls to the generic branch, and it is the *likelier* symptom of a token minted
+        // in the wrong tenant — so it needs the identity at least as much as 403 does.
+        var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            Content = new StringContent("InvalidAuthenticationToken"),
+        }));
+        using var client = new TrustedSigningClient(
+            Endpoint, Account, Profile,
+            new FakeToken(Jwt("someone@contoso.com", "some-tenant")), handler, TimeSpan.Zero);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.SignDigestAsync(SHA256.HashData([1]), "RS256", default));
+
+        Assert.Contains("someone@contoso.com", ex.Message);
+        Assert.Contains("some-tenant", ex.Message);
+    }
+
+    [Fact]
+    public async Task An_empty_response_body_does_not_leave_a_dangling_detail()
+    {
+        // Seen live: a 401 with no body rendered "… Detail: " and then stopped, which reads
+        // like the message was cut off mid-sentence.
+        var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)));
+        using var client = new TrustedSigningClient(
+            Endpoint, Account, Profile, new FakeToken(Jwt("someone@contoso.com", "t")), handler, TimeSpan.Zero);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.SignDigestAsync(SHA256.HashData([1]), "RS256", default));
+
+        Assert.DoesNotContain("Detail:", ex.Message);
+        Assert.Contains("someone@contoso.com", ex.Message);   // the useful part survives
+    }
+
+    [Fact]
+    public async Task An_unreadable_token_still_leaves_the_403_role_hint_intact()
+    {
+        // Degrade, never crash: losing the identity must not cost us the advice that was
+        // already there. Throwing while formatting an exception is the worst outcome of all.
+        var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)));
+        using var client = new TrustedSigningClient(
+            Endpoint, Account, Profile, new FakeToken("this-is-not-a-jwt"), handler, TimeSpan.Zero);
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => client.SignDigestAsync(SHA256.HashData([1]), "RS256", default));
+
+        Assert.Contains("Artifact Signing Certificate Profile Signer", ex.Message);
+    }
+
+    /// <summary>An unsigned JWT carrying just the two claims the error path reads.</summary>
+    private static string Jwt(string username, string tenantId)
+    {
+        var payload = JsonSerializer.SerializeToUtf8Bytes(new { preferred_username = username, tid = tenantId });
+        var b64 = Convert.ToBase64String(payload).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return $"eyJhbGciOiJub25lIn0.{b64}.not-a-signature";
+    }
+
     // ── The contract: delegated path == in-proc path (signtool-proven) ─────────
 
     [Fact]
@@ -250,6 +329,28 @@ public class AzureTrustedSigningTests
 
         Assert.Null(signer);
         Assert.Contains("--trusted-signing-account", error);
+    }
+
+    [Fact]
+    public void TryCreate_rejects_browser_sign_in_with_no_recorded_account()
+    {
+        AzureBackend.Register();
+        var signer = AuthenticodeSigner.TryCreate(
+            new SigningOptions
+            {
+                CertMode = CertMode.TrustedSigning,
+                TrustedSigningEndpoint = Endpoint,
+                TrustedSigningAccount = Account,
+                TrustedSigningProfile = Profile,
+                TrustedSigningCredentialSource = TrustedSigningCredentialSource.InteractiveBrowser,
+                // …and no TrustedSigningAuthRecord.
+            },
+            out var error);
+
+        // Fail once, up front. Signing calls SignAsync once per file, so without this guard
+        // a 50-file run would report the same "you aren't signed in" 50 times.
+        Assert.Null(signer);
+        Assert.Contains("sign in", error, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

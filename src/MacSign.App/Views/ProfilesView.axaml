@@ -15,7 +15,24 @@
         </StackPanel>
 
         <!-- grid -->
-        <ScrollViewer IsVisible="{Binding HasProfiles}">
+        <DockPanel IsVisible="{Binding HasProfiles}" LastChildFill="True">
+
+            <!-- Save confirmation. Navigating here used to be the only signal a save
+                 happened, which reads as nothing once a few cards exist. -->
+            <Border DockPanel.Dock="Top" IsVisible="{Binding HasSavedNotice}"
+                    Background="{DynamicResource AccentSoft}" CornerRadius="10"
+                    Margin="18,18,18,0" Padding="12,10">
+                <StackPanel Orientation="Horizontal" Spacing="9">
+                    <Path Data="{StaticResource IcoCheck}" Stroke="{DynamicResource Accent}"
+                          StrokeThickness="1.8" Stretch="Uniform" Width="15" Height="15"
+                          VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SavedNotice}" FontSize="12.5"
+                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer>
             <ItemsControl ItemsSource="{Binding Profiles}" Margin="18,18,4,18">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -65,7 +82,8 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </ScrollViewer>
+            </ScrollViewer>
+        </DockPanel>
 
     </Panel>
 </UserControl>

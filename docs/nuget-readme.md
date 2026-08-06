@@ -44,4 +44,27 @@ Already-signed files are skipped, files are replaced atomically, and
 `SignatureVerifier.Verify(path)` reports signer / timestamp / chain state for any
 supported file.
 
+### Choosing the Azure signing identity
+
+With `CertMode.TrustedSigning`, tokens come from Azure.Identity's default chain unless
+told otherwise — which resolves to whichever account is already signed in on the machine.
+Set `TrustedSigningTenantId` to pin the directory (a GUID or a domain), since a token
+minted in the wrong tenant is rejected regardless of role assignments.
+
+For an interactive app, `TrustedSigningCredentialSource.InteractiveBrowser` signs with an
+account the user picked explicitly:
+
+```csharp
+// Once, from a user gesture — the only call in this library that opens a browser:
+AzureSignInResult account = await AzureSignIn.AuthenticateAsync(tenantId);
+
+// Then on every sign. Signing itself never prompts: it replays the recorded sign-in from
+// the OS keychain, or fails with a message telling the user to sign in again.
+var options = signingOptions with
+{
+    TrustedSigningCredentialSource = TrustedSigningCredentialSource.InteractiveBrowser,
+    TrustedSigningAuthRecord = account.SerializedRecord,   // no token; safe to persist
+};
+```
+
 Licensed under Apache-2.0.

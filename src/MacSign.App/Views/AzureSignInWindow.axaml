@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MacSign.App.ViewModels"
+        x:Class="MacSign.App.Views.AzureSignInWindow"
+        x:DataType="vm:AzureSignInViewModel"
+        Title="Sign in to Azure"
+        Width="440" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Bg1}">
+    <StackPanel Margin="22" Spacing="12">
+        <TextBlock Text="Choose the account that signs" FontSize="15" FontWeight="Bold"
+                   Foreground="{DynamicResource Ink}" />
+        <TextBlock Text="Opens your browser so you can pick which account to sign with, instead of using whichever one this Mac defaults to. Signing itself never opens a browser."
+                   FontSize="12" Foreground="{DynamicResource Ink2}" TextWrapping="Wrap" />
+
+        <StackPanel Spacing="5">
+            <TextBlock Classes="fieldlabel" Text="Tenant" />
+            <TextBox Classes="mono" Text="{Binding TenantId}" Watermark="contoso.onmicrosoft.com"
+                     ToolTip.Tip="The directory to sign in to — a tenant GUID or a domain. Blank uses the account's own home directory, which for a personal Microsoft account is never where an Azure signing account lives. `az account show --query tenantId -o tsv` prints the right one." />
+            <TextBlock Text="Leave blank only if this account belongs to your Azure directory. A personal Microsoft account does not."
+                       FontSize="11" Foreground="{DynamicResource Ink2}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <TextBlock Text="Nothing is stored by MacSign but the account's name and tenant; the tokens go into your login keychain."
+                   FontSize="11" Foreground="{DynamicResource Ink2}" TextWrapping="Wrap" />
+
+        <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="{DynamicResource Fail}"
+                   FontSize="12" TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+            <Button Classes="secondary" Content="Cancel" Click="OnCancel" IsCancel="True" />
+            <Button Classes="primary" Content="{Binding PrimaryLabel}" Command="{Binding SignInCommand}" IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -62,11 +62,15 @@ PIN=1234 dotnet run --project src/MacSign.Cli -- \
 
 # Sign with Azure Trusted Signing (key never leaves Azure). With no token flag the
 # token is acquired via Azure.Identity (az login, env service principal, or managed
-# identity); or pass one explicitly with --trusted-signing-token[-env]:
+# identity); or pass one explicitly with --trusted-signing-token[-env].
+# --trusted-signing-tenant pins the directory (a GUID or a domain) — set it when the
+# account holding the signing role lives in a different tenant than your everyday
+# sign-in, since a token minted in the wrong tenant is rejected whatever roles it has:
 dotnet run --project src/MacSign.Cli -- \
   sign --trusted-signing-endpoint eus.codesigning.azure.net \
        --trusted-signing-account my-account \
-       --trusted-signing-profile my-profile some.dll
+       --trusted-signing-profile my-profile \
+       --trusted-signing-tenant contoso.onmicrosoft.com some.dll
 
 # Verify a signature (reports signer, timestamp, integrity, and chain trust):
 dotnet run --project src/MacSign.Cli -- verify some.dll
@@ -74,6 +78,16 @@ dotnet run --project src/MacSign.Cli -- verify some.dll
 # Remove an existing signature, in place (PE / PowerShell / MSI):
 dotnet run --project src/MacSign.Cli -- remove some.dll
 ```
+
+### Choosing which Azure account signs
+
+Trusted Signing authorises the **identity** presented, not the machine, so signing fails if the token comes from the wrong account or the wrong directory — and by default that identity is simply whichever account `az login` last selected. Three ways to control it, in increasing order of directness:
+
+- **Pin the directory** with `--trusted-signing-tenant <guid-or-domain>`. Use this when the account holding the signing role lives in a different tenant than your everyday sign-in; a token minted in the wrong tenant is rejected no matter which roles it has.
+- **Change the CLI's account** with `az login --tenant <id>`, the idiomatic answer for scripts and CI. For an unattended pipeline, prefer an environment service principal (`AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/`AZURE_CLIENT_SECRET`) or a pre-fetched `--trusted-signing-token-env`.
+- **Sign in through a browser** from the app's Sign screen and pick the account yourself. Useful when the machine's default sign-in keeps reverting — with macOS Platform SSO, for instance, `az login` tends to land back on the device-registered account. The chosen account is remembered across launches in the OS keychain, and **Switch account** changes it. Signing itself never opens a browser, so it can't interrupt a batch.
+
+If a token *is* issued but rejected, the error names the account and tenant it was issued to, so you can see at a glance whether the identity you assigned the role to is the one actually being used.
 
 `verify` reports **signature integrity** (file unmodified + signer signature valid) separately from **chain trust** — on macOS the Microsoft roots aren't in the system store, so chain trust usually can't be established, but integrity can be asserted authoritatively. It lists **every signer** on a co-signed binary and flags a **nested signature**, and only surfaces an RFC3161 **timestamp it has cryptographically validated** (a forged or grafted token is not shown as the signing time).
 

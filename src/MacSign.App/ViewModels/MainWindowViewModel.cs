@@ -52,6 +52,10 @@ public partial class MainWindowViewModel : ObservableObject
         // Seed the Sign screen's defaults from prefs (replacing the hardcoded values).
         Sign.TimestampUrl = _data.Preferences.DefaultTimestampUrl;
         Sign.TimestampEnabled = _data.Preferences.TimestampByDefault;
+        // Restore the remembered Azure browser sign-in, so the user signs in once rather than
+        // every launch. Assigned directly, not via ApplyAzureSignIn, so seeding doesn't write
+        // straight back out through the change handler wired below.
+        Sign.AzureSignIn = _data.AzureSignIn;
 
         // Keep the Sign toolbar subtitle live as files/selection change.
         Sign.StateChanged += () => OnPropertyChanged(nameof(ToolbarSubtitle));
@@ -65,6 +69,12 @@ public partial class MainWindowViewModel : ObservableObject
         // "Save as profile" on the Sign screen itself — reusing NewProfile means the save
         // also navigates to Profiles, which is the confirmation (the app has no toast surface).
         Sign.SaveProfileRequested += NewProfile;
+        // The Sign screen owns no store, so the shell persists a sign-in (or a sign-out).
+        Sign.AzureSignInChanged += () =>
+        {
+            _data.AzureSignIn = Sign.AzureSignIn ?? new AzureSignInData();
+            _store.Save(_data);
+        };
         // Preferences → cross-VM actions.
         Preferences.ClearHistoryRequested += Activity.Clear;
         Preferences.CapChanged += Activity.ReTrim;
@@ -180,6 +190,7 @@ public partial class MainWindowViewModel : ObservableObject
         _data.Activity.Clear();
         _data.AppleSign = new AppleSignPrefs();
         _data.Preferences = new AppPrefs();
+        _data.AzureSignIn = new AzureSignInData();
         _store.Save(_data);
 
         Profiles.Clear();
@@ -193,6 +204,9 @@ public partial class MainWindowViewModel : ObservableObject
         // or a typed password/PIN survives "Reset all settings".
         Sign.PfxPassword = "";
         Sign.Pin = "";
+        // Same reasoning: ApplyProfile doesn't touch the sign-in (it belongs to the person, not
+        // to a profile), so "Reset all settings" would otherwise leave the Entra account behind.
+        Sign.AzureSignIn = null;
         Sign.TimestampUrl = _data.Preferences.DefaultTimestampUrl;
         Sign.TimestampEnabled = _data.Preferences.TimestampByDefault;
     }

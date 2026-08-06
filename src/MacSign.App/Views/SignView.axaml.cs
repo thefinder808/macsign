@@ -2,6 +2,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using MacSign.App.Services;
 using MacSign.App.ViewModels;
 
 namespace MacSign.App.Views;
@@ -30,6 +31,19 @@ public partial class SignView : UserControl
             vm.RemoveFileCommand.Execute(item);
             e.Handled = true;
         }
+    }
+
+    // Opening the browser lives in the view, not the view-model: the VM stays window-free,
+    // matching how the Mac screen opens its notary-profile dialog.
+    private async void OnAzureSignIn(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SignViewModel vm) return;
+        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+        if (vm.IsSigning) return;   // don't change identity mid-run
+
+        var account = await new AzureSignInWindow(vm.TenantId).ShowDialog<AzureSignInData?>(owner);
+        // Cancelled: keep whoever was signed in rather than silently signing the user out.
+        if (account is not null) vm.ApplyAzureSignIn(account);
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)

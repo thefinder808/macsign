@@ -42,6 +42,36 @@ public class ProfilesViewModelTests
     }
 
     [Fact]
+    public void Saving_a_new_profile_says_what_it_was_saved_as()
+    {
+        // Reported from a live run: "Save as profile" jumps to the Profiles screen, but that
+        // screen looks identical whether or not anything was saved — with several cards
+        // already there, nothing tells you which one is new, or that the click even landed.
+        var vm = new ProfilesViewModel(new AppData(), TempStore());
+
+        vm.Save(new ProfileData { Name = "thefinder808-signing", CredMode = "Azure", Account = "acct" });
+
+        Assert.Contains("thefinder808-signing", vm.SavedNotice);
+        Assert.True(vm.HasSavedNotice);
+    }
+
+    [Fact]
+    public void Re_saving_reports_an_update_under_the_name_the_user_chose()
+    {
+        // RefreshFrom deliberately keeps a rename, so the notice has to use the card's own
+        // name — echoing the caller's auto-generated one would name a profile that isn't there.
+        var data = new AppData();
+        data.Profiles.Add(new ProfileData { Name = "renamed-by-me", CredMode = "Pfx", PfxPath = "/certs/dev.pfx" });
+        var vm = new ProfilesViewModel(data, TempStore());
+
+        vm.Save(new ProfileData { Name = "dev", CredMode = "Pfx", PfxPath = "/certs/dev.pfx" });
+
+        Assert.Contains("renamed-by-me", vm.SavedNotice);
+        Assert.DoesNotContain("dev", vm.SavedNotice);
+        Assert.Single(vm.Profiles);
+    }
+
+    [Fact]
     public void Save_of_a_matching_credential_updates_the_existing_card_instead_of_duplicating()
     {
         var store = TempStore();

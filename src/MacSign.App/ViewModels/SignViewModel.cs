@@ -94,6 +94,61 @@ public partial class SignViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
     private string _endpoint = DefaultEndpoint;
 
+    // ── which Azure identity signs ──
+    // Left unset, Azure.Identity resolves to whatever answers first — on a Mac usually
+    // whichever account `az login` last selected, which need not be the one holding the role.
+
+    /// <summary>Entra tenant to authenticate against — a GUID or a domain. Blank = unpinned.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CredentialReady), nameof(IsAzureSignedIn), nameof(AzureAccountName), nameof(AzureSignInLabel))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
+    private string _tenantId = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CredentialReady), nameof(IsAzureBrowserSource), nameof(IsAzureSignedIn), nameof(AzureSignInLabel))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
+    private TrustedSigningCredentialSource _azureSource = TrustedSigningCredentialSource.Default;
+
+    /// <summary>The remembered browser sign-in, or null when signed out. Holds no token.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CredentialReady), nameof(IsAzureSignedIn), nameof(AzureAccountName), nameof(AzureSignInLabel))]
+    [NotifyCanExecuteChangedFor(nameof(SignCommand), nameof(SaveProfileCommand))]
+    private AzureSignInData? _azureSignIn;
+
+    public bool IsAzureBrowserSource => AzureSource == TrustedSigningCredentialSource.InteractiveBrowser;
+
+    /// <summary>
+    /// Signed in <i>and</i> for the tenant this profile asks for. A sign-in belonging to a
+    /// different tenant reads as signed out rather than being used anyway — silently signing
+    /// as an identity the user didn't ask for is the bug this screen exists to prevent.
+    /// </summary>
+    public bool IsAzureSignedIn => AzureSignIn is { IsSignedIn: true } s && s.MatchesTenant(TenantId);
+
+    /// <summary>Who a sign now goes out as, for the Sign screen's readback.</summary>
+    public string AzureAccountName => IsAzureSignedIn ? AzureSignIn!.Username! : "";
+
+    public string AzureSignInLabel => IsAzureSignedIn ? "Switch account" : "Sign in…";
+
+    [RelayCommand]
+    private void SetAzureSource(TrustedSigningCredentialSource source)
+    {
+        AzureSource = source;
+        StateChanged?.Invoke();
+    }
+
+    /// <summary>Raised when the signed-in Azure account changes, so the shell can persist it.
+    /// This VM holds no store of its own — the shell mediates, the same way it does for
+    /// "Save as profile".</summary>
+    public event Action? AzureSignInChanged;
+
+    /// <summary>Records a completed sign-in, or null to sign out ("Switch account").</summary>
+    public void ApplyAzureSignIn(AzureSignInData? signIn)
+    {
+        AzureSignIn = signIn;
+        AzureSignInChanged?.Invoke();
+        StateChanged?.Invoke();
+    }
+
     // ── options ──
     [ObservableProperty] private string _description = "";
     [ObservableProperty] private string _moreInfoUrl = "";
@@ -300,7 +355,10 @@ public partial class SignViewModel : ObservableObject
     {
         CredMode.Pfx => !string.IsNullOrWhiteSpace(PfxPath),
         CredMode.Pkcs11 => !string.IsNullOrWhiteSpace(ModulePath),
-        _ => !string.IsNullOrWhiteSpace(Account) && !string.IsNullOrWhiteSpace(Profile) && !string.IsNullOrWhiteSpace(Endpoint),
+        // Requiring the sign-in here disables the button, rather than letting a batch start
+        // and die on its first file with the same error repeated per row.
+        _ => !string.IsNullOrWhiteSpace(Account) && !string.IsNullOrWhiteSpace(Profile) && !string.IsNullOrWhiteSpace(Endpoint)
+             && (!IsAzureBrowserSource || IsAzureSignedIn),
     };
 
     private bool CanSign() => IsIdle && HasToSign && CredentialReady;
@@ -469,6 +527,8 @@ public partial class SignViewModel : ObservableObject
         Account    = IsAzure  ? NullIfEmpty(Account)    : null,
         Profile    = IsAzure  ? NullIfEmpty(Profile)    : null,
         Endpoint   = IsAzure  ? NullIfEmpty(Endpoint)   : null,
+        TenantId   = IsAzure  ? NullIfEmpty(TenantId)   : null,
+        CredentialSource = IsAzure ? AzureSource.ToString() : null,
         Timestamp = TimestampEnabled,
         TimestampUrl = NullIfEmpty(TimestampUrl),
         Description = NullIfEmpty(Description),
@@ -485,6 +545,24 @@ public partial class SignViewModel : ObservableObject
         Account  = p.Account  ?? "";
         Profile  = p.Profile  ?? "";
         Endpoint = p.Endpoint ?? DefaultEndpoint;
+        // Mode-scoped like everything else — a non-Azure profile clears both. But an *Azure*
+        // profile that predates these fields carries null, and blanking them would silently
+        // re-point signing at a different directory, or flip a signed-in user back to the
+        // machine default mid-session. Same deliberate exception TimestampUrl gets below;
+        // found by a legacy profile wiping a just-typed tenant on restore-at-launch.
+        if (!IsAzure)
+        {
+            TenantId = "";
+            AzureSource = TrustedSigningCredentialSource.Default;
+        }
+        else
+        {
+            if (p.TenantId is not null) TenantId = p.TenantId;
+            if (p.CredentialSource is not null)
+                AzureSource = p.CredentialSource == nameof(TrustedSigningCredentialSource.InteractiveBrowser)
+                    ? TrustedSigningCredentialSource.InteractiveBrowser
+                    : TrustedSigningCredentialSource.Default;
+        }
         TimestampEnabled = p.Timestamp;
         // Deliberate exception: profiles predating TimestampUrl carry null. Blanking the
         // URL would drop the TSA while the toggle still reads "on".
@@ -525,6 +603,11 @@ public partial class SignViewModel : ObservableObject
         TrustedSigningEndpoint = IsAzure ? NullIfEmpty(Endpoint) : null,
         TrustedSigningAccount = IsAzure ? NullIfEmpty(Account) : null,
         TrustedSigningProfile = IsAzure ? NullIfEmpty(Profile) : null,
+        TrustedSigningTenantId = IsAzure ? NullIfEmpty(TenantId) : null,
+        TrustedSigningCredentialSource = IsAzure ? AzureSource : TrustedSigningCredentialSource.Default,
+        // Scoped to the browser source on purpose: switching back to the default sign-in must
+        // actually use it, not keep quietly signing as the browser account.
+        TrustedSigningAuthRecord = IsAzure && IsAzureBrowserSource ? AzureSignIn?.ToRecordJson() : null,
         Secret = CredMode switch
         {
             CredMode.Pfx => NullIfEmpty(PfxPassword),

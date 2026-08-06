@@ -37,6 +37,28 @@ public sealed record SigningOptions
     /// </summary>
     public string? TrustedSigningAccessToken { get; init; }
 
+    /// <summary>
+    /// The Microsoft Entra tenant (directory) ID to authenticate against. Leave null to let
+    /// the credential use whichever tenant it defaults to. Set it when the account that holds
+    /// the signing role lives in a different tenant than your everyday sign-in — otherwise the
+    /// token is issued for the wrong tenant and the service answers 403 no matter which roles
+    /// you assign.
+    /// </summary>
+    public string? TrustedSigningTenantId { get; init; }
+
+    /// <summary>Which identity signs. See <see cref="TrustedSigningCredentialSource"/>.</summary>
+    public TrustedSigningCredentialSource TrustedSigningCredentialSource { get; init; }
+        = TrustedSigningCredentialSource.Default;
+
+    /// <summary>
+    /// A serialized Azure.Identity <c>AuthenticationRecord</c> from a previous browser sign-in,
+    /// required by <see cref="TrustedSigningCredentialSource.InteractiveBrowser"/>. It holds no
+    /// token — only the account's username, tenant, and home-account ID — so it is safe to
+    /// persist; the tokens themselves live in the OS keychain. Not a secret, but it does name
+    /// the operator, so <see cref="PrintMembers"/> shows presence rather than content.
+    /// </summary>
+    public string? TrustedSigningAuthRecord { get; init; }
+
     // ── Shared ─────────────────────────────────────────────────────────────────
     /// <summary>Signature description (SpcSpOpusInfo program name). Optional.</summary>
     public string? Description { get; init; }
@@ -65,7 +87,10 @@ public sealed record SigningOptions
     /// A record's synthesized <c>ToString()</c> prints every property — which would put the
     /// <see cref="Secret"/> and <see cref="TrustedSigningAccessToken"/> in cleartext if an
     /// options instance were ever interpolated into a log line or exception. Override the member
-    /// list so those two are redacted while the non-secret fields stay useful for diagnostics.
+    /// list so those are redacted while the non-secret fields stay useful for diagnostics.
+    /// <see cref="TrustedSigningAuthRecord"/> is redacted too — it carries no token, but it does
+    /// name the signed-in operator. This list is an allow-list: a new property is invisible in
+    /// <c>ToString()</c> until it is added here, so add every field deliberately.
     /// </summary>
     private bool PrintMembers(System.Text.StringBuilder b)
     {
@@ -76,12 +101,15 @@ public sealed record SigningOptions
         b.Append(", TrustedSigningEndpoint = ").Append(TrustedSigningEndpoint);
         b.Append(", TrustedSigningAccount = ").Append(TrustedSigningAccount);
         b.Append(", TrustedSigningProfile = ").Append(TrustedSigningProfile);
+        b.Append(", TrustedSigningTenantId = ").Append(TrustedSigningTenantId);
+        b.Append(", TrustedSigningCredentialSource = ").Append(TrustedSigningCredentialSource);
         b.Append(", Description = ").Append(Description);
         b.Append(", Url = ").Append(Url);
         b.Append(", SignAllSignableFiles = ").Append(SignAllSignableFiles);
         b.Append(", TimestampUrl = ").Append(TimestampUrl);
         b.Append(", Secret = ").Append(Secret is null ? "(null)" : "(set)");
         b.Append(", TrustedSigningAccessToken = ").Append(TrustedSigningAccessToken is null ? "(null)" : "(set)");
+        b.Append(", TrustedSigningAuthRecord = ").Append(TrustedSigningAuthRecord is null ? "(null)" : "(set)");
         return true;
     }
 }

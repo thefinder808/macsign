@@ -46,6 +46,7 @@ public sealed class SettingsStore
         d.Activity ??= new();
         d.AppleSign ??= new();
         d.Preferences ??= new();
+        d.AzureSignIn ??= new();
         return d;
     }
 

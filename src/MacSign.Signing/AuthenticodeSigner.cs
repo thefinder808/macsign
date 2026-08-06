@@ -54,6 +54,16 @@ public sealed class AuthenticodeSigner
                     error = "Azure Trusted Signing needs --trusted-signing-endpoint, --trusted-signing-account, and --trusted-signing-profile.";
                     return null;
                 }
+                // Signing never opens a browser — it replays a sign-in recorded earlier. Catch a
+                // missing one here rather than per file: SignAsync runs once per file, so this
+                // would otherwise surface as the same error repeated across the whole batch.
+                if (options.TrustedSigningCredentialSource == TrustedSigningCredentialSource.InteractiveBrowser &&
+                    string.IsNullOrWhiteSpace(options.TrustedSigningAuthRecord))
+                {
+                    error = "No Azure account is signed in. Sign in to Azure first (Sign screen → \"Sign in…\"), " +
+                            "or switch the credential source back to the default Azure sign-in.";
+                    return null;
+                }
                 break;
 
             default:

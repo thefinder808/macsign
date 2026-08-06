@@ -16,5 +16,5 @@ public static class AzureBackend
             options.TrustedSigningEndpoint!,
             options.TrustedSigningAccount!,
             options.TrustedSigningProfile!,
-            new DefaultAzureTokenProvider(options.TrustedSigningAccessToken));
+            new DefaultAzureTokenProvider(options));
 }
