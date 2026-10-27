@@ -208,8 +208,8 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "10.0.8",
-        "contentHash": "2wOycCqMyg9Tu+SDP03FFwDEWBni/3xOKgt0bRXplOvyeIcUJmWO7m3gTCF2mIdtQLROLtOP5VwWRT8YBwP/bA=="
+        "resolved": "10.0.14",
+        "contentHash": "Wz+IgL2xpg8KJ4i2VWj6uz1PmZNu4Q0Ljlwd73P9Vze5NcOBtctLii3itV0PB2MpOqwqDEGfB6RCdv94A4E5yQ=="
       },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",
@@ -262,27 +262,27 @@
       "macsign.signing": {
         "type": "Project",
         "dependencies": {
-          "System.Security.Cryptography.Pkcs": "[10.0.8, )"
+          "System.Security.Cryptography.Pkcs": "[10.0.14, )"
         }
       },
       "macsign.signing.azure": {
         "type": "Project",
         "dependencies": {
           "Azure.Identity": "[1.21.0, )",
-          "MacSign.Signing": "[1.2.0, )"
+          "MacSign.Signing": "[1.5.2, )"
         }
       },
       "macsign.signing.msi": {
         "type": "Project",
         "dependencies": {
-          "MacSign.Signing": "[1.2.0, )",
+          "MacSign.Signing": "[1.5.2, )",
           "OpenMcdf": "[3.1.4, )"
         }
       },
       "macsign.signing.pkcs11": {
         "type": "Project",
         "dependencies": {
-          "MacSign.Signing": "[1.2.0, )",
+          "MacSign.Signing": "[1.5.2, )",
           "Pkcs11Interop.X509Store": "[1.1.0, )"
         }
       }

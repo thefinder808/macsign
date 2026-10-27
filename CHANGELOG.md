@@ -6,6 +6,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-10-27
+
+### Security
+- Rebuilt on .NET 10.0.14, which patches CVE-2026-111497, an out-of-bounds write in the
+  runtime's Brotli decoder. The DMGs bundle the .NET runtime, so 1.5.1 and earlier ship the
+  vulnerable decoder. MacSign doesn't use Brotli decompression, so the risk was low.
+- `System.Security.Cryptography.Pkcs` 10.0.8 → 10.0.14, fixing two denial-of-service flaws
+  (CVE-2026-84008, high; CVE-2026-70162, moderate). Unlike the runtime, this package is not
+  fixed by a rebuild. The engine package now requires the fixed version, so apps that consume
+  `MacSign.Signing` pick it up by moving to 1.5.2.
+
 ## [1.5.1] — 2026-08-06
 
 ### Fixed
@@ -366,7 +377,10 @@ open-source licensing and project files and removes personal defaults from the U
 - Native macOS GUI (Avalonia): Sign / Verify / Profiles / Activity.
 - Tag-driven release CI that builds, signs, and notarizes the `arm64` + `x64` DMGs.
 
-[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/thefinder808/macsign/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/thefinder808/macsign/releases/tag/v1.5.2
+[1.5.1]: https://github.com/thefinder808/macsign/releases/tag/v1.5.1
+[1.5.0]: https://github.com/thefinder808/macsign/releases/tag/v1.5.0
 [1.4.0]: https://github.com/thefinder808/macsign/releases/tag/v1.4.0
 [1.3.0]: https://github.com/thefinder808/macsign/releases/tag/v1.3.0
 [1.2.0]: https://github.com/thefinder808/macsign/releases/tag/v1.2.0
