@@ -11,9 +11,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Security
 - Rebuilt on .NET 10.0.14, which patches CVE-2026-111497, an out-of-bounds write in the
   runtime's Brotli decoder. The DMGs bundle the .NET runtime, so 1.5.1 and earlier ship the
-  vulnerable decoder. MacSign doesn't use Brotli decompression, so the risk was low; this
-  release is precautionary. No code changes — the engine packages republish unchanged only
-  because `<Version>` is centralized.
+  vulnerable decoder. MacSign doesn't use Brotli decompression, so the risk was low.
+- `System.Security.Cryptography.Pkcs` 10.0.8 → 10.0.14, fixing two denial-of-service flaws
+  (CVE-2026-84008, high; CVE-2026-70162, moderate). Unlike the runtime, this package is not
+  fixed by a rebuild. The engine package now requires the fixed version, so apps that consume
+  `MacSign.Signing` pick it up by moving to 1.5.2.
 
 ## [1.5.1] — 2026-08-06
 
